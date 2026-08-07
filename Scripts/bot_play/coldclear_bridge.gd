@@ -7,8 +7,12 @@ class_name ColdClearBridge
 ## 逐步转为 BotAction 供 TetrisController 消费。
 ## 不再依赖外部 /root/ColdClearNative autoload（已删除）。
 
-const WORKER_PATH := "res://rust/cold_clear_engine/native/coldclear_worker.exe"
-const DLL_PATH := "res://rust/cold_clear_engine/native/cold_clear.dll"
+const WORKER_FILENAME := "coldclear_worker.exe"
+const DLL_FILENAME := "cold_clear.dll"
+## 开发/编辑器模式下 native 目录（res:// 直接映射项目磁盘目录）。
+const NATIVE_RES_DIR := "res://rust/cold_clear_engine/native"
+## 导出运行模式下 native 松散文件所在目录（exe 旁，由导出脚本复制）。
+const NATIVE_EXE_SUBDIR := "native"
 # ===== 冷Clear（ColdClear）搜索参数 · 控制文件：Scripts/bot_play/coldclear_bridge.gd（本文件） =====
 ## 发送给 ColdClear 时，可见窗口上方额外多带的行数（堆叠余量）。仅影响决策输入窗口，不影响棋盘。
 const EXTRA_TOP_ROWS := 4
@@ -130,10 +134,12 @@ func is_native_available() -> bool:
 	return _native_available
 
 func get_native_cc_info() -> Dictionary:
+	var native_dir: String = _resolve_native_dir()
 	return {
 		"enabled": _native_available,
-		"dll": DLL_PATH,
-		"worker": WORKER_PATH,
+		"dll": native_dir.path_join(DLL_FILENAME) if not native_dir.is_empty() else "",
+		"worker": native_dir.path_join(WORKER_FILENAME) if not native_dir.is_empty() else "",
+		"native_dir": native_dir,
 		"cooling_down": Time.get_ticks_msec() < _native_cooldown_until,
 	}
 
@@ -570,11 +576,31 @@ func _move_to_action(code: String) -> String:
 
 # ========== worker 子进程管理（自包含，原 coldclear_native_stub 逻辑） ==========
 
+## 定位 native 目录（worker/dll 所在目录）。
+## 导出运行：优先使用 exe 同目录下的 native/ 松散文件（由导出脚本复制到 exe 旁）。
+## 编辑器/开发：res:// 直接映射项目目录，回退到项目内的 native/。
+## 返回真实磁盘路径；找不到返回空串。
+func _resolve_native_dir() -> String:
+	# 1) 导出运行：exe 同目录下应有 native/ 松散文件
+	var exe_dir: String = OS.get_executable_path().get_base_dir()
+	var loose: String = exe_dir.path_join(NATIVE_EXE_SUBDIR)
+	if FileAccess.file_exists(loose.path_join(WORKER_FILENAME)):
+		return loose
+	# 2) 编辑器/开发模式：res:// 映射项目目录
+	var res_dir: String = ProjectSettings.globalize_path(NATIVE_RES_DIR)
+	if FileAccess.file_exists(res_dir.path_join(WORKER_FILENAME)):
+		return res_dir
+	return ""
+
 ## 启动 worker 子进程（幂等）。失败时返回 false。
 func start() -> bool:
 	if _started:
 		return true
-	var exe: String = ProjectSettings.globalize_path(WORKER_PATH)
+	var native_dir: String = _resolve_native_dir()
+	if native_dir.is_empty():
+		push_error("coldclear_worker.exe 不存在（未找到 native 目录，请确认已把 native 文件夹放到 exe 旁）")
+		return false
+	var exe: String = native_dir.path_join(WORKER_FILENAME)
 	if not FileAccess.file_exists(exe):
 		push_error("coldclear_worker.exe 不存在: " + exe)
 		return false
