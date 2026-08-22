@@ -13,7 +13,7 @@ class_name TetrisGarbageLineController
 @export var garbage_cap: int = 3                      # 每次锁定最多增长的垃圾行数量（也用于版面garbage_cap线）
 @export var garbage_messy: float = 0.9               # 垃圾行更换洞口的概率（0-1）
 @export var garbage_color: Color = Color(0.5, 0.5, 0.5, 1.0)  # 垃圾行颜色（浅灰色）
-@export var solid_garbage_color: Color = Color(0.55, 0.55, 0.55, 1.0)  # 实心垃圾行颜色（浅灰色）
+@export var solid_garbage_color: Color = Color(0.3, 0.3, 0.3, 1.0)  # 实心垃圾行颜色（深灰色）
 @export var garbage_empty_color: Color = Color(0.08, 0.08, 0.08, 1.0)  # 垃圾行洞口颜色（与版面背景一致）
 
 # 垃圾缓冲配置

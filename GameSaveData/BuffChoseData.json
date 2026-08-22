@@ -54,7 +54,8 @@
 		"BotPlay":"Bot模式：将会开启bot",
 		"ChangeBag_1":"采用14bag出块",
 		"ChangeBag_2":"采用概率出块",
-		"ChangeBag_3":"采用完全随机出块"
+		"ChangeBag_3":"采用完全随机出块",
+		"StartBoard":"StartBoard：自定义初始版面（从下往上印刷）"
 	},
 	"BuffChange":{
 		"Pressure1": {"total_apm_buff_mult": 1.2},
@@ -80,6 +81,13 @@
 		"BotPlay": {"BotMode": true},
 		"ChangeBag_1": {"BagType": 1},
 		"ChangeBag_2": {"BagType": 2},
-		"ChangeBag_3": {"BagType": 3}
+		"ChangeBag_3": {"BagType": 3},
+		"StartBoard": {
+			"StartBoard": [
+				["#E74C3C","#E74C3C","#E74C3C",0,0,0,0,"#E74C3C","#E74C3C","#E74C3C"],
+				["#3498DB",0,0,0,0,0,0,0,0,"#3498DB"],
+				["#2ECC71","#2ECC71","#2ECC71","#2ECC71","#2ECC71","#2ECC71","#2ECC71","#2ECC71","#2ECC71","#2ECC71"]
+			]
+		}
 	}
 }

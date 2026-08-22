@@ -96,15 +96,15 @@ var spin_damage_table: Dictionary = {
 	}
 }
 
-# All-Spin 伤害表（独立表，默认 [0,4,6,8]：消1权重保持4不变，消2/消3权重降低，可由 buff 界面调整）
-# 下标=消行数 1..3（下标0为0）。allspin_1 规则（tetris_allspin==1）下使用。
+# All-Spin 伤害表
+# 默认规则不使用该表
 var allspin_damage_table: Dictionary = {
 	1: 4,
 	2: 6,
 	3: 8
 }
 
-# 连击表
+# 连击表（默认使用公式而不使用该表）
 var combo_damage_list: Array = [
 	0,  #无连击
 	0,  # 1连击

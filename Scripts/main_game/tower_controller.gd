@@ -202,6 +202,78 @@ func _extra_data_deal():
 	if extra_data_dict.has("BotMode"):
 		tetris_controller.bot_mode = true
 
+	# StartBoard：按参数直接印刷自定义初始版面（从下往上）。
+	# 版面由 BuffChoseData 的 StartBoard 参数（二维数组）指定，第 0 行为最底层（最大 y）。
+	# 宽度与版面不一致或行数超出可玩高度时 push_error。
+	# 印刷通过 set_cell_color 直接写入 board_data；bot 在请求决策时实时读取 board_data
+	# （coldclear_bridge._build_board_rows），因此无需额外同步，bot 会自动看到该改写的初始版面。
+	if extra_data_dict.has("StartBoard"):
+		_print_start_board(extra_data_dict["StartBoard"])
+
+## 按 StartBoard 参数印刷初始版面（从下往上印刷）。
+## 第 0 行为最底层（最大 y），后续行依次向上。
+## 宽度与版面不一致（行宽 != grid_width）或行数超出可玩高度 → push_error。
+## 通过 set_cell_color 写入 board_data，bot 实时读取 board_data，因此自动同步给 bot。
+func _print_start_board(start_board: Variant) -> void:
+	if board_drawer == null:
+		push_error("StartBoard: 未找到 board_drawer，无法印刷初始版面")
+		return
+	# board_data 需已初始化（grid_width × grid_max_height）；若尚未初始化则延迟到所有节点 _ready 完成后印刷
+	if board_drawer.board_data.is_empty():
+		_print_start_board.call_deferred(start_board)
+		return
+	if typeof(start_board) != TYPE_ARRAY or start_board.is_empty():
+		push_error("StartBoard: 参数必须是非空二维数组（从下往上）")
+		return
+	var grid_w: int = board_drawer.grid_width
+	var playable_h: int = board_drawer.get_playable_height()
+	var rows: int = start_board.size()
+	if rows > playable_h:
+		push_error("StartBoard: 高度超出，行数 %d > 可玩高度 %d" % [rows, playable_h])
+		return
+	for i in range(rows):
+		var row: Variant = start_board[i]
+		if typeof(row) != TYPE_ARRAY:
+			push_error("StartBoard: 第 %d 行不是数组，格式错误" % i)
+			return
+		if row.size() != grid_w:
+			push_error("StartBoard: 宽度不匹配，第 %d 行宽度 %d != 版面宽度 %d" % [i, row.size(), grid_w])
+			return
+		var y: int = playable_h - 1 - i  # 从下往上：第 0 行印在最底层（最大 y）
+		for x in range(grid_w):
+			var color: Variant = _start_board_cell_to_color(row[x], i, x)
+			board_drawer.set_cell_color(x, y, color)
+	board_drawer.queue_redraw()
+
+## 将 StartBoard 单元格值转换为颜色。
+## null / 空字符串 / 0 → 空；字符串支持颜色名与十六进制（如 "#RRGGBB"）；
+## 特殊标记 "solid"/"实心" → 实心垃圾深灰，"garbage"/"垃圾" → 普通垃圾灰。
+func _start_board_cell_to_color(cell: Variant, row_i: int, col_i: int) -> Variant:
+	if cell == null:
+		return null
+	var t := typeof(cell)
+	if t == TYPE_STRING:
+		var s: String = str(cell).strip_edges().to_lower()
+		if s.is_empty() or s == "0" or s == "null" or s == "empty" or s == "空":
+			return null
+		if s == "solid" or s == "实心":
+			return garbage_line_controller.solid_garbage_color if garbage_line_controller else Color(0.3, 0.3, 0.3)
+		if s == "garbage" or s == "垃圾":
+			return garbage_line_controller.garbage_color if garbage_line_controller else Color(0.5, 0.5, 0.5)
+		var c: Color = Color.from_string(s, Color(-999, -999, -999))
+		if c.r < -100 or c.g < -100 or c.b < -100:
+			push_error("StartBoard: 无法解析颜色 '%s'（第 %d 行第 %d 列）" % [str(cell), row_i, col_i])
+			return null
+		return c
+	if t == TYPE_FLOAT or t == TYPE_INT:
+		var v: float = cell
+		if is_zero_approx(v):
+			return null
+		push_error("StartBoard: 不支持的数值单元格 %s（第 %d 行第 %d 列）" % [str(cell), row_i, col_i])
+		return null
+	push_error("StartBoard: 未知单元格类型 %s（第 %d 行第 %d 列）" % [str(cell), row_i, col_i])
+	return null
+
 ## 供 bot 读取当前关卡 buff 调整后的攻击倍率（send_mult_attack）。
 func get_send_mult_attack() -> float:
 	return send_mult_attack

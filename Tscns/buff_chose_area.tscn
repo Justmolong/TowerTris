@@ -33,15 +33,15 @@ grow_vertical = 2
 size_flags_horizontal = 3
 vertical_scroll_mode = 0
 
-[node name="ToggleGrid" type="Panel" parent="CanvasLayer/TopArea/TopScrollContainer" unique_id=251319495]
+[node name="ToggleGrid" type="VFlowContainer" parent="CanvasLayer/TopArea/TopScrollContainer" unique_id=61790521]
 layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 3
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 8
 
 [node name="List1" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=1000000008]
-layout_mode = 0
-offset_left = 10.0
-offset_top = 20.0
-offset_right = 82.0
-offset_bottom = 52.0
+layout_mode = 2
 
 [node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List1" unique_id=386797402]
 layout_mode = 2
@@ -81,11 +81,7 @@ box_size = 32
 default_checked = false
 
 [node name="List2" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=2147342561]
-layout_mode = 0
-offset_left = 10.0
-offset_top = 64.0
-offset_right = 82.0
-offset_bottom = 96.0
+layout_mode = 2
 
 [node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List2" unique_id=1041193734]
 layout_mode = 2
@@ -113,11 +109,7 @@ box_size = 32
 default_checked = false
 
 [node name="List3" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=484722952]
-layout_mode = 0
-offset_left = 10.0
-offset_top = 142.0
-offset_right = 82.0
-offset_bottom = 174.0
+layout_mode = 2
 
 [node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List3" unique_id=449802108]
 layout_mode = 2
@@ -135,11 +127,7 @@ box_size = 32
 default_checked = false
 
 [node name="List4" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=1202483152]
-layout_mode = 0
-offset_left = 9.0
-offset_top = 184.0
-offset_right = 470.0
-offset_bottom = 216.0
+layout_mode = 2
 
 [node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List4" unique_id=534188387]
 layout_mode = 2
@@ -256,11 +244,7 @@ box_size = 32
 default_checked = false
 
 [node name="List5" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=1455174070]
-layout_mode = 0
-offset_left = 9.0
-offset_top = 230.0
-offset_right = 81.0
-offset_bottom = 262.0
+layout_mode = 2
 
 [node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List5" unique_id=2106262616]
 layout_mode = 2
@@ -278,11 +262,7 @@ box_size = 32
 default_checked = false
 
 [node name="List6" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=1517168648]
-layout_mode = 0
-offset_left = 9.0
-offset_top = 272.0
-offset_right = 65.0
-offset_bottom = 304.0
+layout_mode = 2
 
 [node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List6" unique_id=1979673050]
 layout_mode = 2
@@ -300,11 +280,7 @@ box_size = 32
 default_checked = false
 
 [node name="List7" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=202804398]
-layout_mode = 0
-offset_left = 9.0
-offset_top = 312.0
-offset_right = 81.0
-offset_bottom = 344.0
+layout_mode = 2
 
 [node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List7" unique_id=1686125779]
 layout_mode = 2
@@ -322,11 +298,7 @@ box_size = 32
 default_checked = false
 
 [node name="List8" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=1495507124]
-layout_mode = 0
-offset_left = 10.0
-offset_top = 351.0
-offset_right = 82.0
-offset_bottom = 383.0
+layout_mode = 2
 
 [node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List8" unique_id=329050884]
 layout_mode = 2
@@ -344,11 +316,7 @@ box_size = 32
 default_checked = false
 
 [node name="List9" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=1836073464]
-layout_mode = 0
-offset_left = 405.0
-offset_top = 24.0
-offset_right = 511.0
-offset_bottom = 56.0
+layout_mode = 2
 
 [node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List9" unique_id=469802311]
 layout_mode = 2
@@ -366,11 +334,7 @@ box_size = 32
 default_checked = false
 
 [node name="List10" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=2000000010]
-layout_mode = 0
-offset_left = 405.0
-offset_top = 64.0
-offset_right = 600.0
-offset_bottom = 96.0
+layout_mode = 2
 
 [node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List10" unique_id=2000000011]
 layout_mode = 2
@@ -406,6 +370,24 @@ layout_mode = 2
 layout_mode = 2
 script = ExtResource("2_7sx2r")
 box_id = "ChangeBag_3"
+box_size = 32
+default_checked = false
+
+[node name="List11" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=2000000020]
+layout_mode = 2
+
+[node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List11" unique_id=2000000021]
+layout_mode = 2
+text = "版面："
+
+[node name="ConnectorLine" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List11" unique_id=2000000022]
+layout_mode = 2
+script = ExtResource("3_7sx2r")
+
+[node name="StartBoard" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List11" unique_id=2000000023]
+layout_mode = 2
+script = ExtResource("2_7sx2r")
+box_id = "StartBoard"
 box_size = 32
 default_checked = false
 
