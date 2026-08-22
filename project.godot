@@ -22,6 +22,10 @@ InputInitializer="*res://Scripts/auto_load/input_initializer.gd"
 RandomManager="*res://Scripts/auto_load/random_manager.gd"
 UiScaler="*res://Scripts/auto_load/ui_scaler.gd"
 
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/coldclear_export/plugin.cfg")
+
 [input]
 
 HardDrop={

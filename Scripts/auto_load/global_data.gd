@@ -24,6 +24,14 @@ var game_over_reason: String = "Game Over"
 
 ## 塔控制器初始数据（由 buff_chose_area 配置，tower_controller 读取）
 var tower_init_data: Dictionary = {}
+
+## 已选取的 buff 列表（由 buff_chose_area 开始游戏时记录，供结束界面右侧列表展示）
+## 元素形如 {"id": "Pressure1", "text": "高压I：apm总量增加20%"}
+var selected_buffs: Array = []
+
+## 标识：从结束界面返回 buff_chose_area 时是否恢复上次勾选
+## 由 game_over 的 BACK 按钮置 true，buff_chose_area 读取后立刻复位为 false
+var restore_buffs: bool = false
 # var pending_replay_path: String = ""  # 回放系统已禁用
 
 func reset_stats():

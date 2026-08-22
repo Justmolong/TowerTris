@@ -41,6 +41,7 @@ enum BotMsg {
         field: [[bool; 10]; 40],
         b2b: bool,
         combo: u32,
+        solid_rows: u64,
     },
     NewPiece(Piece),
     SuggestMove(u32),

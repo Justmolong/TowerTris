@@ -365,6 +365,50 @@ box_id = "BotPlay"
 box_size = 32
 default_checked = false
 
+[node name="List10" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=2000000010]
+layout_mode = 0
+offset_left = 405.0
+offset_top = 64.0
+offset_right = 600.0
+offset_bottom = 96.0
+
+[node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List10" unique_id=2000000011]
+layout_mode = 2
+text = "换袋："
+
+[node name="ConnectorLine" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List10" unique_id=2000000012]
+layout_mode = 2
+script = ExtResource("3_7sx2r")
+
+[node name="ChangeBag_1" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List10" unique_id=2000000013]
+layout_mode = 2
+script = ExtResource("2_7sx2r")
+box_id = "ChangeBag_1"
+box_size = 32
+default_checked = false
+
+[node name="Spacer_CB1_CB2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List10" unique_id=2000000014]
+custom_minimum_size = Vector2(16, 32)
+layout_mode = 2
+
+[node name="ChangeBag_2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List10" unique_id=2000000015]
+layout_mode = 2
+script = ExtResource("2_7sx2r")
+box_id = "ChangeBag_2"
+box_size = 32
+default_checked = false
+
+[node name="Spacer_CB2_CB3" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List10" unique_id=2000000016]
+custom_minimum_size = Vector2(16, 32)
+layout_mode = 2
+
+[node name="ChangeBag_3" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List10" unique_id=2000000017]
+layout_mode = 2
+script = ExtResource("2_7sx2r")
+box_id = "ChangeBag_3"
+box_size = 32
+default_checked = false
+
 [node name="MiddleLeftArea" type="ColorRect" parent="CanvasLayer" unique_id=404125588]
 anchors_preset = -1
 anchor_top = 0.6

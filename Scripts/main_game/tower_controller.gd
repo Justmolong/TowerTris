@@ -17,6 +17,11 @@ var current_stage : int = 0
 var current_apm : float = 0
 var extra_percent_apm : float = 0
 
+var publish_time_array : Array = [0,10,20,30,40,50]#[0,60*7,60*8,60*9,60*10,60*11]
+var publish_stage : int = 0
+var publish_make_finish : int = 0
+var publish_mult_attack : float = 1.0
+
 var stage_garbage_time : Array = [10,8,7,7,6,6,5,5,4,3,2,2,2,1,1,1,0.5]
 var stage_garbage_divide : Array = []
 var garbage_collect_percent : float = 0.1
@@ -27,9 +32,9 @@ var garbage_divide_percent_array: Array = [0.8,0.6,0.4,0.2,0.2,0.1,0.1,0,0.1,0.2
 var garbage_hole_change_percent_array: Array = [0.1,0.1,0.1,0.2,0.4,0.5,0.6,0.7,0.8,0.9]
 var collected_count : int = 0
 var collected_garbage : Array = []
-var pressure_mult : float = 1.0
-var send_mult_attack: float = 1
 var pressure_mult_array: Array = [1,1,1,1,1,1,1,1,1,1,1.25,1.5,2,2.5,3,4,5,6,7]
+var pressure_mult : float = 1.0
+var send_mult_attack: float = 1.0
 
 var gravity_drop_time_array: Array = [5]
 var lock_delay_array: Array = [1]
@@ -63,6 +68,8 @@ var extra_data_dict: Dictionary = {}
 
 var garbage_sent_timer : Timer
 var big_attack_delay_timer : Timer
+
+var self_game_time : float
 
 func _ready() -> void:
 	_auto_finding()
@@ -216,10 +223,24 @@ func _process(delta: float) -> void:
 		if tower_meter > FLOOR_HIGHER[i]:
 			current_stage = i
 	
-	# 检测阶段变化
+	#阶段变化检测
 	if current_stage != _previous_stage:
 		stage_changed.emit(_previous_stage, current_stage)
 		_previous_stage = current_stage
+	
+	total_get_data()
+	
+	publish_make()
+	
+	if garbage_sent_time != 0 and garbage_sent_timer.is_stopped():
+		garbage_sent_timer.wait_time = garbage_sent_time + tower_rng.randf_range(-garbage_sent_time/2.0,garbage_sent_time/2.0)
+		garbage_sent_timer.start()
+	
+	_tower_climb(delta)
+
+
+func total_get_data():
+	self_game_time = tetris_controller.game_time
 	
 	garbage_sent_time = default_get_oneD_array_things(current_stage,stage_garbage_time)
 	tower_current_dropped_mult = default_get_oneD_array_things(current_stage,tower_dropped_mult)
@@ -233,14 +254,25 @@ func _process(delta: float) -> void:
 	garbage_line_controller.garbage_messy = default_get_oneD_array_things(current_stage,garbage_hole_change_percent_array)
 	tetris_controller.gravity_drop_time = default_get_oneD_array_things(current_stage,gravity_drop_time_array)
 	tetris_controller.lock_delay = default_get_oneD_array_things(current_stage,lock_delay_array)
+
+func publish_make():
+	for i in range(0,publish_time_array.size()):
+		if self_game_time > publish_time_array[i]:
+			publish_stage = i
 	
-	if garbage_sent_time != 0 and garbage_sent_timer.is_stopped():
-		garbage_sent_timer.wait_time = garbage_sent_time + tower_rng.randf_range(-garbage_sent_time/2.0,garbage_sent_time/2.0)
-		garbage_sent_timer.start()
+	if publish_make_finish != publish_stage:
+		if publish_stage == 1:
+			garbage_line_controller.add_solid_garbage(2)
+		if publish_stage == 2:
+			publish_mult_attack = 1.2
+		if publish_stage == 3:
+			garbage_line_controller.add_solid_garbage(3)
+		if publish_stage == 4:
+			publish_mult_attack = 1.5
+		if publish_stage == 5:
+			garbage_line_controller.add_solid_garbage(5)
 	
-	_tower_climb(delta)
-	
-# 调试信息已移至 FPSDisplay 统一显示
+		publish_make_finish = publish_stage
 
 func _tower_climb(delta: float):
 	if tower_speed_meter < tower_lowest_speed:
@@ -253,6 +285,7 @@ func _tower_climb(delta: float):
 	
 	tower_meter += tower_speed_meter * delta
 
+##塔的模拟伤害攻击
 func _try_sent_garbage():
 	var decided_attack : int = ceil(current_apm/60*garbage_sent_time)
 	var i = 0
@@ -290,8 +323,9 @@ func _try_sent_garbage():
 
 func _tower_garbage_sent(attack: Array):
 	for i in attack:
-		garbage_line_controller.add_attack(i * send_mult_attack)
+		garbage_line_controller.add_attack(ceil(i * send_mult_attack * publish_mult_attack))
 
+##快速重新分割攻击储存列表并形成!!!!攻击
 func _quick_big_attack_clear(segment: int):
 	var total_attack: int = 0
 	for i in big_attack_enter_array:
@@ -307,6 +341,7 @@ func _quick_big_attack_clear(segment: int):
 	if total_attack != 0:
 		big_attack_enter_array.append(total_attack)
 
+##!!!!攻击警示器
 func _warning_big_collected_enter():
 	big_attack_warning_ended.emit()
 	garbage_line_controller.add_attack(big_attack_enter_array[0])
@@ -318,6 +353,7 @@ func _warning_big_collected_enter():
 		big_attack_delay_timer.wait_time = big_attack_delay
 		big_attack_enter_array.clear()
 
+##内置的检索，默认超出列表范围时返回列表最后一项，仅能用于一维列表
 func default_get_oneD_array_things(id:int,array:Array):
 	if id >= array.size():
 		return array[array.size()-1]
@@ -330,6 +366,7 @@ func attack_increase_tower(attack:float, is_defence:bool = false):
 	tower_meter += attack * attack_to_meter_mult
 	tower_speed_meter += attack * attack_to_speed_mult
 
+##尝试给予击杀奖励，通过输入攻击后进行随机击杀计算
 func try_give_kill_reward(attack:int):
 	var try_times : int = floor(1.0 * attack / killer_spike)
 	var last_attack : int = attack - try_times * killer_spike

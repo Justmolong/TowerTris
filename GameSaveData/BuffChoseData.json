@@ -27,7 +27,8 @@
 		"Suddenly_Death": ["SuddenlyDeath_1","SuddenlyDeath_2","SuddenlyDeath_3","SuddenlyDeath_4",
 			"SuddenlyDeath_5","SuddenlyDeath_6","SuddenlyDeath_7","SuddenlyDeath_8","SuddenlyDeath_9","SuddenlyDeath_10"],
 		"Gravity": ["Gravity_1"],
-		"NoHold": ["NoHold_1"]
+		"NoHold": ["NoHold_1"],
+		"ChangeBag": ["ChangeBag_1","ChangeBag_2","ChangeBag_3"]
 	},
 	"BuffInfo":{
 		"Pressure1": "高压I：apm总量增加20%",
@@ -50,7 +51,10 @@
 		"Allspin_1":"全旋I：启用Allspin，当消行类型与行数都与上次完全一致时立刻上涨一行垃圾行",
 		"NoHold_1":"无暂存I：禁用暂存",
 		"Talentless":"无天赋：禁用全部Spin",
-		"BotPlay":"Bot模式：将会开启bot"
+		"BotPlay":"Bot模式：将会开启bot",
+		"ChangeBag_1":"采用14bag出块",
+		"ChangeBag_2":"采用概率出块",
+		"ChangeBag_3":"采用完全随机出块"
 	},
 	"BuffChange":{
 		"Pressure1": {"total_apm_buff_mult": 1.2},
@@ -73,6 +77,9 @@
 		"Allspin_1": {"tetris_allspin": 1, "allspin_repeat_penalty": -500},
 		"NoHold_1": {"NoHold": true},
 		"Talentless": {"NoSpin": true},
-		"BotPlay": {"BotMode": true}
+		"BotPlay": {"BotMode": true},
+		"ChangeBag_1": {"BagType": 1},
+		"ChangeBag_2": {"BagType": 2},
+		"ChangeBag_3": {"BagType": 3}
 	}
 }

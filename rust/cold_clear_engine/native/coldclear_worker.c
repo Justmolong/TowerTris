@@ -162,9 +162,9 @@ typedef struct CCWeights {
 } CCWeights;
 
 /* ---- function pointer signatures (from c-api coldclear.h) ---- */
-typedef CCAsyncBot *(*Fn_launch_with_board)(CCOptions *, CCWeights *, CCBook *, bool *, uint32_t, CCPiece *, bool, uint32_t, CCPiece *, uint32_t);
+typedef CCAsyncBot *(*Fn_launch_with_board)(CCOptions *, CCWeights *, CCBook *, bool *, uint32_t, CCPiece *, bool, uint32_t, CCPiece *, uint32_t, uint64_t);
 typedef void (*Fn_destroy)(CCAsyncBot *);
-typedef void (*Fn_reset)(CCAsyncBot *, bool *, bool, uint32_t);
+typedef void (*Fn_reset)(CCAsyncBot *, bool *, bool, uint32_t, uint64_t);
 typedef void (*Fn_add_next_piece)(CCAsyncBot *, CCPiece);
 typedef void (*Fn_request_next_move)(CCAsyncBot *, uint32_t);
 typedef CCBotPollStatus (*Fn_poll_next_move)(CCAsyncBot *, CCMove *, CCPlanPlacement *, uint32_t *);
@@ -213,6 +213,7 @@ static int32_t g_wasted_t = -152;
 static int32_t g_move_time = -3;
 static int32_t g_kick_table[64] = {0};
 static int32_t g_kick_len = 0;
+static uint64_t g_solid_mask = 0;   /* 实心垃圾行位掩码（bit = CC 行号，0=底部） */
 static int32_t g_combo_damage[32] = {
     0, 0, 0, 1, 1, 1, 2, 2, 3, 3, 4, 4, 4, 4, 5, 5,
     5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5
@@ -522,6 +523,7 @@ int main(int argc, char **argv) {
 			if (h > 0 && h <= 40) g_H = h;
 			/* Host sends R rows after each W; clear previous snapshot first to avoid stale cells. */
 			clear_field(g_field);
+			g_solid_mask = 0;   /* 实心行掩码由随后的 G 命令提供 */
 		}
 		else if (strcmp(cmd, "R") == 0) {
 			int r = -1; char row[64];
@@ -550,8 +552,18 @@ int main(int argc, char **argv) {
             int rnt = tokenize(line, rtoks, 80);
             parse_game_rules(rtoks, rnt);
             g_rules_version++;
-        }
-        else if (strcmp(cmd, "GO") == 0) {
+        }        else if (strcmp(cmd, "G") == 0) {
+            /* 实心垃圾行掩码：G <mask>，mask 位 i = 发送窗口行 i 是实心行（0=窗口顶部，与 R 一致） */
+            unsigned long long m = 0;
+            sscanf(line, "%*s %llu", &m);
+            /* 转成 CC 行号（0=底部）位掩码：窗口行 r ↔ cold_row = (g_H-1)-r */
+            g_solid_mask = 0;
+            for (int r = 0; r < g_H; r++) {
+                if ((m >> r) & 1ULL) {
+                    g_solid_mask |= 1ULL << (unsigned)((g_H - 1) - r);
+                }
+            }
+        }        else if (strcmp(cmd, "GO") == 0) {
 			char *toks[80];
 			int nt = tokenize(line, toks, 80);
 			int use_hold = (nt > 1) ? atoi(toks[1]) : 1;
@@ -633,7 +645,7 @@ int main(int argc, char **argv) {
 					g_field, bag_remain,
 					g_has_hold ? &g_hold : NULL,
 					b2b ? true : false, (uint32_t)combo,
-					queue, (uint32_t)qn);
+					queue, (uint32_t)qn, g_solid_mask);
 			} else {
 				if (g_has_pred_field && !snapshot_matches_pred(g_field, g_pred_field, g_W, g_H)) {
 					need_reset = true;
@@ -655,12 +667,12 @@ int main(int argc, char **argv) {
 						g_field, bag_remain,
 						g_has_hold ? &g_hold : NULL,
 						b2b ? true : false, (uint32_t)combo,
-						queue, (uint32_t)qn);
+						queue, (uint32_t)qn, g_solid_mask);
 					need_reset = false;
 				} else {
 					if (need_reset) {
 						/* Board changed unexpectedly (e.g. sudden garbage rise): reset field state. */
-						reset_bot(g_bot, g_field, b2b ? true : false, (uint32_t)combo);
+						reset_bot(g_bot, g_field, b2b ? true : false, (uint32_t)combo, g_solid_mask);
 					}
 					for (int i = overlap; i < qn; ++i) {
 						add_next(g_bot, queue[i]);

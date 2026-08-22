@@ -75,6 +75,10 @@ var lock_delay: float = 1  # 触底后锁定延迟（秒）
 var gravity_drop_time: float = 5
 var gravity_timer: Timer
 
+# 方块锁定后的生成延迟（秒）：>0 时先等待该延迟再开始消行判定；0 表示不等待
+var spawn_delay_time: float = 0
+var spawn_delay_timer: Timer
+
 # ========== 统计系统 ==========
 # 全局计时
 var game_time: float = 0.0          # 游戏总时间（秒）
@@ -356,6 +360,12 @@ func _set_timer():
 	lock_timer.one_shot = true
 	lock_timer.timeout.connect(_lock_piece)
 	add_child(lock_timer)
+	
+	# 生成延迟计时器：方块锁定后先等待 spawn_delay_time，再开始消行判定
+	spawn_delay_timer = Timer.new()
+	spawn_delay_timer.one_shot = true
+	spawn_delay_timer.timeout.connect(_process_after_spawn_delay)
+	add_child(spawn_delay_timer)
 	
 	gravity_timer = Timer.new()
 	if gravity_drop_time != 0:
@@ -665,6 +675,9 @@ func _check_collision(pos: Vector2i, piece: Array = current_piece, ignore_curren
 
 ## 尝试移动方块
 func _try_move(delta_x: int, delta_y: int) -> bool:
+	# 手上无方块（生成/消行延迟期间）：不移动，避免空方块在 while 循环里无限下落导致卡死
+	if current_piece.is_empty():
+		return false
 	var new_pos = Vector2i(current_position.x + delta_x, current_position.y + delta_y)
 	_check_underground_touch()
 	
@@ -693,26 +706,31 @@ func _check_underground_touch():
 	elif lock_timer.is_stopped():
 		lock_timer.start()
 
-# 修改锁定方法，确保垃圾行在正确时机触发
-func _force_lock_piece():
-	# 先检测是否有消行
-	var cleared = _check_and_clear_lines()
-	
-	# 只有在没有消行的情况下才触发垃圾行增长
-	if cleared == 0 and garbage_line_controller:
-		garbage_line_controller.process_garbage_after_lock()
-	
-	spawn_new_piece()
-
+## 锁定当前方块。
+## 逻辑上清除 current_piece（board_data 中已锁定的格子保持不变），
+## 先触发 spawn_delay_time 延迟（为 0 时无需等待），延迟结束后再开始消行判定。
+## 生成新方块由 TetrisClearLine 在消行结束后调用 spawn_new_piece() 完成。
 func _lock_piece():
+	# 已在等待生成新方块时避免重复触发
+	if current_piece.is_empty():
+		return
+	# 逻辑上清除当前方块（保留 board_data 中已锁定的格子）
+	current_piece = []
+	# 触发生成延迟；为 0 时直接处理消行
+	if spawn_delay_time > 0:
+		spawn_delay_timer.wait_time = spawn_delay_time
+		spawn_delay_timer.start()
+	else:
+		_process_after_spawn_delay()
+
+## 生成延迟结束：开始处理消行判定（消行 + 统计 + 垃圾处理）
+func _process_after_spawn_delay():
 	# 先检测是否有消行
 	var cleared = _check_and_clear_lines()
 	
 	# 只有在没有消行的情况下才触发垃圾行增长
 	if cleared == 0 and garbage_line_controller:
 		garbage_line_controller.process_garbage_after_lock()
-	
-	spawn_new_piece()
 
 ## 检测并消除完整的行，并处理垃圾行抵消
 func _check_and_clear_lines() -> int:
@@ -782,6 +800,8 @@ func rotate_180():
 
 ## 旋转方块核心逻辑
 func _rotate_piece(direction: int):
+	if current_piece.is_empty():
+		return false  # 手上无方块（延迟期间）：不旋转
 	var rotated_piece
 	
 	match direction:
@@ -877,6 +897,8 @@ func _get_rotated_matrix(piece: Array, direction: int) -> Array:
 
 ## 暂存当前方块
 func hold_current_piece():
+	if current_piece.is_empty():
+		return false  # 手上无方块（延迟期间）：不可暂存
 	if no_hold:
 		return false  # NoHold模式：禁用暂存
 	if not can_hold:
@@ -1008,11 +1030,15 @@ func soft_drop():
 ## 软降到底（不锁定）：bot 路径中的 "soft_drop" 动作（ColdClear SonicDrop）使用本方法，
 ## 对应将当前方块一直下落到触底位置，但不像 hard_drop 那样立即锁定，等待后续 hard_drop 锁定。
 func soft_drop_to_bottom():
+	if current_piece.is_empty():
+		return  # 手上无方块（延迟期间）：不下落
 	while _try_move(0, 1):
 		pass
 
 ## 硬降（直接落底）
 func hard_drop():
+	if current_piece.is_empty():
+		return  # 手上无方块（延迟期间）：不硬降
 	# 一直向下移动直到碰撞
 	while _try_move(0, 1):
 		pass  # 继续移动
@@ -1022,7 +1048,7 @@ func hard_drop():
 		print("[BotLock] piece=", current_piece_type, " final=(", current_position.x, ",", current_position.y, ")")
 	
 	# 触底后立即锁定
-	_force_lock_piece()
+	_lock_piece()
 
 # ========== 更新循环 ==========
 
@@ -1159,6 +1185,9 @@ func _get_bot_piece_interval() -> float:
 
 ## 处理键盘输入
 func _process_input():
+	# 手上无方块（生成/消行延迟期间）：不处理输入，避免对空方块执行旋转/暂存/硬降
+	if current_piece.is_empty():
+		return
 	#arr和das判定
 	if press_key["LeftMove"] == 1 and press_key["RightMove"] == 1:
 		if not double_press:
@@ -1286,6 +1315,9 @@ func replay_set_keyvar_input():
 # 		check_for_single_press[action] = 0
 
 func gravity_drop():
+	# 手上无方块（生成/消行延迟期间）：跳过下落逻辑
+	if current_piece.is_empty():
+		return
 	if gravity_timer.is_stopped() and gravity_drop_time != 0:
 		_try_move(0,1)
 		#garbage_line_controller.add_attack(5)
