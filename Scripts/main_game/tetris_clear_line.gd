@@ -16,7 +16,7 @@ class_name TetrisClearLine
 @export var clear_text_display_duration: float = 2.0  # 消行文本显示持续时间（秒）
 
 # 消行延迟时间（秒）：>0 时先播放消行动画（持续 clear_line_delay_time），动画结束后才生成新方块；0 表示无延迟
-@export var clear_line_delay_time: float = 0.5
+@export var clear_line_delay_time: float = 0.0
 
 # 消行延迟状态
 var clear_line_delay_timer: Timer  # 消行延迟计时器

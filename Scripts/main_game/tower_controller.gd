@@ -17,7 +17,7 @@ var current_stage : int = 0
 var current_apm : float = 0
 var extra_percent_apm : float = 0
 
-var publish_time_array : Array = [0,10,20,30,40,50]#[0,60*7,60*8,60*9,60*10,60*11]
+var publish_time_array : Array = [0,60*7,60*8,60*9,60*10,60*11]
 var publish_stage : int = 0
 var publish_make_finish : int = 0
 var publish_mult_attack : float = 1.0
