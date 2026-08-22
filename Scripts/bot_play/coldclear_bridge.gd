@@ -477,6 +477,19 @@ func _build_command_batch(
 	lines.append("W 10 %d" % h)
 	for i in range(h):
 		lines.append("R %d %s" % [i, str(board_rows[i])])
+	# 实心垃圾行掩码：G <mask>，位 i = 窗口行 i 是实心行（0=窗口顶部，与 R 命令一致）。
+	# worker 会转成 CC 行号掩码并传给 Board，使 CC 知道这些行即使填满也不消行。
+	# 否则 CC 会把全满的实心行当作可消行，预测消行与实际不符 → 对账失败/报错。
+	var br_drawer = game_controller.board_drawer if game_controller != null else null
+	var br_above: int = br_drawer.above_visible_rows if br_drawer != null else 0
+	var br_start_y: int = max(0, br_above - EXTRA_TOP_ROWS)
+	var br_glc = game_controller.get("garbage_line_controller") if game_controller != null else null
+	var solid_mask: int = 0
+	if br_glc != null and br_glc.has_method("is_solid_garbage_row"):
+		for i in range(h):
+			if br_glc.is_solid_garbage_row(br_start_y + i):
+				solid_mask |= 1 << i
+	lines.append("G %d" % solid_mask)
 	var hold_str: String = "-"
 	if hold != null and str(hold) != "" and str(hold) != "-":
 		hold_str = str(hold)

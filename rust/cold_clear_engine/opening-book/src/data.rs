@@ -32,7 +32,7 @@ impl Position {
                 field[y][x] = self.rows[y] & 1 << x != 0;
             }
         }
-        let mut board = Board::new_with_state(field, self.bag, self.extra, false, 0);
+        let mut board = Board::new_with_state(field, self.bag, self.extra, false, 0, 0);
         let soft_dropped = !board.above_stack(&mv);
         let is_tspin = soft_dropped && mv.kind.0 == Piece::T && (
             board.occupied(mv.x - 1, mv.y - 1) as u8 + board.occupied(mv.x + 1, mv.y - 1) as u8 +

@@ -102,6 +102,49 @@ var _buff_config_map: Dictionary = {}
 @export var game_scene_path: String = "res://Tscns/tetris.tscn"
 
 
+# ========== 返回时恢复勾选 ==========
+
+## 当从游戏结束界面（BACK 按钮）返回时，读取 GlobalData.selected_buffs 并预勾选对应的 ToggleBox
+## 读取后立刻复位 restore_buffs 标志，避免从主菜单进入时误恢复
+func _restore_previous_selection() -> void:
+	if not GlobalData.restore_buffs:
+		return
+	GlobalData.restore_buffs = false
+	
+	var buffs: Array = GlobalData.selected_buffs
+	for buff in buffs:
+		var bid: String = str(buff.get("id", ""))
+		if bid.is_empty():
+			continue
+		set_toggle_checked(bid, true)
+	# 显式强制互斥：每个互斥组只保留一个勾选，确保返回后状态一致
+	_enforce_mutual_exclusivity()
+
+
+## 对每个互斥组强制只保留一个勾选（其余取消并移除标签）
+## 即使 toggled 信号未触发，也能保证互斥逻辑生效
+func _enforce_mutual_exclusivity() -> void:
+	for group_name: String in _mutually_exclusive_groups:
+		var group: Array = _mutually_exclusive_groups[group_name]
+		var kept_one := false
+		for other_id: String in group:
+			var tb := _find_toggle_box(other_id)
+			if tb and tb.is_checked_state():
+				if kept_one:
+					tb.set_checked(false)
+					_remove_label_for_box(other_id)
+				else:
+					kept_one = true
+
+
+## 按 box_id 查找 ToggleBox 节点
+func _find_toggle_box(box_id: String) -> ToggleBox:
+	for tb in toggle_boxes:
+		if tb and tb.box_id == box_id:
+			return tb
+	return null
+
+
 # ========== UI 缩放相关 ==========
 
 # Panel 引用（CanvasLayer 下全屏面板，用于居中缩放）
@@ -187,6 +230,11 @@ func _ready():
 	_update_all_labels()
 	_update_summary_label()
 	_update_combination_label()
+	
+	# 从游戏结束界面返回时，恢复上次勾选的 buff
+	# 必须延迟到所有 ToggleBox 的 _ready 执行完之后（本节点是 CanvasLayer 的第一个兄弟，
+	# 其 _ready 会在 ToggleBox._ready 之前运行，导致勾选状态被 default_checked 覆盖）
+	_restore_previous_selection.call_deferred()
 	
 	# Demo: 打印初始状态
 	#print("ToggleBox 数量: ", toggle_boxes.size())
@@ -635,6 +683,16 @@ func _on_start_button_pressed():
 	var buffed_data: Dictionary = get_buffed_tower_data()
 	GlobalData.tower_init_data = buffed_data
 	#print("TowerController 数据（含 buff/debuff 倍率累加）已存入 GlobalData: ", GlobalData.tower_init_data)
+	
+	# 记录已选取的 buff（供结束界面右侧列表展示）
+	var checked_ids: Array[String] = get_checked_toggle_ids()
+	var buff_display: Array = []
+	for bid: String in checked_ids:
+		buff_display.append({
+			"id": bid,
+			"text": _get_enhanced_label_text(bid),
+		})
+	GlobalData.selected_buffs = buff_display
 	
 	GlobalData.reset_stats()
 	get_tree().change_scene_to_file(game_scene_path)

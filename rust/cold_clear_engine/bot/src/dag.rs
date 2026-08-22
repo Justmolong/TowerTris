@@ -611,7 +611,7 @@ impl<E: Evaluation<R> + 'static, R: Clone + 'static> DagState<E, R> {
         plan
     }
 
-    pub fn reset(&mut self, field: [[bool; 10]; 40], b2b: bool, combo: u32) -> Option<i32> {
+    pub fn reset(&mut self, field: [[bool; 10]; 40], b2b: bool, combo: u32, solid_rows: u64) -> Option<i32> {
         let garbage_lines;
         if b2b == self.board.b2b_bonus && combo == self.board.combo {
             let mut b = Board::<u16>::new();
@@ -641,6 +641,7 @@ impl<E: Evaluation<R> + 'static, R: Clone + 'static> DagState<E, R> {
         }
 
         self.board.set_field(field);
+        self.board.set_solid_rows(solid_rows);
         self.board.combo = combo;
         self.board.b2b_bonus = b2b;
 

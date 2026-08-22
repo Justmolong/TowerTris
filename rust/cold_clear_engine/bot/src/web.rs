@@ -126,13 +126,14 @@ impl Interface {
     /// Note: combo is not the same as the displayed combo in guideline games. Here, it is the
     /// number of consecutive line clears achieved. So, generally speaking, if "x Combo" appears
     /// on the screen, you need to use x+1 here.
-    pub fn reset(&self, field: [[bool; 10]; 40], b2b_active: bool, combo: u32) {
+    pub fn reset(&self, field: [[bool; 10]; 40], b2b_active: bool, combo: u32, solid_rows: u64) {
         if let Some(worker) = &self.0 {
             worker
                 .send(&BotMsg::Reset {
                     field,
                     b2b: b2b_active,
                     combo,
+                    solid_rows,
                 })
                 .unwrap();
         }

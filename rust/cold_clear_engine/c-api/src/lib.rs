@@ -322,6 +322,7 @@ unsafe extern "C" fn cc_launch_with_board_async(
     combo: u32,
     pieces: *const CCPiece,
     count: u32,
+    solid_rows: u64,
 ) -> *mut CCAsyncBot {
     let mut board = Board::new_with_state(
         *field,
@@ -329,6 +330,7 @@ unsafe extern "C" fn cc_launch_with_board_async(
         convert_hold(hold),
         b2b,
         combo,
+        solid_rows,
     );
     if options.spawn_y > 0 {
         board.spawn_y = options.spawn_y as u32;
@@ -412,8 +414,9 @@ extern "C" fn cc_reset_async(
     field: &[[bool; 10]; 40],
     b2b: bool,
     combo: u32,
+    solid_rows: u64,
 ) {
-    bot.reset(*field, b2b, combo);
+    bot.reset(*field, b2b, combo, solid_rows);
 }
 
 #[no_mangle]

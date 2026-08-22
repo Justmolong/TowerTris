@@ -131,7 +131,19 @@ offset_right = 200.0
 offset_bottom = 310.0
 theme_override_font_sizes/font_size = 18
 
-[node name="inform_show" type="Node2D" parent="." unique_id=724293675 node_paths=PackedStringArray("game_over_label", "height_label", "stats_container", "time_label", "pieces_label", "pps_label", "apm_label", "rpm_label", "max_combo_label", "max_btb_label", "lines_cleared_label", "spins_label", "attacks_label", "kill_count_label", "tower_avg_speed_label", "stage_label")]
+[node name="buff_list_container" type="VBoxContainer" parent="Panel" unique_id=1923500035]
+layout_mode = 0
+offset_left = 830.0
+offset_top = 230.0
+offset_right = 1130.0
+offset_bottom = 510.0
+
+[node name="buff_list_title" type="Label" parent="Panel/buff_list_container" unique_id=1052545129]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "已选取 Buff"
+
+[node name="inform_show" type="Node2D" parent="." unique_id=724293675 node_paths=PackedStringArray("game_over_label", "height_label", "stats_container", "time_label", "pieces_label", "pps_label", "apm_label", "rpm_label", "max_combo_label", "max_btb_label", "lines_cleared_label", "spins_label", "attacks_label", "kill_count_label", "tower_avg_speed_label", "stage_label", "buff_list_container", "buff_list_title")]
 script = ExtResource("1_mksk8")
 game_over_label = NodePath("../Panel/game_over_label")
 height_label = NodePath("../Panel/height_label")
@@ -149,25 +161,36 @@ attacks_label = NodePath("../Panel/Control/attacks_label")
 kill_count_label = NodePath("../Panel/Control/kill_count_label")
 tower_avg_speed_label = NodePath("../Panel/Control/tower_avg_speed_label")
 stage_label = NodePath("../Panel/Control/stage_label")
+buff_list_container = NodePath("../Panel/buff_list_container")
+buff_list_title = NodePath("../Panel/buff_list_container/buff_list_title")
 
 [node name="restart_button" type="Button" parent="." unique_id=1549211814]
-offset_left = 459.0
-offset_top = 530.0
-offset_right = 569.0
-offset_bottom = 580.0
+offset_left = 394.0
+offset_top = 560.0
+offset_right = 504.0
+offset_bottom = 610.0
 theme_override_font_sizes/font_size = 20
 text = "AGAIN"
 
-[node name="menu_button" type="Button" parent="." unique_id=956783729]
-offset_left = 589.0
-offset_top = 530.0
-offset_right = 699.0
-offset_bottom = 580.0
+[node name="back_button" type="Button" parent="." unique_id=956783730]
+offset_left = 524.0
+offset_top = 560.0
+offset_right = 634.0
+offset_bottom = 610.0
 theme_override_font_sizes/font_size = 20
-text = "MENU"
+text = "BACK"
+
+[node name="exit_button" type="Button" parent="." unique_id=956783729]
+offset_left = 654.0
+offset_top = 560.0
+offset_right = 764.0
+offset_bottom = 610.0
+theme_override_font_sizes/font_size = 20
+text = "EXIT"
 
 [node name="Camera2D" type="Camera2D" parent="." unique_id=739537167]
 position = Vector2(579, 325)
 
 [connection signal="pressed" from="restart_button" to="inform_show" method="_on_restart_button_pressed"]
-[connection signal="pressed" from="menu_button" to="inform_show" method="_on_menu_button_pressed"]
+[connection signal="pressed" from="back_button" to="inform_show" method="_on_back_button_pressed"]
+[connection signal="pressed" from="exit_button" to="inform_show" method="_on_exit_button_pressed"]

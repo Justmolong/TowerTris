@@ -2,7 +2,11 @@ extends Node
 class_name TetrisBagController
 
 ## 俄罗斯方块Bag生成器
-## 负责7-Bag随机生成器逻辑，管理方块序列
+## 负责方块序列生成，支持多种出块策略（ChangeBag buff 通过 GlobalData 传入 BagType）：
+##   bag_type = -1 : 默认 7-Bag（每7个方块一个随机排列的完整bag）
+##   bag_type =  1 : 14-Bag（一次生成14个方块，每种方块2个，随机排列）
+##   bag_type =  2 : 概率出块（每次随机生成1个，出现越少的方块下次出现概率越高）
+##   bag_type =  3 : 完全随机出块（每次均匀随机生成1个）
 
 # 方块数据文件路径（方块类型/形状/颜色均从此文件读取）
 const BLOCK_DATA_PATH: String = "res://GameSaveData/BlockData.json"
@@ -18,7 +22,11 @@ var piece_types: Array = []
 # 方块序列
 var piece_queue: Array = []  # 存储方块类型名称的队列
 
-var bag_type_use: String = "7Bag"
+# 出块策略类型（-1=默认7-Bag）。ChangeBag buff 通过 GlobalData 传入 1/2/3
+var bag_type: int = -1
+
+# 概率出块（BagType=2）用到的出现次数统计：piece_type -> 已出现次数
+var _spawn_count: Dictionary = {}
 
 # ========== 数据加载 ==========
 
@@ -108,22 +116,75 @@ func _generate_7bag_type_bag() -> Array:
 		new_bag[j] = temp
 	return new_bag
 
+## 生成单个14-Bag（每种方块2个，共14个，随机排列）
+func _generate_14bag_type_bag() -> Array:
+	var bag: Array = piece_types.duplicate() + piece_types.duplicate()
+	var bag_rng = RandomManager.get_random("BAG")
+	for i in range(bag.size() - 1, 0, -1):
+		var j = bag_rng.randi_range(0, i)
+		var temp = bag[i]
+		bag[i] = bag[j]
+		bag[j] = temp
+	return bag
+
+## 概率出块（BagType=2）：按出现次数加权随机选1个方块。
+## 权重 = 1/(出现次数+1)，出现越少的方块权重越高 → 下次出现概率越高。
+func _generate_probability_piece() -> String:
+	var total_weight := 0.0
+	for pt: String in piece_types:
+		var c: int = int(_spawn_count.get(pt, 0))
+		total_weight += 1.0 / (c + 1.0)
+	var bag_rng = RandomManager.get_random("BAG")
+	var r: float = bag_rng.randf() * total_weight
+	for pt: String in piece_types:
+		var c: int = int(_spawn_count.get(pt, 0))
+		r -= 1.0 / (c + 1.0)
+		if r <= 0.0:
+			_spawn_count[pt] = c + 1
+			return pt
+	# 兜底（浮点误差导致未命中时取最后一个）
+	var last: String = piece_types[piece_types.size() - 1]
+	_spawn_count[last] = int(_spawn_count.get(last, 0)) + 1
+	return last
+
+## 完全随机出块（BagType=3）：均匀随机选1个方块
+func _generate_random_piece() -> String:
+	var bag_rng = RandomManager.get_random("BAG")
+	return piece_types[bag_rng.randi_range(0, piece_types.size() - 1)]
+
+## 获取当前生效的出块策略类型
+## 优先返回外部通过 set_bag_type 设置的 bag_type；否则读取 ChangeBag buff 写入 GlobalData 的 BagType
+func _get_active_bag_type() -> int:
+	if bag_type != -1:
+		return bag_type
+	var init: Dictionary = GlobalData.tower_init_data
+	var extra: Dictionary = init.get("extra_data_dict", {})
+	if extra.has("BagType"):
+		return int(extra["BagType"])
+	return -1
+
+## 外部设置出块策略类型（ChangeBag buff 或其它系统调用）。-1 表示使用默认7-Bag
+func set_bag_type(value: int) -> void:
+	bag_type = value
+
 ## 补充方块序列（当队列少于14个时补充）
-## 根据 bag_type_use 选择对应的Bag生成策略，无适配时push_error并回退到7Bag
+## 根据当前出块策略选择对应的生成方式，未识别时回退到7-Bag
 func _refill_queue():
 	_ensure_data_loaded()
 	if piece_types.is_empty():
 		push_error("BlockData.json 未加载成功，无法生成方块序列")
 		return
+	var bt: int = _get_active_bag_type()
 	while piece_queue.size() < 14:
-		var new_bag: Array = []
-		match bag_type_use:
-			"7Bag":
-				new_bag = _generate_7bag_type_bag()
+		match bt:
+			1:
+				piece_queue += _generate_14bag_type_bag()
+			2:
+				piece_queue.append(_generate_probability_piece())
+			3:
+				piece_queue.append(_generate_random_piece())
 			_:
-				push_error("未知的bag_type_use: ", bag_type_use, "，回退到7Bag")
-				new_bag = _generate_7bag_type_bag()
-		piece_queue += new_bag
+				piece_queue += _generate_7bag_type_bag()
 		# print("当前序列：",piece_queue)
 
 ## 获取下一个方块（从队列头部取出）

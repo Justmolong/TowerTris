@@ -32,6 +32,10 @@ pub struct Board<R = u16> {
     /// 自定义踢墙表（游戏 asc 踢墙表），空 = 使用标准 SRS rotation_points。
     /// 每个元素为 `(dx, dy)`，CW 乘 1、CCW 乘 -1、180° 乘 1（与游戏一致）。
     pub kick_table: Vec<(i32, i32)>,
+    /// 实心垃圾行位掩码：bit i = 行 i 是实心垃圾行（不可消除）。
+    /// 行号 = 本棋盘行号（0 = 底部）。实心行即使整行填满也不会被消行，
+    /// 但会随上方消行而整体下移（保持相对位置），与游戏 `_clear_single_line` 一致。
+    pub solid_rows: u64,
     /// 旋转时最后一个非空 kick 下标（用于 T-Spin mini 判定，等同 SRS 的 i==4）
     pub kick_is_last: bool,
     /// 是否启用游戏自定义规则。由 S 命令设置；false 时保持标准 ColdClear 行为。
@@ -75,16 +79,19 @@ impl<R: Row> Board<R> {
             game_rules_enabled: false,
             last_clear_kind: 0,
             last_clear_count: 0,
+            solid_rows: 0,
         }
     }
 
     /// Creates a board with existing field, remain pieces in the bag, hold piece, back-to-back status and combo count.
+    /// `solid_rows` 为实心垃圾行位掩码（bit = CC 行号，0 = 底部）。
     pub fn new_with_state(
         field: [[bool; 10]; 40],
         bag_remain: EnumSet<Piece>,
         hold: Option<Piece>,
         b2b: bool,
         combo: u32,
+        solid_rows: u64,
     ) -> Self {
         let mut board = Board {
             cells: [*R::EMPTY; 40].into(),
@@ -107,6 +114,7 @@ impl<R: Row> Board<R> {
             game_rules_enabled: false,
             last_clear_kind: 0,
             last_clear_count: 0,
+            solid_rows: solid_rows,
         };
         board.set_field(field);
         board
@@ -147,21 +155,32 @@ impl<R: Row> Board<R> {
 
     fn remove_cleared_lines(&mut self) -> ArrayVec<[i32; 4]> {
         let mut cleared = ArrayVec::new();
-        let mut lineno = 0;
-        self.cells.retain(|r| {
+        let mut new_cells: ArrayVec<[R; 40]> = ArrayVec::new();
+        let mut new_solid: u64 = 0;
+        let mut new_idx = 0;
+        for (i, r) in self.cells.iter().enumerate() {
+            let solid = ((self.solid_rows >> i as u32) & 1) != 0;
             let full = r.is_full();
-            if full {
-                cleared.push(lineno);
+            if full && !solid {
+                // 满行且非实心 → 消行
+                cleared.push(i as i32);
+            } else {
+                // 保留（含实心行，即使满也不消）；实心行随保留顺序下移
+                new_cells.push(*r);
+                if solid {
+                    new_solid |= 1u64 << new_idx;
+                }
+                new_idx += 1;
             }
-            lineno += 1;
-            !full
-        });
-
-        for _ in 0..cleared.len() {
-            self.cells.push(*R::EMPTY);
         }
+        let cleared_count = cleared.len();
+        while new_cells.len() < 40 {
+            new_cells.push(*R::EMPTY);
+        }
+        self.cells = new_cells;
+        self.solid_rows = new_solid;
         for x in 0..10 {
-            self.column_heights[x] -= cleared.len() as i32;
+            self.column_heights[x] -= cleared_count as i32;
             while self.column_heights[x] > 0
                 && !self.cells[self.column_heights[x] as usize - 1].get(x)
             {
@@ -169,6 +188,11 @@ impl<R: Row> Board<R> {
             }
         }
         cleared
+    }
+
+    /// 设置实心垃圾行位掩码（bit = 本棋盘行号，0 = 底部）。
+    pub fn set_solid_rows(&mut self, mask: u64) {
+        self.solid_rows = mask;
     }
 
     pub fn occupied(&self, x: i32, y: i32) -> bool {
@@ -452,6 +476,7 @@ impl<R: Row> Board<R> {
             game_rules_enabled: self.game_rules_enabled,
             last_clear_kind: self.last_clear_kind,
             last_clear_count: self.last_clear_count,
+            solid_rows: self.solid_rows,
         }
     }
 
@@ -558,4 +583,46 @@ impl Row for ColoredRow {
 
     const SOLID: &'static Self = &ColoredRow([CellColor::Unclearable; 10]);
     const EMPTY: &'static Self = &ColoredRow([CellColor::Empty; 10]);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn fill_row(board: &mut Board<u16>, y: i32) {
+        for x in 0..10 {
+            board.set_cell_color(x, y, CellColor::Garbage);
+        }
+    }
+
+    #[test]
+    fn solid_row_full_is_not_cleared() {
+        // 行 0 标记实心且填满：即使整行填满也不消行。
+        let mut board = Board::<u16>::new();
+        board.set_solid_rows(1); // bit 0 = 行 0 实心
+        fill_row(&mut board, 0);
+        // 行 1 也填满（普通可消行）
+        fill_row(&mut board, 1);
+        let cleared = board.remove_cleared_lines();
+        // 只消行 1，实心行 0 保留
+        assert_eq!(cleared.len(), 1);
+        assert_eq!(cleared[0], 1);
+        assert!(board.occupied(0, 0), "实心行应保留（即使填满）");
+        assert_eq!(board.solid_rows, 1);
+    }
+
+    #[test]
+    fn solid_row_shifts_down_when_above_line_cleared() {
+        // 行 1 实心；行 0（上方普通行）填满可消 → 实心行随之下移到行 0。
+        let mut board = Board::<u16>::new();
+        board.set_solid_rows(1 << 1); // bit 1 = 行 1 实心
+        fill_row(&mut board, 0); // 行 0 满（可消）
+        fill_row(&mut board, 1); // 行 1 实心满（不可消）
+        let cleared = board.remove_cleared_lines();
+        assert_eq!(cleared.len(), 1);
+        assert_eq!(cleared[0], 0);
+        // 实心行从行 1 下移到行 0，掩码同步
+        assert_eq!(board.solid_rows, 1);
+        assert!(board.occupied(0, 0), "实心行应下移到行 0");
+    }
 }

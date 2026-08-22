@@ -7,6 +7,7 @@ class_name TetrisGarbageLineController
 # 节点引用
 @export var board_drawer: TetrisBoardDrawer  # 版面绘制器节点
 @export var tetris_controller: TetrisController  # 方块控制器引用（用于清除当前方块）
+@export var clear_line_controller: TetrisClearLine  # 消行控制器引用（用于检测消行延迟）
 
 # 垃圾行配置
 @export var garbage_cap: int = 3                      # 每次锁定最多增长的垃圾行数量（也用于版面garbage_cap线）
@@ -39,6 +40,14 @@ func get_mult_defend() -> float:
 
 ## 依次上涨队列：存储 {holes, is_buffered, color, empty_color} 等行数据
 var _pending_rise_queue: Array[Dictionary] = []
+
+## 消行延迟期间暂存的一次性直接上涨（延迟结束后统一上涨，避免消行动画期间改动版面）
+## 元素结构 {all_holes: Array, row_count: int}
+var _deferred_direct_raises: Array = []
+
+## 消行延迟期间暂存的实心垃圾行上涨数量（延迟结束后统一上涨，避免消行动画期间
+## 改动版面，导致待消行位移、实心行被意外消除或填充）
+var _deferred_solid_raises: Array = []
 
 ## 逐行上涨计时器
 var _rise_timer: Timer = null
@@ -78,6 +87,10 @@ func _ready():
 			push_error("TetrisGarbageLineController: 未找到TetrisController节点！")
 			# 不是致命错误，继续运行
 	
+	# 自动查找clear_line_controller（如果未设置）
+	if not clear_line_controller:
+		clear_line_controller = get_node_or_null("../TetrisClearLine")
+	
 	# 初始化逐行上涨计时器
 	_rise_timer = Timer.new()
 	_rise_timer.one_shot = false
@@ -116,6 +129,9 @@ func _update_buffer_timers(delta: float):
 			# drop_limit_cancel = true 时：缓冲结束即刻上涨，不再等待方块锁定
 			if drop_limit_cancel:
 				if not garbage_enter_array.is_empty():
+					# 消行延迟期间不立即上涨（保留在 enter_array 中不丢弃，延迟结束后随下次触发上涨）
+					if is_clear_delay_active():
+						continue
 					var success = process_garbage_after_lock()
 					if success <= 0 and tetris_controller:
 						tetris_controller._game_over("垃圾上涨失败")
@@ -219,6 +235,18 @@ func has_buffered_garbage() -> bool:
 ## 用于让 bot 感知“垃圾行抬升期间版面已变化”，从而重新请求决策，避免执行过期计划。
 var board_version: int = 0
 
+## 计算新垃圾行应插入的起始行索引：紧贴底部实心块上方；无实心块时为版面底部。
+## 与 force_raise_rows 的版面构建逻辑保持一致，供各调用方记录新行洞口位置。
+func _get_new_rows_start(row_count: int) -> int:
+	var H: int = board_drawer.get_playable_height()
+	var bottom_solid: int = 0
+	for y in range(H - 1, -1, -1):
+		if is_solid_garbage_row(y):
+			bottom_solid += 1
+		else:
+			break
+	return (H - bottom_solid) - row_count
+
 func force_raise_rows(row_count: int, row_generator: Callable, skip_piece_handling: bool = false) -> bool:
 	if row_count <= 0:
 		return false
@@ -244,12 +272,25 @@ func force_raise_rows(row_count: int, row_generator: Callable, skip_piece_handli
 	
 	# 计算需要上移的行数
 	var shift_amount = row_count
+	var H: int = board_drawer.get_playable_height()
+	
+	# 计算底部实心垃圾行块的高度（实心行必定处于最底层，不可被顶起）
+	var bottom_solid: int = 0
+	for y in range(H - 1, -1, -1):
+		if is_solid_garbage_row(y):
+			bottom_solid += 1
+		else:
+			break
+	# 实心行块的起始行（实心块上方的内容行索引小于该值）
+	var solid_start: int = H - bottom_solid
+	# 新垃圾行插入的起始行：紧贴实心块上方（无实心块时即为版面底部）
+	var new_row_start: int = max(0, solid_start - shift_amount)
 	
 	# 创建新版面数据
 	var new_board_data = []
 	
-	# 上移原有方块（保留顶部内容，底部被挤出）
-	for y in range(board_drawer.get_playable_height() - shift_amount):
+	# 上移实心块上方的非实心内容（顶部被挤出）
+	for y in range(new_row_start):
 		var row_data = []
 		var source_y = y + shift_amount
 		if source_y < board_data.size():
@@ -260,12 +301,17 @@ func force_raise_rows(row_count: int, row_generator: Callable, skip_piece_handli
 				row_data.append(null)
 		new_board_data.append(row_data)
 	
-	# 添加新行到底部
-	var added_rows = []
-	for i in range(row_count):
-		var row_data = row_generator.call(i, row_count)
+	# 添加新行到实心块上方（紧贴实心块）
+	for i in range(shift_amount):
+		var row_data = row_generator.call(i, shift_amount)
 		new_board_data.append(row_data)
-		added_rows.append(board_drawer.get_playable_height() - row_count + i)
+	
+	# 保留底部实心块（位置不变）
+	for y in range(solid_start, H):
+		var row_data = []
+		for x in range(board_drawer.grid_width):
+			row_data.append(board_data[y][x])
+		new_board_data.append(row_data)
 	
 	# 清空版面
 	for y in range(board_drawer.get_playable_height()):
@@ -344,6 +390,10 @@ func force_raise_rows(row_count: int, row_generator: Callable, skip_piece_handli
 				shifted[new_y] = garbage_rows_data[row_y]
 		garbage_rows_data = shifted
 	
+	# 实心垃圾行记录无需随版面上移：实心行必定处于最底层且被固定，普通垃圾上涨时
+	# 实心块位置不变（见上方版面构建逻辑），因此 solid_garbage_rows 保持原索引。
+	# （若新增行本身是实心行，add_solid_garbage 会重新扫描整个版面重建该记录。）
+	
 	# 版面已因垃圾行上涨而改变：递增版本号，通知 bot 重新决策
 	board_version += 1
 	
@@ -384,6 +434,12 @@ func _generate_solid_row_generator() -> Callable:
 ## 上涨X行实心垃圾行（无法消除）
 func add_solid_garbage(row_count: int):
 	if row_count <= 0:
+		return
+	
+	# 消行延迟期间：暂存起来，延迟结束后统一上涨（不丢弃行，避免在消行动画期间改动
+	# 版面，造成待消行位移、实心行被意外消除/填充）
+	if is_clear_delay_active():
+		_deferred_solid_raises.append(row_count)
 		return
 	
 	# 使用强制上涨 + 实心行生成器
@@ -665,8 +721,8 @@ func apply_garbage_to_board() -> bool:
 	
 	# 如果强制上涨成功，记录垃圾行数据
 	if success:
-		# 记录每行的洞口位置（从底部往上数）
-		var start_y = board_drawer.get_playable_height() - total_garbage_rows
+		# 记录每行的洞口位置（从实心块上方开始数）
+		var start_y = _get_new_rows_start(total_garbage_rows)
 		for i in range(total_garbage_rows):
 			if i < all_holes.size():
 				garbage_rows_data[start_y + i] = all_holes[i].duplicate()
@@ -758,6 +814,10 @@ func insert_allspin_garbage_directly(row_count: int = 1) -> void:
 		if hole.is_empty():
 			return
 		all_holes.append(hole)
+	# 消行延迟期间：暂存起来，延迟结束后统一上涨（不丢弃行，避免在消行动画期间改动版面）
+	if is_clear_delay_active():
+		_deferred_direct_raises.append({"all_holes": all_holes, "row_count": row_count})
+		return
 	# 创建行生成器
 	var gen = _generate_garbage_row_generator(all_holes[0], false)
 	force_raise_rows(row_count, gen, true)
@@ -859,6 +919,13 @@ func _move_enter_to_rise_queue() -> int:
 	_start_rise_timer()
 	return _pending_rise_queue.size()
 
+## 是否正处于消行延迟中（消行动画期间不得改动版面：待消行仍物理存在，
+## 此时上涨垃圾会使待消行上移，导致延迟结束后 _pending_clear_lines 索引错位等 bug）
+func is_clear_delay_active() -> bool:
+	if clear_line_controller:
+		return clear_line_controller.is_clear_animating_active()
+	return false
+
 ## 启动逐行上涨计时器
 ## 仅当计时器未运行时才启动：Godot 的 Timer.start() 在已运行时调用会重置剩余时间，
 ## 若上涨队列已有行正在逐行上涨，新垃圾入队（_move_enter_to_rise_queue /
@@ -880,6 +947,11 @@ func _stop_rise_timer() -> void:
 ## 计时器触发：上涨一行
 func _on_rise_timer_timeout() -> void:
 	if _pending_rise_queue.is_empty():
+		_stop_rise_timer()
+		return
+	
+	# 消行延迟期间暂停逐行上涨：不清除队列、不丢弃行，延迟结束后恢复继续上涨
+	if is_clear_delay_active():
 		_stop_rise_timer()
 		return
 	
@@ -909,7 +981,7 @@ func _on_rise_timer_timeout() -> void:
 		_pending_rise_queue.clear()
 		return
 	
-	var start_y = board_drawer.get_playable_height() - 1
+	var start_y = _get_new_rows_start(1)
 	garbage_rows_data[start_y] = holes.duplicate()
 	
 	# 继续计时
@@ -917,6 +989,29 @@ func _on_rise_timer_timeout() -> void:
 		_rise_timer.start()
 	else:
 		_stop_rise_timer()
+
+## 消行延迟结束后恢复待上涨的垃圾行（由 TetrisClearLine 在消行延迟计时结束时调用）。
+## 先执行延迟期间暂存的一次性直接上涨，再恢复逐行上涨计时器。
+func resume_rise_if_pending() -> void:
+	# 执行延迟期间暂存的实心垃圾行上涨（不丢弃行）
+	if not _deferred_solid_raises.is_empty():
+		for count in _deferred_solid_raises:
+			add_solid_garbage(count)
+		_deferred_solid_raises.clear()
+	# 执行延迟期间暂存的一次性直接上涨（如 Allspin 直接上涨）
+	if not _deferred_direct_raises.is_empty():
+		for deferred in _deferred_direct_raises:
+			var holes: Array = deferred["all_holes"]
+			var count: int = deferred["row_count"]
+			if holes.is_empty():
+				continue
+			var gen = _generate_garbage_row_generator(holes[0], false)
+			force_raise_rows(count, gen, true)
+		_deferred_direct_raises.clear()
+	# 恢复逐行上涨
+	if not _pending_rise_queue.is_empty() and _rise_timer and _rise_timer.is_stopped():
+		_rise_timer.wait_time = garbage_rise_time_delay
+		_rise_timer.start()
 
 ## 抵消依次上涨队列中的行（优先于 enter_array 和 buffer）
 ## 返回被抵消的行数
@@ -968,6 +1063,8 @@ func clear_all():
 	has_overflow = false
 	current_active_hole = []
 	_pending_rise_queue.clear()
+	_deferred_direct_raises.clear()
+	_deferred_solid_raises.clear()
 	_stop_rise_timer()
 	_refill_garbage_output()
 

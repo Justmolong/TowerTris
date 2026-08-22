@@ -15,6 +15,14 @@ class_name TetrisClearLine
 @export var clear_animation_duration: float = 0.3  # 消行动画持续时间（秒）
 @export var clear_text_display_duration: float = 2.0  # 消行文本显示持续时间（秒）
 
+# 消行延迟时间（秒）：>0 时先播放消行动画（持续 clear_line_delay_time），动画结束后才生成新方块；0 表示无延迟
+@export var clear_line_delay_time: float = 0.5
+
+# 消行延迟状态
+var clear_line_delay_timer: Timer  # 消行延迟计时器
+var _pending_clear_lines: Array = []  # 待清除的行（延迟期间仍物理存在，延迟结束后才位移清除）
+var _is_clear_animating: bool = false  # 是否正在播放消行动画（延迟中）
+
 # 文本打印器配置（非BTB文本：半透明、向左漂移、自然淡出消失）
 @export var text_base_opacity: float = 0.8          # 文本显示时的透明度（半透明，0-1）
 @export var text_fade_duration: float = 1.0         # 文本淡出时长（秒）
@@ -230,6 +238,12 @@ func _ready():
 	damage_timer.one_shot = true
 	damage_timer.timeout.connect(_on_damage_timer_timeout)
 	add_child(damage_timer)
+	
+	# 创建消行延迟计时器（wait_time 在启动时按 clear_line_delay_time 设置）
+	clear_line_delay_timer = Timer.new()
+	clear_line_delay_timer.one_shot = true
+	clear_line_delay_timer.timeout.connect(_on_clear_line_delay_timeout)
+	add_child(clear_line_delay_timer)
 
 ## 记录旋转事件
 func record_rotation(piece_type: String, shape: Array, position: Vector2i, piece_color: Color = Color.WHITE):
@@ -297,7 +311,7 @@ func _add_damage_to_display(damage: int):
 
 ## 检查并消除完整的行
 func check_and_clear_lines() -> int:
-	if is_animating:
+	if is_animating or _is_clear_animating:
 		return 0
 	
 	lines_to_clear = _find_complete_lines()
@@ -325,6 +339,8 @@ func check_and_clear_lines() -> int:
 			reset_rotation_record()
 			current_damage = 0
 			has_cleared_lines = false
+		# 没有可消除的行：消行处理结束，直接生成新方块
+		_spawn_next_piece_after_clear()
 		return 0
 	
 	# Allspin判定：落块时判定此消行是否与上次完全一致
@@ -344,7 +360,8 @@ func check_and_clear_lines() -> int:
 	if is_spin:
 		is_spin_or_quad = true
 	
-	_clear_lines(lines_to_clear)
+	# 清除可消除的行（带可选消行动画延迟；动画结束后生成新方块）
+	_clear_lines_animated(lines_to_clear)
 	
 	var damage = _calculate_damage(clear_count, spin_type)
 	
@@ -423,6 +440,9 @@ func _update_btb_text():
 ## 检查是否 Perfect Clear（场上没有任何方块）
 func _check_perfect_clear() -> bool:
 	for y in range(board_drawer.get_playable_height()):
+		# 待清除的行（消行延迟期间仍物理存在）视为已清除
+		if _pending_clear_lines.has(y):
+			continue
 		for x in range(board_drawer.grid_width):
 			if board_drawer.get_cell_color(x, y) != null:
 				return false
@@ -652,6 +672,56 @@ func _clear_single_line(line_y: int):
 	
 	for x in range(board_drawer.grid_width):
 		board_drawer.set_cell_color(x, 0, null)
+
+## 单个函数：清除可消除的行。
+## 导入 clear_line_delay_time 变量：当 clear_line_delay_time > 0 时播放消行动画
+## （对已清除的行区域进行闪烁提示，持续 clear_line_delay_time 秒），消行延迟计时结束
+## （clear_line_delay_timer 超时）后才调用 spawn_new_piece 生成新方块；
+## clear_line_delay_time == 0 时直接清除并立即生成新方块。
+func _clear_lines_animated(lines: Array) -> void:
+	if lines.is_empty():
+		# 没有可消除的行：无需等待，直接生成新方块
+		_spawn_next_piece_after_clear()
+		return
+	lines.sort()
+	if clear_line_delay_time > 0:
+		# 消行延迟期间：仅播放消行动画（完整行仍保留、不位移），
+		# 延迟结束后才执行正式消行（位移）并生成新方块。
+		_pending_clear_lines = lines
+		if board_drawer:
+			board_drawer.set_clearing_lines(lines)
+		_is_clear_animating = true
+		clear_line_delay_timer.wait_time = clear_line_delay_time
+		clear_line_delay_timer.start()
+	else:
+		# 无延迟：立即执行正式消行（位移）并生成新方块
+		_pending_clear_lines = []
+		_clear_lines(lines)
+		_spawn_next_piece_after_clear()
+
+## 消行延迟计时结束：结束动画，执行正式消行（位移）并生成新方块
+func _on_clear_line_delay_timeout():
+	_is_clear_animating = false
+	if board_drawer:
+		board_drawer.clear_clearing_lines()
+	# 消行延迟结束：此时才执行正式消行（把行进行位移清除）
+	if not _pending_clear_lines.is_empty():
+		_clear_lines(_pending_clear_lines)
+		_pending_clear_lines = []
+	# 消行延迟结束：恢复消行延迟期间被暂缓的垃圾行上涨（不丢弃行）
+	if garbage_line_controller:
+		garbage_line_controller.resume_rise_if_pending()
+	# 消行延迟结束：生成新方块
+	_spawn_next_piece_after_clear()
+
+## 是否正处于消行动画/消行延迟中（供垃圾行控制器判断是否需暂缓上涨）
+func is_clear_animating_active() -> bool:
+	return _is_clear_animating
+
+## 消行结束后生成新方块
+func _spawn_next_piece_after_clear():
+	if tetris_controller:
+		tetris_controller.spawn_new_piece()
 
 # ========== Spin检测系统 ==========
 

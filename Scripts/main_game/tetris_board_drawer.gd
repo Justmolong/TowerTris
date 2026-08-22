@@ -102,6 +102,9 @@ var no_hold: bool = false                             # NoHold模式：关闭Hol
 var board_data: Array = []               # 版面数据（用于存储每个格子的颜色/类型）
 var show_grid_lines: bool = true         # 是否显示网格线
 
+# 正在播放消行动画的行（行号，用于闪烁高亮提示）
+var clearing_lines: Array = []
+
 # Hold方块数据
 var hold_piece_data: Array = []          # 暂存的方块矩阵
 var hold_piece_color: Color = Color.WHITE  # 暂存的方块颜色
@@ -526,6 +529,16 @@ func _draw_cells():
 			else:
 				# drop_visible_time == 0：落下即隐形
 				continue
+
+## 绘制消行动画高亮：对正在清除的行做白色闪烁提示
+func _draw_clearing_lines():
+	if clearing_lines.is_empty():
+		return
+	var now := Time.get_ticks_msec()
+	var alpha := 0.45 + 0.35 * (0.5 + 0.5 * sin(now / 90.0))
+	for y in clearing_lines:
+		var rect := Rect2(cell_to_world(0, y), Vector2(grid_width * cell_size, cell_size))
+		draw_rect(rect, Color(1, 1, 1, alpha), true)
 
 ## 判断颜色是否为垃圾行颜色（垃圾行需要始终绘制）
 func _is_garbage_color(color: Color) -> bool:
@@ -1069,6 +1082,9 @@ func _draw():
 	# 2. 绘制所有格子
 	_draw_cells()
 	
+	# 2.5 绘制消行动画高亮（正在清除的行闪烁提示）
+	_draw_clearing_lines()
+	
 	# 3. 绘制影子方块
 	_draw_shadow()
 	
@@ -1102,6 +1118,16 @@ func _draw():
 ## 获取消行控制器的引用
 func set_clear_line_controller(controller: TetrisClearLine):
 	clear_line_controller = controller
+
+## 设置正在播放消行动画的行（行号），用于闪烁高亮提示
+func set_clearing_lines(lines: Array) -> void:
+	clearing_lines = lines.duplicate()
+	queue_redraw()
+
+## 清除消行动画高亮
+func clear_clearing_lines() -> void:
+	clearing_lines.clear()
+	queue_redraw()
 
 ## 更新网格尺寸（动态调整）
 func resize_grid(new_width: int, new_height: int, new_max_height: int = -1):

@@ -24,6 +24,10 @@ class_name InformShow
 @export var tower_avg_speed_label: Label # ACPS（平均速度）
 @export var stage_label: Label           # 当前阶段
 
+# 已选取的 buff 列表（右侧）
+@export var buff_list_container: VBoxContainer  # 已选取 buff 列表容器
+@export var buff_list_title: Label              # buff 列表标题（保留，不删除）
+
 func _ready():
 	# 显示游戏结束数据
 	_display_game_over_data()
@@ -87,6 +91,48 @@ func _display_game_over_data():
 	
 	if stage_label:
 		stage_label.text = "当前阶段: %d" % (stats.get("current_stage", 0) + 1)
+	
+	# 显示已选取的 buff 列表
+	_populate_buff_list()
+
+## 在右侧列表显示本次已选取的 buff
+func _populate_buff_list() -> void:
+	if not buff_list_container:
+		return
+	# 清除旧的动态标签（保留标题节点）
+	for child in buff_list_container.get_children():
+		if child != buff_list_title:
+			child.queue_free()
+	
+	var buffs: Array = GlobalData.selected_buffs
+	if buffs.is_empty():
+		var empty := Label.new()
+		empty.text = "无"
+		empty.add_theme_font_size_override("font_size", 18)
+		empty.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6, 1))
+		buff_list_container.add_child(empty)
+		return
+	
+	for buff in buffs:
+		var buff_name: String = _get_buff_name(buff)
+		var label := Label.new()
+		label.text = buff_name
+		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		label.add_theme_font_size_override("font_size", 18)
+		label.add_theme_color_override("font_color", Color(0.7, 0.9, 0.7, 1))
+		buff_list_container.add_child(label)
+
+## 提取 buff 名称（描述中冒号前的部分，如 "高压I：apm总量增加20%" → "高压I"）
+## 若无冒号则使用描述本身；描述为空时退回 box_id
+func _get_buff_name(buff: Dictionary) -> String:
+	var text: String = str(buff.get("text", ""))
+	for sep: String in ["：", ":", "－", "-"]:
+		var idx: int = text.find(sep)
+		if idx > 0:
+			return text.substr(0, idx).strip_edges()
+	if not text.is_empty():
+		return text
+	return str(buff.get("id", ""))
 
 ## 格式化时间
 func _format_time(seconds: float) -> String:
@@ -101,9 +147,17 @@ func _on_restart_button_pressed():
 	# 切换到游戏场景
 	get_tree().change_scene_to_file("res://Tscns/tetris.tscn")
 
-## 返回主菜单按钮回调（可选）
-func _on_menu_button_pressed():
+## EXIT 按钮回调：返回主菜单
+func _on_exit_button_pressed():
 	# 重置全局数据
 	GlobalData.reset_stats()
-	# 切换到主菜单场景（如果有）
+	# 切换到主菜单场景
 	get_tree().change_scene_to_file("res://Tscns/main_menu.tscn")
+
+
+## BACK 按钮回调：返回 buff 选择界面，并带回已选取的 buff 进行预勾选
+func _on_back_button_pressed():
+	# 标记：返回 buff_chose_area 时需要恢复上次勾选
+	GlobalData.restore_buffs = true
+	# 不重置 stats，保留 selected_buffs 供 buff_chose_area 读取
+	get_tree().change_scene_to_file("res://Tscns/buff_chose_area.tscn")

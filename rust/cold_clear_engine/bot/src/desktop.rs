@@ -94,12 +94,13 @@ impl Interface {
     /// Note: combo is not the same as the displayed combo in guideline games. Here, it is the
     /// number of consecutive line clears achieved. So, generally speaking, if "x Combo" appears
     /// on the screen, you need to use x+1 here.
-    pub fn reset(&self, field: [[bool; 10]; 40], b2b_active: bool, combo: u32) {
+    pub fn reset(&self, field: [[bool; 10]; 40], b2b_active: bool, combo: u32, solid_rows: u64) {
         self.send
             .send(BotMsg::Reset {
                 field,
                 b2b: b2b_active,
                 combo,
+                solid_rows,
             })
             .ok();
     }
@@ -126,8 +127,9 @@ fn run(
         match recv.recv() {
             Err(_) => return,
             Ok(BotMsg::NewPiece(piece)) => board.add_next_piece(piece),
-            Ok(BotMsg::Reset { field, b2b, combo }) => {
+            Ok(BotMsg::Reset { field, b2b, combo, solid_rows }) => {
                 board.set_field(field);
+                board.set_solid_rows(solid_rows);
                 board.combo = combo;
                 board.b2b_bonus = b2b;
             }
