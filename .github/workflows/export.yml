@@ -41,11 +41,17 @@ jobs:
           godot --headless --path . --import || true
           godot --headless --path . --editor --quit || true
 
+      # bot 原生二进制（rust/cold_clear_engine/native 下的 dll/exe）已随仓库提交，
+      # 不能打包进 Godot pck，导出时复制到 exe 旁作为松散文件夹由游戏外部读取。
+
       - name: Export Windows Desktop
         if: ${{ inputs.target_platform == 'Windows' || inputs.target_platform == 'Both' || github.event_name == 'push' }}
         run: |
           mkdir -p build/win
           godot --headless --export-release "Windows Desktop" build/win/TowerTris.exe
+          # 把仓库里已提交的 bot 二进制作为松散 native/ 文件夹放到 exe 旁
+          # （不打包进 pck，由 pck 在运行时从外部读取；内部文件名保持不变）
+          cp -r rust/cold_clear_engine/native build/win/native
           cd build/win && zip -r ../../TowerTris-Windows.zip . && cd ../..
 
       - name: Export Linux

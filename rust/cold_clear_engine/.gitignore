@@ -1,5 +1,10 @@
+# ===== 构建产物 / 日志：不提交（运行时用不到）=====
 /target
 build_test.log
-/native/*.dll
+
+# ===== native 二进制 =====
+# 运行所需二进制（cold_clear.dll、coldclear_worker.exe）随仓库提交，
+# 导出工作流会复制到 exe 旁作为松散文件夹，供 pck 在运行时外部读取。
+# cold_clear.lib（约 17MB 静态/导入库）运行时用不到（worker 通过
+# LoadLibrary 动态加载 dll），保持忽略不提交。
 /native/*.lib
-/native/*.exe

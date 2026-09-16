@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://cg7ljuepecyjq"]
 
-[ext_resource type="Script" uid="uid://2e6n202exrs6" path="res://Scripts/gameover_main/inform_show.gd" id="1_mksk8"]
+[ext_resource type="Script" path="res://Scripts/gameover_main/InformShow.cs" id="1_mksk8"]
 
 [node name="GameOver" type="Node2D" unique_id=1580557469]
 

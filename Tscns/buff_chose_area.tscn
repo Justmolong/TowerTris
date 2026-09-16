@@ -1,8 +1,8 @@
 [gd_scene format=3 uid="uid://b6i2edtol0cux"]
 
-[ext_resource type="Script" uid="uid://ubmnhfgjgm77" path="res://Scripts/buff_chose/buff_chose_area.gd" id="1_7sx2r"]
-[ext_resource type="Script" uid="uid://hc6y5a0155yd" path="res://Scripts/buff_chose/toggle_box.gd" id="2_7sx2r"]
-[ext_resource type="Script" uid="uid://dcpbd5i5bb55h" path="res://Scripts/buff_chose/toggle_connector.gd" id="3_7sx2r"]
+[ext_resource type="Script" path="res://Scripts/buff_chose/BuffChoseArea.cs" id="1_7sx2r"]
+[ext_resource type="Script" path="res://Scripts/buff_chose/ToggleBox.cs" id="2_7sx2r"]
+[ext_resource type="Script" path="res://Scripts/buff_chose/ToggleConnector.cs" id="3_7sx2r"]
 
 [node name="BuffChoseArea" type="Node2D" unique_id=510707300]
 
@@ -308,10 +308,21 @@ text = "无Spin判定："
 layout_mode = 2
 script = ExtResource("3_7sx2r")
 
-[node name="Talentless" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List8" unique_id=171872954]
+[node name="Talentless_1" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List8" unique_id=171872954]
 layout_mode = 2
 script = ExtResource("2_7sx2r")
-box_id = "Talentless"
+box_id = "Talentless_1"
+box_size = 32
+default_checked = false
+
+[node name="Spacer_TL1_TL2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List8" unique_id=171872955]
+custom_minimum_size = Vector2(16, 32)
+layout_mode = 2
+
+[node name="Talentless_2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List8" unique_id=171872956]
+layout_mode = 2
+script = ExtResource("2_7sx2r")
+box_id = "Talentless_2"
 box_size = 32
 default_checked = false
 
@@ -338,7 +349,7 @@ layout_mode = 2
 
 [node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List10" unique_id=2000000011]
 layout_mode = 2
-text = "换袋："
+text = "干旱："
 
 [node name="ConnectorLine" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List10" unique_id=2000000012]
 layout_mode = 2
@@ -388,6 +399,97 @@ script = ExtResource("3_7sx2r")
 layout_mode = 2
 script = ExtResource("2_7sx2r")
 box_id = "StartBoard"
+box_size = 32
+default_checked = false
+
+[node name="List12" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=2000000030]
+layout_mode = 2
+
+[node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List12" unique_id=2000000031]
+layout_mode = 2
+text = "短见："
+
+[node name="ConnectorLine" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List12" unique_id=2000000032]
+layout_mode = 2
+script = ExtResource("3_7sx2r")
+
+[node name="ShortNext_1" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List12" unique_id=2000000033]
+layout_mode = 2
+script = ExtResource("2_7sx2r")
+box_id = "ShortNext_1"
+box_size = 32
+default_checked = false
+
+[node name="Spacer_SN1_SN2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List12" unique_id=2000000034]
+custom_minimum_size = Vector2(16, 32)
+layout_mode = 2
+
+[node name="ShortNext_2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List12" unique_id=2000000035]
+layout_mode = 2
+script = ExtResource("2_7sx2r")
+box_id = "ShortNext_2"
+box_size = 32
+default_checked = false
+
+[node name="Spacer_SN2_SN3" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List12" unique_id=2000000036]
+custom_minimum_size = Vector2(16, 32)
+layout_mode = 2
+
+[node name="ShortNext_3" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List12" unique_id=2000000037]
+layout_mode = 2
+script = ExtResource("2_7sx2r")
+box_id = "ShortNext_3"
+box_size = 32
+default_checked = false
+
+[node name="Spacer_SN3_SN4" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List12" unique_id=2000000038]
+custom_minimum_size = Vector2(16, 32)
+layout_mode = 2
+
+[node name="ShortNext_4" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List12" unique_id=2000000039]
+layout_mode = 2
+script = ExtResource("2_7sx2r")
+box_id = "ShortNext_4"
+box_size = 32
+default_checked = false
+
+[node name="Spacer_SN4_SN5" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List12" unique_id=2000000040]
+custom_minimum_size = Vector2(16, 32)
+layout_mode = 2
+
+[node name="ShortNext_5" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List12" unique_id=2000000041]
+layout_mode = 2
+script = ExtResource("2_7sx2r")
+box_id = "ShortNext_5"
+box_size = 32
+default_checked = false
+
+[node name="List13" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=2000000050]
+layout_mode = 2
+
+[node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List13" unique_id=2000000051]
+layout_mode = 2
+text = "双洞："
+
+[node name="ConnectorLine" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List13" unique_id=2000000052]
+layout_mode = 2
+script = ExtResource("3_7sx2r")
+
+[node name="DoubleHole_1" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List13" unique_id=2000000053]
+layout_mode = 2
+script = ExtResource("2_7sx2r")
+box_id = "DoubleHole_1"
+box_size = 32
+default_checked = false
+
+[node name="Spacer_DH1_DH2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List13" unique_id=2000000054]
+custom_minimum_size = Vector2(16, 32)
+layout_mode = 2
+
+[node name="DoubleHole_2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List13" unique_id=2000000055]
+layout_mode = 2
+script = ExtResource("2_7sx2r")
+box_id = "DoubleHole_2"
 box_size = 32
 default_checked = false
 

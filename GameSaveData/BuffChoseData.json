@@ -11,6 +11,10 @@
 		"TheToppedOut":{
 			"Info":"爆顶",
 			"Group":["TheToppedOut"]
+		},
+		"ReverseNoHold":{
+			"Info":"逆位无暂存",
+			"Group":["NoHold","ChangeBag_3","SuddenlyDeath_5","Talentless_1","ShortNext_4","DoubleHole_1"]
 		}
 	},
 	"BuffGroup":{
@@ -20,7 +24,9 @@
 		"TheToppedOut":["SuddenlyDeath_10"],
 		"Gravity": ["Gravity_1"],
 		"NoHold": ["NoHold_1"],
-		"Talentless": ["Talentless"]
+		"Talentless": ["Talentless_1","Talentless_2"],
+		"ShortNext": ["ShortNext_1","ShortNext_2","ShortNext_3","ShortNext_4","ShortNext_5"],
+		"DoubleHole": ["DoubleHole_1","DoubleHole_2"]
 	},
 	"BuffConflick":{
 		"Pressure": ["Pressure1", "Pressure2", "Pressure3"],
@@ -28,7 +34,10 @@
 			"SuddenlyDeath_5","SuddenlyDeath_6","SuddenlyDeath_7","SuddenlyDeath_8","SuddenlyDeath_9","SuddenlyDeath_10"],
 		"Gravity": ["Gravity_1"],
 		"NoHold": ["NoHold_1"],
-		"ChangeBag": ["ChangeBag_1","ChangeBag_2","ChangeBag_3"]
+		"ChangeBag": ["ChangeBag_1","ChangeBag_2","ChangeBag_3"],
+		"Talentless": ["Talentless_1","Talentless_2"],
+		"ShortNext": ["ShortNext_1","ShortNext_2","ShortNext_3","ShortNext_4","ShortNext_5"],
+		"DoubleHole": ["DoubleHole_1","DoubleHole_2"]
 	},
 	"BuffInfo":{
 		"Pressure1": "高压I：apm总量增加20%",
@@ -50,12 +59,20 @@
 		"Invisible_1":"隐形I：开启隐形",
 		"Allspin_1":"全旋I：启用Allspin，当消行类型与行数都与上次完全一致时立刻上涨一行垃圾行",
 		"NoHold_1":"无暂存I：禁用暂存",
-		"Talentless":"无天赋：禁用全部Spin",
+		"Talentless_1":"无天赋I：全部Spin判定为mini",
+		"Talentless_2":"无天赋II：禁用全部Spin",
 		"BotPlay":"Bot模式：将会开启bot",
-		"ChangeBag_1":"采用14bag出块",
-		"ChangeBag_2":"采用概率出块",
-		"ChangeBag_3":"采用完全随机出块",
-		"StartBoard":"StartBoard：自定义初始版面（从下往上印刷）"
+		"ChangeBag_1":"干旱I: 采用14bag出块",
+		"ChangeBag_2":"干旱II: 采用概率出块",
+		"ChangeBag_3":"干旱III: 采用完全随机出块",
+		"StartBoard":"StartBoard：自定义初始版面（从下往上印刷）",
+		"ShortNext_1":"短见I: 只显示5next",
+		"ShortNext_2":"短见II: 只显示4next",
+		"ShortNext_3":"短见III: 只显示3next",
+		"ShortNext_4":"短见IV: 只显示1next",
+		"ShortNext_5":"短见V: 无next显示",
+		"DoubleHole_1":"双洞I: 所有垃圾行变为2宽洞口",
+		"DoubleHole_2":"双洞II: 所有垃圾行拥有2个洞口"
 	},
 	"BuffChange":{
 		"Pressure1": {"total_apm_buff_mult": 1.2},
@@ -75,9 +92,10 @@
 		"SuddenlyDeath_9": {"suddenly_death_mode": true,"drop_limit_cancel":true,"buffer_duration":1},
 		"SuddenlyDeath_10": {"suddenly_death_mode": true,"drop_limit_cancel":true,"buffer_duration":0.5},
 		"Invisible_1": {"tetris_invisible": 1},
-		"Allspin_1": {"tetris_allspin": 1, "allspin_repeat_penalty": -500},
+		"Allspin_1": {"tetris_allspin": 1},
 		"NoHold_1": {"NoHold": true},
-		"Talentless": {"NoSpin": true},
+		"Talentless_1": {"NoSpin": 1},
+		"Talentless_2": {"NoSpin": 2},
 		"BotPlay": {"BotMode": true},
 		"ChangeBag_1": {"BagType": 1},
 		"ChangeBag_2": {"BagType": 2},
@@ -88,6 +106,50 @@
 				["#3498DB",0,0,0,0,0,0,0,0,"#3498DB"],
 				["#2ECC71","#2ECC71","#2ECC71","#2ECC71","#2ECC71","#2ECC71","#2ECC71","#2ECC71","#2ECC71","#2ECC71"]
 			]
+		},
+		"ShortNext_1": {"next_count": 5},
+		"ShortNext_2": {"next_count": 4},
+		"ShortNext_3": {"next_count": 3},
+		"ShortNext_4": {"next_count": 1},
+		"ShortNext_5": {"next_display_enabled": false},
+		"DoubleHole_1": {"garbage_hole_wide_count": 2},
+		"DoubleHole_2": {"garbage_hole_count": 2}
+	},
+	"ExtraBotChange":{
+		"Allspin_1": {"allspin_repeat_penalty": -500},
+		"Talentless_1": {
+			"mini_tspin1": 120,
+			"mini_tspin2": -180,
+			"tspin1": -200,
+			"tspin2": -300,
+			"tspin3": -250,
+			"allspin1": -200,
+			"allspin2": -300,
+			"allspin3": -250,
+			"allspin3plus": -250,
+			"clear1": -80,
+			"clear2": -20,
+			"clear3": 40,
+			"clear4": 580
+		},
+		"Talentless_2": {
+			"tspin1": -200,
+			"tspin2": -300,
+			"tspin3": -250,
+			"allspin1": -200,
+			"allspin2": -300,
+			"allspin3": -250,
+			"allspin3plus": -250,
+			"mini_tspin1": -150,
+			"mini_tspin2": -200,
+			"clear1": 0,
+			"clear2": 20,
+			"clear3": 120,
+			"clear4": 440,
+			"combo_garbage": 220,
+			"b2b_clear": 260,
+			"perfect_clear": 280,
+			"height": -80
 		}
 	}
 }

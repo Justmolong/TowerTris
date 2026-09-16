@@ -159,6 +159,7 @@ typedef struct CCWeights {
     int32_t allspin_repeat_penalty;
     int32_t kick_table[64];
     int32_t kick_table_len;
+    int32_t no_spin;   /* NoSpin 规则：0=正常Spin判定；1=所有Spin视为Mini；2=不判定任何Spin */
 } CCWeights;
 
 /* ---- function pointer signatures (from c-api coldclear.h) ---- */
@@ -228,6 +229,7 @@ static int32_t g_attack_efficiency_weight = 100;   /* bot 评估权重：攻击�
 static int32_t g_b2b_clear = 200;    /* bot 评估权重：维持 BTB */
 static int32_t g_height = -39;       /* bot 评估权重：放块后的堆叠最高点（负值=压高） */
 static int32_t g_clear4 = 260;       /* bot 评估权重：四消 */
+static int32_t g_no_spin = 0;        /* NoSpin 规则：0=正常；1=所有Spin视为Mini；2=不判定任何Spin */
 static uint32_t g_rules_version = 0;
 static uint32_t g_last_rules_version = 0;
 
@@ -241,6 +243,19 @@ static int piece_char_to_enum(char c) {
 		case 'S': return CC_S;
 		case 'Z': return CC_Z;
 		default: return -1;
+	}
+}
+
+static char piece_enum_to_char(int e) {
+	switch (e) {
+		case CC_I: return 'I';
+		case CC_O: return 'O';
+		case CC_T: return 'T';
+		case CC_L: return 'L';
+		case CC_J: return 'J';
+		case CC_S: return 'S';
+		case CC_Z: return 'Z';
+		default: return '?';
 	}
 }
 
@@ -374,6 +389,7 @@ static void apply_game_rules(CCWeights *w) {
         w->kick_table[k * 2 + 1] = g_kick_table[k * 2 + 1];
     }
     w->kick_table_len = g_kick_len;
+    w->no_spin = g_no_spin;
 }
 
 /* 解析 S 命令：
@@ -383,7 +399,7 @@ static void apply_game_rules(CCWeights *w) {
  *   <clear1> <clear2> <clear3> <tspin1> <tspin2> <tspin3> <mini_tspin1> <mini_tspin2>
  *   <allspin1> <allspin2> <allspin3> <allspin3plus>
  *   <perfect_clear> <combo_garbage> <wasted_t> <move_time>
- *   <kickLen> <kick dx,dy pairs: 2*kickLen> <combo0..31> <combo_formula>
+ *   <kickLen> <kick dx,dy pairs: 2*kickLen> <combo0..31> <combo_formula> <no_spin>
  * 更精确的协议由 bridge 拼接；这里按固定顺序读取。 */
 static void parse_game_rules(char *toks[], int nt) {
     if (nt < 9) return;
@@ -458,6 +474,7 @@ static void parse_game_rules(char *toks[], int nt) {
     }
     for (int k = 0; k < 32 && i < nt; ++k) g_combo_damage[k] = atoi(toks[i++]);
     if (i < nt) g_combo_formula = atoi(toks[i++]);
+    if (i < nt) g_no_spin = atoi(toks[i++]);
     g_has_game_rules = true;
 }
 
@@ -697,7 +714,9 @@ int main(int argc, char **argv) {
 			request_next(g_bot, (uint32_t)incoming);
 			CCMove mv;
 			memset(&mv, 0, sizeof(mv));
-			CCBotPollStatus st = block_next(g_bot, &mv, NULL, NULL);
+			CCPlanPlacement plan_buf[32];
+			uint32_t plan_len = 32;
+			CCBotPollStatus st = block_next(g_bot, &mv, plan_buf, &plan_len);
 
 			if (st == CC_BOT_DEAD) {
 				g_has_pred_field = false;
@@ -727,6 +746,22 @@ int main(int argc, char **argv) {
                         default:       c = '?'; break;
                     }
 					printf(" %c", c);
+				}
+				/* 整条最优计划（可绘制）：... <mv> P <count> <piece> <x0> <y0> <x1> <y1> <x2> <y2> <x3> <y3> <c0> <c1> <c2> <c3> ...
+				 * piece = 方块类型字符（I/O/T/L/J/S/Z，用于绘制颜色）；
+				 * x/y = 该方块最终落定的 4 个 cells 绝对坐标（CC：x 0..9，y 向上，y=0 底部）；
+				 * c0..c3 = 该落块消去的行号（CC 绝对行号，-1=该槽位无消行）。
+				 * plan_buf[0] = 当前块落点，其后为未来各块。 */
+				printf(" P %u", plan_len);
+				for (uint32_t p = 0; p < plan_len; p++) {
+					printf(" %c %d %d %d %d %d %d %d %d %d %d %d %d",
+						piece_enum_to_char((int)plan_buf[p].piece),
+						(int)plan_buf[p].expected_x[0], (int)plan_buf[p].expected_y[0],
+						(int)plan_buf[p].expected_x[1], (int)plan_buf[p].expected_y[1],
+						(int)plan_buf[p].expected_x[2], (int)plan_buf[p].expected_y[2],
+						(int)plan_buf[p].expected_x[3], (int)plan_buf[p].expected_y[3],
+						(int)plan_buf[p].cleared_lines[0], (int)plan_buf[p].cleared_lines[1],
+						(int)plan_buf[p].cleared_lines[2], (int)plan_buf[p].cleared_lines[3]);
 				}
 				printf("\n");
 				fflush(stdout);

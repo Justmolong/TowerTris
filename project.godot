@@ -12,19 +12,24 @@ config_version=5
 
 config/name="TowerTris"
 run/main_scene="res://Tscns/main_menu.tscn"
-config/features=PackedStringArray("4.7", "Mobile")
+config/features=PackedStringArray("4.7", "C#", "Mobile")
 config/icon="res://icon.svg"
 
 [autoload]
 
-GlobalData="*res://Scripts/auto_load/global_data.gd"
-InputInitializer="*res://Scripts/auto_load/input_initializer.gd"
-RandomManager="*res://Scripts/auto_load/random_manager.gd"
-UiScaler="*res://Scripts/auto_load/ui_scaler.gd"
+GlobalData="*res://Scripts/auto_load/GlobalData.cs"
+InputInitializer="*res://Scripts/auto_load/InputInitializer.cs"
+RandomManager="*res://Scripts/auto_load/RandomManager.cs"
+UiScaler="*res://Scripts/auto_load/UiScaler.cs"
+_mcp_game_helper="*res://addons/godot_ai/runtime/game_helper.gd"
+
+[dotnet]
+
+project/assembly_name="TowerTris"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/coldclear_export/plugin.cfg")
+enabled=PackedStringArray("res://addons/coldclear_export/plugin.cfg", "res://addons/godot_ai/plugin.cfg")
 
 [input]
 
@@ -66,6 +71,11 @@ HoldBlock={
 SwapSpin={
 "deadzone": 0.2,
 "events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":0,"physical_keycode":65,"key_label":0,"unicode":97,"location":0,"echo":false,"script":null)
+]
+}
+ExitGame={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":0,"physical_keycode":4194305,"key_label":0,"unicode":0,"location":0,"echo":false,"script":null)
 ]
 }
 

@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://bmur5xqe7u7ww"]
 
-[ext_resource type="Script" uid="uid://cwfw7bdmn3td2" path="res://Scripts/menu_main/menu_controller.gd" id="1_lifoa"]
+[ext_resource type="Script" path="res://Scripts/menu_main/MenuController.cs" id="1_lifoa"]
 
 [node name="Main_menu" type="Node2D" unique_id=465659194]
 

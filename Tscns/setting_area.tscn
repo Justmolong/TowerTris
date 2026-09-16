@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://bq2ikk1etk2mg"]
 
-[ext_resource type="Script" uid="uid://c2cdrcf67cu8v" path="res://Scripts/setting_area/setting_area.gd" id="1_d0nmj"]
+[ext_resource type="Script" path="res://Scripts/setting_area/SettingArea.cs" id="1_d0nmj"]
 
 [node name="setting_area" type="Node2D" unique_id=687338970]
 
