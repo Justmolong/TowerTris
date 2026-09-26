@@ -13,7 +13,7 @@ $srcs = @(
     "src/random.cpp"
 )
 Write-Host "编译 zzztoj_worker.exe ..."
-& g++ -std=c++17 -O2 -Isrc @srcs -o zzztoj_worker.exe -static -static-libgcc -static-libstdc++
+& g++ -std=c++17 -O2 -Isrc @srcs -o worker/zzztoj_worker.exe -static -static-libgcc -static-libstdc++
 if ($LASTEXITCODE -ne 0) { throw "编译失败" }
-Write-Host ("完成: {0} 字节" -f (Get-Item zzztoj_worker.exe).Length)
-Write-Host "自检： .\zzztoj_worker.exe selftest"
+Write-Host ("完成: {0} 字节" -f (Get-Item worker/zzztoj_worker.exe).Length)
+Write-Host "自检： .\worker\zzztoj_worker.exe selftest"

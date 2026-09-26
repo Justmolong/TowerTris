@@ -1,0 +1,1660 @@
+cargo:rerun-if-env-changed=CC_FORCE_DISABLE
+CC_FORCE_DISABLE = None
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_ENABLE_DEBUG_OUTPUT
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+entropy_common.c
+debug.c
+error_private.c
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+pool.c
+fse_decompress.c
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+threading.c
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+zstd_common.c
+zstd_trace.c
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+fse_compress.c
+hist.c
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+huf_compress.c
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+zstdmt_compress.c
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+zstd_compress_sequences.c
+zstd_compress.c
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+zstd_compress_superblock.c
+zstd_compress_literals.c
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+zstd_double_fast.c
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+zstd_fast.c
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+zstd_lazy.c
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+zstd_ldm.c
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+huf_decompress.c
+zstd_opt.c
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+zstd_ddict.c
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+zstd_decompress.c
+zstd_decompress_block.c
+cover.c
+divsufsort.c
+fastcover.c
+zstd_v01.c
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+zdict.c
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+zstd_v04.c
+zstd_v02.c
+zstd_v03.c
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+zstd_v05.c
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+zstd_v07.c
+zstd_v06.c
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-pthread'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cl : Command line warning D9002 : ignoring unknown option '-pthread'
+
+0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+cargo:rerun-if-env-changed=AR_x86_64-pc-windows-msvc
+AR_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=AR_x86_64_pc_windows_msvc
+AR_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_AR
+HOST_AR = None
+cargo:rerun-if-env-changed=AR
+AR = None
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=ARFLAGS
+ARFLAGS = None
+cargo:rerun-if-env-changed=HOST_ARFLAGS
+HOST_ARFLAGS = None
+cargo:rerun-if-env-changed=ARFLAGS_x86_64_pc_windows_msvc
+ARFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=ARFLAGS_x86_64-pc-windows-msvc
+ARFLAGS_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=AR_x86_64-pc-windows-msvc
+AR_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=AR_x86_64_pc_windows_msvc
+AR_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_AR
+HOST_AR = None
+cargo:rerun-if-env-changed=AR
+AR = None
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=ARFLAGS
+ARFLAGS = None
+cargo:rerun-if-env-changed=HOST_ARFLAGS
+HOST_ARFLAGS = None
+cargo:rerun-if-env-changed=ARFLAGS_x86_64_pc_windows_msvc
+ARFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=ARFLAGS_x86_64-pc-windows-msvc
+ARFLAGS_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug;C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Eclipse Adoptium\jre-25.0.1.8-hotspot\bin;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files\dotnet\;C:\Program Files\TortoiseGit\bin;E:\Git\cmd;C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\bin;C:\Users\27542\.cargo\bin;C:\Users\27542\AppData\Local\Programs\Python\Launcher\;C:\Users\27542\AppData\Local\Microsoft\WindowsApps;E:\Microsoft VS Code\bin;E:\Windsurf\bin;E:\mingw64\mingw64\bin;D:\nc;C:\Users\27542\.dotnet\tools;C:\Users\27542\AppData\Local\Programs\Ollama;C:\Users\27542\AppData\Local\UGit\app-5.51.0\resources\app\git\cmd;C:\Users\27542\AppData\Local\UGit\bin;C:\Users\27542\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rustc-link-lib=static=zstd
+cargo:rustc-link-search=native=C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\build\zstd-sys-911f50ae6e08e8a2\out
+cargo:root=C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\build\zstd-sys-911f50ae6e08e8a2\out
+cargo:include=C:\Users\27542\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\zstd-sys-1.5.0+zstd.1.4.9\zstd/lib

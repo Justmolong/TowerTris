@@ -1,5 +1,0 @@
-/target
-build_test.log
-/native/*.dll
-/native/*.lib
-/native/*.exe

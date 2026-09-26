@@ -1,0 +1,14 @@
+C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps\serde-daaea6e2a31855d9.d: C:\Users\27542\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\lib.rs C:\Users\27542\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\integer128.rs C:\Users\27542\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\mod.rs C:\Users\27542\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\de.rs C:\Users\27542\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\ser.rs C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\build\serde-774097fa1c790350\out/private.rs
+
+C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps\libserde-daaea6e2a31855d9.rlib: C:\Users\27542\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\lib.rs C:\Users\27542\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\integer128.rs C:\Users\27542\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\mod.rs C:\Users\27542\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\de.rs C:\Users\27542\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\ser.rs C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\build\serde-774097fa1c790350\out/private.rs
+
+C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\deps\libserde-daaea6e2a31855d9.rmeta: C:\Users\27542\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\lib.rs C:\Users\27542\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\integer128.rs C:\Users\27542\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\mod.rs C:\Users\27542\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\de.rs C:\Users\27542\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\ser.rs C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\build\serde-774097fa1c790350\out/private.rs
+
+C:\Users\27542\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\lib.rs:
+C:\Users\27542\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\integer128.rs:
+C:\Users\27542\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\mod.rs:
+C:\Users\27542\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\de.rs:
+C:\Users\27542\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\ser.rs:
+C:\Users\27542\Documents\tetris-tower\rust\cold_clear_engine\target\debug\build\serde-774097fa1c790350\out/private.rs:
+
+# env-dep:OUT_DIR=C:\\Users\\27542\\Documents\\tetris-tower\\rust\\cold_clear_engine\\target\\debug\\build\\serde-774097fa1c790350\\out

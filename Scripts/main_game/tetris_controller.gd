@@ -136,7 +136,7 @@ var bot_mode: bool = false
 @export var bot_debug_log: bool = true
 
 # --- 以下为 bot 内部状态（运行期维护，勿手改） ---
-var _coldclear_bridge: ColdClearBridge = null
+var _zzz_bridge: ZzzBridge = null
 var _bot_piece_serial: int = 0
 var _bot_tracking_piece_serial: int = -1
 var _bot_tracking_board_version: int = 0
@@ -274,7 +274,7 @@ func _ready():
 	_init_stats()
 
 	if bot_mode:
-		_ensure_coldclear_bridge()
+		_ensure_zzz_bridge()
 		if bot_debug_log:
 			pass  # 已注释：print("[ColdClearBridge] 使用原生ColdClear决策（rust cold_clear.dll）")
 	
@@ -1247,7 +1247,7 @@ func _process(delta):
 		# bot 的移动序列（含旋转踢墙）是基于“当前方块仍在 spawn 位”规划的相对移动，
 		# 若决策等待期间方块持续下落，执行计划时旋转踢墙会在错误高度触发，
 		# 导致旋转/落点错乱（表现为“移动错乱 / missdrop”）。
-		if _coldclear_bridge == null or not _coldclear_bridge.is_waiting_decision():
+		if _zzz_bridge == null or not _zzz_bridge.is_waiting_decision():
 			gravity_drop()
 		return
 	
@@ -1259,15 +1259,15 @@ func _process(delta):
 	check_for_var_single_press()
 	gravity_drop()
 
-func _ensure_coldclear_bridge() -> void:
-	if _coldclear_bridge != null:
+func _ensure_zzz_bridge() -> void:
+	if _zzz_bridge != null:
 		return
-	_coldclear_bridge = ColdClearBridge.new()
-	add_child(_coldclear_bridge)
+	_zzz_bridge = ZzzBridge.new()
+	add_child(_zzz_bridge)
 
 func _process_bot_control(delta: float) -> void:
-	_ensure_coldclear_bridge()
-	if _coldclear_bridge == null:
+	_ensure_zzz_bridge()
+	if _zzz_bridge == null:
 		return
 	if current_piece.is_empty():
 		return
@@ -1282,8 +1282,8 @@ func _process_bot_control(delta: float) -> void:
 	# 新块开始：请求新的原生 ColdClear 决策
 	if _bot_tracking_piece_serial != _bot_piece_serial:
 		_bot_tracking_piece_serial = _bot_piece_serial
-		if _coldclear_bridge.using_native_cc():
-			_coldclear_bridge.request_plan(self)
+		if _zzz_bridge.using_native_cc():
+			_zzz_bridge.request_plan(self)
 
 	# 垃圾行抬升期间版面已变化（force_raise_rows 已递增 board_version）。
 	# 注意：垃圾上涨是整版（含当前方块）同步上移（force_raise_rows 会把当前方块一并上移），
@@ -1294,16 +1294,16 @@ func _process_bot_control(delta: float) -> void:
 	if garbage_line_controller != null and _bot_tracking_board_version != garbage_line_controller.board_version:
 		_bot_tracking_board_version = garbage_line_controller.board_version
 		# 避免请求堆积：若已有在途决策（正在等待），交给其完成后自然对账；否则才重新请求。
-		if _coldclear_bridge.using_native_cc() and not _coldclear_bridge.is_waiting_decision():
-			if _coldclear_bridge.is_plan_empty():
-				_coldclear_bridge.request_plan(self)
+		if _zzz_bridge.using_native_cc() and not _zzz_bridge.is_waiting_decision():
+			if _zzz_bridge.is_plan_empty():
+				_zzz_bridge.request_plan(self)
 
 	# 等待原生 ColdClear 异步决策期间，暂停动作
-	if _coldclear_bridge.using_native_cc() and _coldclear_bridge.is_waiting_decision():
+	if _zzz_bridge.using_native_cc() and _zzz_bridge.is_waiting_decision():
 		return
 
 	# 无可用原生计划（原生不可用/决策失败/计划已消费）时，直接硬降锁定当前块
-	if not _coldclear_bridge.using_native_cc() or not _coldclear_bridge.has_plan():
+	if not _zzz_bridge.using_native_cc() or not _zzz_bridge.has_plan():
 		if _bot_piece_cooldown > 0.0:
 			_bot_next_action_time = min(_bot_piece_cooldown, 0.05)
 			return
@@ -1312,7 +1312,7 @@ func _process_bot_control(delta: float) -> void:
 		return
 
 	# 执行计划中的下一个动作
-	var decided_action: BotAction = _coldclear_bridge.next_plan_action()
+	var decided_action: BotAction = _zzz_bridge.next_plan_action()
 	if decided_action == null or String(decided_action.move).is_empty():
 		decided_action = BotAction.new("hard_drop", ["hard_drop"], "hard_drop")
 
@@ -1342,6 +1342,16 @@ func _apply_bot_action(action: BotAction) -> void:
 			move_left()
 		"right":
 			move_right()
+		"left_wall":
+			# zzztoj 的 'L'：一直左移到墙（本游戏 ARR=0 也是滑到墙）
+			while _try_move(-1, 0):
+				pass
+		"right_wall":
+			while _try_move(1, 0):
+				pass
+		"down_one":
+			# zzztoj 的 'd'：下移一格
+			_try_move(0, 1)
 		"rotate_left":
 			rotate_left()
 		"rotate_right":
