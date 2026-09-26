@@ -1,8 +1,8 @@
 [gd_scene format=3 uid="uid://b6i2edtol0cux"]
 
-[ext_resource type="Script" path="res://Scripts/buff_chose/BuffChoseArea.cs" id="1_7sx2r"]
-[ext_resource type="Script" path="res://Scripts/buff_chose/ToggleBox.cs" id="2_7sx2r"]
-[ext_resource type="Script" path="res://Scripts/buff_chose/ToggleConnector.cs" id="3_7sx2r"]
+[ext_resource type="Script" uid="uid://ubmnhfgjgm77" path="res://Scripts/buff_chose/buff_chose_area.gd" id="1_7sx2r"]
+[ext_resource type="Script" uid="uid://hc6y5a0155yd" path="res://Scripts/buff_chose/toggle_box.gd" id="2_7sx2r"]
+[ext_resource type="Script" uid="uid://dcpbd5i5bb55h" path="res://Scripts/buff_chose/toggle_connector.gd" id="3_7sx2r"]
 
 [node name="BuffChoseArea" type="Node2D" unique_id=510707300]
 

@@ -219,7 +219,6 @@ struct CCWeights {
     allspin_repeat_penalty: i32,
     kick_table: [i32; 64],
     kick_table_len: i32,
-    no_spin: i32,
 }
 
 fn convert_hold(hold: *mut CCPiece) -> Option<Piece> {
@@ -308,11 +307,6 @@ fn convert_from_c_weights(weights: &CCWeights) -> cold_clear::evaluation::Standa
         attack_efficiency_weight: weights.attack_efficiency_weight,
         allspin_enabled: weights.allspin_enabled,
         allspin_repeat_penalty: weights.allspin_repeat_penalty,
-        no_spin: weights.no_spin,
-        // C API 未暴露该参数，使用引擎默认值（spin/quad 链延续加成）
-        spin_chain_bonus: cold_clear::evaluation::Standard::default().spin_chain_bonus,
-        // C API 未暴露该参数，使用引擎默认值（BTB 续到第 4 步的里程碑奖励）
-        btb_reach4_bonus: cold_clear::evaluation::Standard::default().btb_reach4_bonus,
     }
 }
 
@@ -346,7 +340,6 @@ unsafe extern "C" fn cc_launch_with_board_async(
     }
     board.allspin_enabled = weights.allspin_enabled;
     board.game_rules_enabled = weights.game_damage_enabled;
-    board.no_spin = weights.no_spin;
     apply_kick_table(&mut board, weights);
     for i in 0..count as usize {
         board.add_next_piece((*pieces.add(i)).into());
@@ -390,7 +383,6 @@ unsafe extern "C" fn cc_launch_async(
     let mut board = Board::new();
     board.allspin_enabled = weights.allspin_enabled;
     board.game_rules_enabled = weights.game_damage_enabled;
-    board.no_spin = weights.no_spin;
     apply_kick_table(&mut board, weights);
     for i in 0..count as usize {
         board.add_next_piece((*pieces.add(i)).into());
@@ -626,7 +618,6 @@ fn convert_weights(w: cold_clear::evaluation::Standard) -> CCWeights {
         allspin_repeat_penalty: w.allspin_repeat_penalty,
         kick_table: [0; 64],
         kick_table_len: 0,
-        no_spin: w.no_spin,
     }
 }
 

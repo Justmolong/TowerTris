@@ -1,13 +1,13 @@
 [gd_scene format=3 uid="uid://d1onpmgbsr2wc"]
 
-[ext_resource type="Script" path="res://Scripts/main_game/TetrisBoardDrawer.cs" id="1_mrxv1"]
-[ext_resource type="Script" path="res://Scripts/main_game/TetrisController.cs" id="2_rfoi6"]
-[ext_resource type="Script" path="res://Scripts/main_game/TetrisBagController.cs" id="3_tksln"]
-[ext_resource type="Script" path="res://Scripts/main_game/TetrisClearLine.cs" id="4_y1iia"]
-[ext_resource type="Script" path="res://Scripts/main_game/TetrisGarbageLineController.cs" id="5_xatp6"]
-[ext_resource type="Script" path="res://Scripts/main_game/TowerController.cs" id="6_7iclg"]
-[ext_resource type="Script" path="res://Scripts/main_game/FPSDisplay.cs" id="7_et6fd"]
-[ext_resource type="Script" path="res://Scripts/main_game/TextPrinter.cs" id="8_tprnt"]
+[ext_resource type="Script" uid="uid://bg8pyfh5ggbfb" path="res://Scripts/main_game/tetris_board_drawer.gd" id="1_mrxv1"]
+[ext_resource type="Script" uid="uid://bkn1h8ficugk7" path="res://Scripts/main_game/tetris_controller.gd" id="2_rfoi6"]
+[ext_resource type="Script" uid="uid://bwxy2b626a2gi" path="res://Scripts/main_game/tetris_bag_controller.gd" id="3_tksln"]
+[ext_resource type="Script" uid="uid://d3561fyl743p3" path="res://Scripts/main_game/tetris_clear_line.gd" id="4_y1iia"]
+[ext_resource type="Script" uid="uid://cu5nspe4lrcgu" path="res://Scripts/main_game/garbage_line_controller.gd" id="5_xatp6"]
+[ext_resource type="Script" uid="uid://1rqswyci2p50" path="res://Scripts/main_game/tower_controller.gd" id="6_7iclg"]
+[ext_resource type="Script" uid="uid://cix84cmt6nee6" path="res://Scripts/main_game/fps_display.gd" id="7_et6fd"]
+[ext_resource type="Script" uid="uid://csm65d5mycwnu" path="res://Scripts/main_game/text_printer.gd" id="8_tprnt"]
 
 [node name="Tetris" type="Node2D" unique_id=1813233852]
 

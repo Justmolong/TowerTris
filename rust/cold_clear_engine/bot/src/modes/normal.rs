@@ -292,24 +292,11 @@ impl Thinker {
             if !lock.locked_out && !(can_be_hd && lock.placement_kind == PlacementKind::MiniTspin) {
                 let move_time = mv.inputs.time + if hold { 1 } else { 0 };
                 let (evaluation, reward) = eval.evaluate(&lock, &result, move_time, spawned.kind.0);
-                // “手上方块可直接做完整 Spin（不 hold）”标记：供 DAG 分支选择做单向放大。
-                // 只算完整 Spin（T-Spin/全旋），不算 Mini——配合权重策略偏好 full Spin。
-                let is_direct_spin = !hold
-                    && (lock.allspin
-                        || matches!(
-                            lock.placement_kind,
-                            PlacementKind::Tspin
-                                | PlacementKind::Tspin1
-                                | PlacementKind::Tspin2
-                                | PlacementKind::Tspin3
-                        ));
                 children.push(ChildData {
                     evaluation,
                     reward,
                     board: result,
                     mv: mv.location,
-                    used_hold: hold,
-                    is_spin: is_direct_spin,
                 });
             }
         }

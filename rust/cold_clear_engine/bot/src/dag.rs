@@ -77,7 +77,6 @@
 //! piece laid flat in the center is represented as `0x7F 0x1E 0x81 0x4D 0x81 0x7F 0x1E`.
 #![allow(dead_code)]
 
-use std::cell::Cell;
 use std::collections::{HashMap, VecDeque};
 use std::ops::ControlFlow;
 
@@ -93,33 +92,6 @@ use serde::{Deserialize, Serialize};
 use crate::evaluation::Evaluation;
 
 use self::ouroboros_impl_generation::BorrowedMutFields;
-
-/// UCT 探索常数（广度增强）：在选择往哪个孩子继续深入时，
-/// 给“访问次数少的分支”乘以 (1 + UCT_EXPLORE*sqrt(ln(N+1)/(n+1))) 加成，
-/// 让搜索不再只钻“当下评估最好”的线，而是按访问量摊开覆盖更多分支。
-/// 由于回传保留的是各分支的最大值（`improve` 取 max），多探索只会补充信息、
-/// 不会把根节点的出招变差。
-const UCT_EXPLORE: f64 = 1.5;
-
-/// “手上方块可直接做完整 Spin（不 hold）”分支的单向放大倍数（仅当手上是 T 时）。
-/// 当发现当前方块就是 T 且存在不 hold 直接成完整 T-Spin 的落点时，
-/// 把这些候选的抽样权重放大该倍数，使本次搜索把更多节点预算投入到
-/// “T-Spin → 继续连击/维持”这条主线上深挖；其余分支仍保留正常探索
-/// （并继续受首次公平轮与 UCT 广度保护），最终出招仍按回传的最大值选择。
-/// 【T 优先】非 T 块的 direct allspin 用较小的 ALLSPIN_BOOST——避免 bot 为凑 allspin
-/// 破坏地形/浪费后续的 T（参照 bot：t 利用率 ~100%，allspin 只是 T 落点附近的配合）。
-const DIRECT_T_SPIN_BOOST: f64 = 8.0;
-/// 非 T 块“不 hold 直接做成 full spin(allspin)”的单向放大：小于 T-Spin，
-/// 使预算优先流向“为 T 保留/构造 T 槽”与真正高价值的 T-Spin 线。
-const DIRECT_ALLSPIN_BOOST: f64 = 2.0;
-
-/// 深层 beam 剪枝宽度：对未来层（gen>0，即非“当前出招层”）每个节点的落点子集，
-/// 在回传排序（此时 child.node.evaluation 已含整条线的价值，比单步值可靠）后
-/// 仅保留前 CHILD_BEAM_WIDTH 个 child。
-/// 【调参结论】实测 beam=20（无论建枝处截断还是回传处截断）都会伤害长线备线与
-/// T-Spin setup（tUtil/spinClears/attacks 全面略降）；当前设为一个远超实际分支数的
-/// 大值 ≈ 关闭剪枝（保留机制便于将来复测）。深度提升改由 min_nodes/并行预算解决。
-const CHILD_BEAM_WIDTH: usize = 1_000_000;
 
 pub struct DagState<E: 'static, R: 'static> {
     board: Board,
@@ -141,10 +113,6 @@ pub struct ChildData<E, R> {
     pub board: Board,
     pub evaluation: E,
     pub reward: R,
-    /// 该落点是否通过 hold 换块产生（true=用掉了 hold；false=直接用当前手上的方块）
-    pub used_hold: bool,
-    /// 该落点是否“不 hold 直接做成完整 Spin”（T-Spin / 全旋，不含 Mini）
-    pub is_spin: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -190,12 +158,6 @@ struct Child<R> {
     reward: R,
     original_rank: u32,
     node: u32,
-    /// 该孩子（候选落点/分支）被选择的次数，用于广度探索（UCT）与首次访问公平分配。
-    visits: Cell<u32>,
-    /// 该落点是否通过 hold 换块产生（true=用掉了 hold；false=直接用当前手上的方块）
-    used_hold: bool,
-    /// 该落点是否“不 hold 直接做成完整 Spin”（T-Spin / 全旋，不含 Mini）
-    is_spin: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -289,77 +251,17 @@ impl<E: Evaluation<R> + 'static, R: Clone + 'static> DagState<E, R> {
         }
 
         self.find_and_mark_leaf_with_chooser(|next_gen_nodes, children| {
-            // 广度增强版分支选择（UCT 风格）：
-            //   1) 若仍有从未访问过的可行分支，先按评估权重在这些分支之间公平抽样——
-            //      保证每条可行线至少完整扩展一次，避免“漏掉更优解”。
-            //   2) 全部访问过之后，用 UCT：基础排名分 × (1 + C·sqrt(ln(N+1)/(n+1)))，
-            //      让访问少的分支仍有可观的继续探索概率，把预算在广度上摊开。
-            //   3) 由于回传保留各分支最大值（improve 取 max），多探索不会使根出招变差。
+            // Since children is sorted best-to-worst, the minimum evaluation will be the last item
+            // in the iterator. filter_map allows us to ignore death nodes.
             let evaluation = &child_eval_fn(next_gen_nodes);
-            let alive: Vec<usize> = (0..children.len())
-                .filter(|&i| evaluation(&children[i]).is_some())
-                .collect();
-            if alive.is_empty() {
-                return None;
-            }
-            let min_eval = alive
+            let min_eval = children.iter().rev().filter_map(evaluation).next()?;
+            let weights = children
                 .iter()
-                .filter_map(|&i| evaluation(&children[i]))
-                .min()
-                .unwrap();
-            let total_visits: u64 = alive.iter().map(|&i| children[i].visits.get() as u64).sum();
-
-            let picked_idx = if alive.iter().any(|&i| children[i].visits.get() == 0) {
-                // 首次访问公平轮：仅在未访问过的分支里按原评估权重抽样；
-                // 手上方块可直接做完整 Spin（且无需 Hold）的分支被放大——
-                // 手上是 T → 大放大（T 优先）；非 T 的 direct allspin → 小放大。
-                let weights: Vec<f64> = alive
-                    .iter()
-                    .map(|&i| {
-                        let spin_factor = if children[i].is_spin && !children[i].used_hold {
-                            if children[i].placement.kind.0 == Piece::T {
-                                DIRECT_T_SPIN_BOOST
-                            } else {
-                                DIRECT_ALLSPIN_BOOST
-                            }
-                        } else {
-                            1.0
-                        };
-                        evaluation(&children[i]).map_or(1e-3f64, |e| {
-                            (e.weight(&min_eval, i as usize).max(0) as f64 + 1e-3) * spin_factor
-                        })
-                    })
-                    .collect();
-                let sampler = rand::distributions::WeightedIndex::new(weights.iter().copied()).ok()?;
-                alive[thread_rng().sample(sampler)]
-            } else {
-                // UCT 轮：base(排名分) × 探索加成
-                let ln_n = (total_visits as f64 + 1.0).ln();
-                let weights: Vec<f64> = alive
-                    .iter()
-                    .map(|&i| {
-                        let spin_factor = if children[i].is_spin && !children[i].used_hold {
-                            if children[i].placement.kind.0 == Piece::T {
-                                DIRECT_T_SPIN_BOOST
-                            } else {
-                                DIRECT_ALLSPIN_BOOST
-                            }
-                        } else {
-                            1.0
-                        };
-                        let base = evaluation(&children[i]).map_or(1e-3f64, |e| {
-                            e.weight(&min_eval, i as usize).max(0) as f64 + 1e-3
-                        });
-                        let n = children[i].visits.get() as f64 + 1.0;
-                        let explore = UCT_EXPLORE * (ln_n / n).sqrt();
-                        base * (1.0 + explore) * spin_factor
-                    })
-                    .collect();
-                let sampler = rand::distributions::WeightedIndex::new(weights.iter().copied()).ok()?;
-                alive[thread_rng().sample(sampler)]
-            };
-            children[picked_idx].visits.set(children[picked_idx].visits.get() + 1);
-            Some(&children[picked_idx])
+                .enumerate()
+                .map(|(i, c)| evaluation(c).map_or(0, |e| e.weight(&min_eval, i)));
+            // Choose a node randomly (the Monte-Carlo part)
+            let sampler = rand::distributions::WeightedIndex::new(weights).ok()?;
+            Some(&children[thread_rng().sample(sampler)])
         })
     }
 
@@ -470,7 +372,6 @@ impl<E: Evaluation<R> + 'static, R: Clone + 'static> DagState<E, R> {
         let gen = (node.generation - self.gens_passed) as usize;
 
         let use_hold = self.use_hold;
-        // speculated 层只出现在未来层，beam 剪枝统一在 backpropogate 处理。
         let [parent_gen, child_gen] = self.get_gen_and_next(gen);
 
         parent_gen.with_mut(|current| {
@@ -526,9 +427,6 @@ impl<E: Evaluation<R> + 'static, R: Clone + 'static> DagState<E, R> {
 
                         // Strategy for dealing with children lists.
                         let eval_of = &child_eval_fn(&children_gen.nodes);
-                        // 深层 beam 剪枝开关：当前处理的层 gen==0（根层/出招候选）不剪；
-                        // 未来层才按回传价值（child.node.evaluation，已含整条线的价值）截断。
-                        let prune_beam = gen > 0;
                         let process_children = |children: &mut &mut [_]| {
                             // Sort best-to-worst. The index of a move is now its rank, as desired.
                             children.sort_by_key(|c| std::cmp::Reverse(eval_of(c)));
@@ -538,13 +436,6 @@ impl<E: Evaluation<R> + 'static, R: Clone + 'static> DagState<E, R> {
                                     remove_last(children);
                                 } else {
                                     break;
-                                }
-                            }
-                            // 深层 beam 剪枝：砍掉整条线回传后仍显著更差的枝（前 CHILD_BEAM_WIDTH
-                            // 之外），把后续扩展预算集中到好枝，换取更深的有效搜索代数。
-                            if prune_beam {
-                                while children.len() > CHILD_BEAM_WIDTH {
-                                    remove_last(children);
                                 }
                             }
                             // Find the evaluation of this list, or None if this path is death.
@@ -956,9 +847,6 @@ fn build_children<'arena, E: Evaluation<R> + 'static, R: Clone + 'static>(
             original_rank: i as u32,
             reward: data.reward,
             node,
-            visits: Cell::new(0),
-            used_hold: data.used_hold,
-            is_spin: data.is_spin,
         }
     }))
 }

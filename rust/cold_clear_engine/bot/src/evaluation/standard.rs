@@ -91,22 +91,6 @@ pub struct Standard {
     /// allspin_1 重复惩罚的评估扣分（负值=降低该决策的选取值）。
     /// 触发“与上次消行完全一致”的重复惩罚时，从评估分中扣除此值。
     pub allspin_repeat_penalty: i32,
-    /// NoSpin 规则模式（int）：0=默认（正常Spin判定）；1=所有Spin一律视为Mini
-    /// （评估与伤害都按 mini 处理）；2=不判定任何Spin（评估与伤害都按普通消除处理）。
-    /// 由 buff（Talentless）经 S 命令下发。
-    pub no_spin: i32,
-    /// spin/quad 链延续加成：当上一手已在 B2B（连续 spin/quad）链中（board.b2b_bonus=true）
-    /// 且本手落块同样是 spin/quad（lock.b2b=true）时，在 b2b_clear 之外再叠加本加分。
-    /// 让 bot 更倾向“检索到 spin 后在该 spin 上继续做 spin/quad 连击”，而不是立刻收手打断。
-    /// 未通过 C API/S 命令暴露时使用引擎默认值。
-    pub spin_chain_bonus: i32,
-    /// BTB 链长度门槛（surge）奖励：本规则下 btb_count>=4 才触发 surge（普通消行释放
-    /// btb_count 伤害），且 btb>=4 时每次续链 boost 从 +1 变 +2 —— 链的价值是非线性的：
-    /// 1–3 步链几乎无额外收益，续到 4 及以上才有爆发。因此在“本次落块把链推进到/维持
-    /// 在第 4 步及以上”（落块前 btb_count>=3 且本手 spin/quad）时叠加本加分，
-    /// 让 bot 明确“要么不开链，开链就要续到 4+”，而不是开了又中途 2–3 步就断掉。
-    /// 未通过 C API/S 命令暴露时使用引擎默认值。
-    pub btb_reach4_bonus: i32,
 }
 
 impl Default for Standard {
@@ -182,9 +166,6 @@ impl Default for Standard {
             attack_efficiency_weight: 100,
             allspin_enabled: 0,
             allspin_repeat_penalty: -120,
-            no_spin: 0,
-            spin_chain_bonus: 120,
-            btb_reach4_bonus: 300,
         }
     }
 }
@@ -250,41 +231,6 @@ impl Standard {
             attack_efficiency_weight: 100,
             allspin_enabled: 0,
             allspin_repeat_penalty: -120,
-            no_spin: 0,
-            spin_chain_bonus: 120,
-            btb_reach4_bonus: 300,
-        }
-    }
-
-    /// 按 no_spin 规则返回本次落块的“有效类别”，返回 (是否为 mini spin, 是否按普通消除处理)。
-    ///   no_spin=1：所有 Spin（T与非T）一律视为 Mini → (true, false)
-    ///   no_spin=2：不判定任何 Spin，一律按普通消除 → (false, true)
-    ///   no_spin=0：原样（mini→(true,false)；spin→(false,false)；普通→(false,true)）
-    fn effective_category(&self, lock: &LockResult) -> (bool, bool) {
-        let raw = lock.placement_kind;
-        match self.no_spin {
-            1 => (true, false),
-            2 => (false, true),
-            _ => {
-                let is_mini = matches!(
-                    raw,
-                    PlacementKind::MiniTspin
-                        | PlacementKind::MiniTspin1
-                        | PlacementKind::MiniTspin2
-                );
-                let is_spin = lock.allspin
-                    || matches!(
-                        raw,
-                        PlacementKind::Tspin
-                            | PlacementKind::Tspin1
-                            | PlacementKind::Tspin2
-                            | PlacementKind::Tspin3
-                            | PlacementKind::MiniTspin
-                            | PlacementKind::MiniTspin1
-                            | PlacementKind::MiniTspin2
-                    );
-                (is_mini, !is_spin)
-            }
         }
     }
 
@@ -316,15 +262,19 @@ impl Standard {
                 | PlacementKind::Tspin2
                 | PlacementKind::Tspin3
         );
+        let is_mini = matches!(
+            lock.placement_kind,
+            PlacementKind::MiniTspin | PlacementKind::MiniTspin1 | PlacementKind::MiniTspin2
+        );
+
         // 基础伤害：mini 用基础伤害表；T-Spin/全旋用 tspin 表；普通消行用基础表。
         // allspin 规则：board 已按 allspin_enabled 把非T卡住判为 Mini*（allmini 模式）或
-        // Tspin*（allspin 模式）。结合 no_spin 规则（Talentless）：
-        //   no_spin=1 → 所有 Spin 一律视为 Mini → 基础伤害表（与 T mini 一致）
-        //   no_spin=2 → 不判定任何 Spin → 一律按普通消除 → 基础伤害表
-        //   no_spin=0 → 原样：mini→基础表、T-Spin/全旋→tspin 表
-        let (eff_mini, eff_clear) = self.effective_category(lock);
-        let use_spin_damage = !eff_mini && !eff_clear && is_spin;
-        let mut dmg: i32 = if use_spin_damage {
+        // Tspin*（allspin 模式），这里直接按 placement_kind 走对应表即可：
+        //   allmini 模式 → is_mini → base_damage（与 T mini 一致）
+        //   allspin 模式 → is_spin → tspin_damage（与 T-Spin 一致）
+        let mut dmg: i32 = if is_mini {
+            self.base_damage[clear_count]
+        } else if is_spin {
             self.tspin_damage[clear_count.min(3)]
         } else {
             self.base_damage[clear_count]
@@ -430,47 +380,15 @@ impl Evaluator for Standard {
         if self.stack_pc_damage || !lock.perfect_clear {
             if lock.b2b {
                 acc_eval += self.b2b_clear;
-                // spin/quad 链延续加成：上一手已在 B2B 链中且本手继续 spin/quad，
-                // 额外加分，鼓励“检索到 spin 后在其上连续 spin/quad”而不是立刻收手。
-                if board.b2b_bonus {
-                    acc_eval += self.spin_chain_bonus;
-                }
-                // BTB 门槛里程碑：lock.btb_count = 本次落块前的链计数，本手 spin/quad
-                // 会把链从 3 推到 4 —— 本规则 btb>=4 才触发 surge / +2 boost，
-                // 链在 1–3 步断开近乎无收益。恰好在“进入第 4 步”时给一次性大奖励，
-                // 让 bot 明确把链续到 4+ 而不是开了中途就断。
-                if lock.btb_count == 3 {
-                    acc_eval += self.btb_reach4_bonus;
-                }
             }
             if let Some(combo) = lock.combo {
                 let combo = combo.min(11) as usize;
                 acc_eval += self.combo_garbage * libtetris::COMBO_GARBAGE[combo] as i32;
             }
-            // 按 no_spin 规则（Talentless）归一化本次落块的消除类别：
-            //   no_spin=1 → 所有 Spin（T与非T）一律视为 Mini → 用 mini_tspin* 权重
-            //   no_spin=2 → 不判定任何 Spin → 一律按普通消除 → 用 clear* 权重
-            //   no_spin=0 → 原样：T 全旋用 tspin*、T mini 用 mini_tspin*、非T spin
-            //               （lock.allspin，不论 mini/full）统一用 allspin*（只按消行数区分）
-            let (_eff_mini, eff_clear) = self.effective_category(lock);
-            if eff_clear {
-                // 普通消除（含 no_spin=2 把 spin 归为普通消除）
-                match lock.cleared_lines.len() {
-                    1 => acc_eval += self.clear1,
-                    2 => acc_eval += self.clear2,
-                    3 => acc_eval += self.clear3,
-                    n if n >= 4 => acc_eval += self.clear4,
-                    _ => {}
-                }
-            } else if self.no_spin == 1 {
-                // no_spin=1：所有 spin 一律视为 mini
-                match lock.cleared_lines.len() {
-                    1 => acc_eval += self.mini_tspin1,
-                    2 => acc_eval += self.mini_tspin2,
-                    _ => {}
-                }
-            } else if lock.allspin {
-                // no_spin=0 非T spin：统一用 allspin 权重（只按消行数区分）
+            // 非T旋转（allspin，不论 mini/full）统一用独立的 allspin 权重（只按消行数 1/2/3/3+ 区分）。
+            // board 已把非T卡住判为 Tspin*（allspin 模式）或 MiniTspin*（allmini 模式），
+            // 且 lock.allspin 对一切非T spin 为 true，故这里按 lock.allspin 分支即可。
+            if lock.allspin {
                 match lock.cleared_lines.len() {
                     1 => acc_eval += self.allspin1,
                     2 => acc_eval += self.allspin2,
@@ -479,17 +397,34 @@ impl Evaluator for Standard {
                     _ => {}
                 }
             } else {
-                // no_spin=0 T spin / 普通放置
                 match lock.placement_kind {
-                    PlacementKind::Clear1 => acc_eval += self.clear1,
-                    PlacementKind::Clear2 => acc_eval += self.clear2,
-                    PlacementKind::Clear3 => acc_eval += self.clear3,
-                    PlacementKind::Clear4 => acc_eval += self.clear4,
-                    PlacementKind::Tspin1 => acc_eval += self.tspin1,
-                    PlacementKind::Tspin2 => acc_eval += self.tspin2,
-                    PlacementKind::Tspin3 => acc_eval += self.tspin3,
-                    PlacementKind::MiniTspin1 => acc_eval += self.mini_tspin1,
-                    PlacementKind::MiniTspin2 => acc_eval += self.mini_tspin2,
+                    PlacementKind::Clear1 => {
+                        acc_eval += self.clear1;
+                    }
+                    PlacementKind::Clear2 => {
+                        acc_eval += self.clear2;
+                    }
+                    PlacementKind::Clear3 => {
+                        acc_eval += self.clear3;
+                    }
+                    PlacementKind::Clear4 => {
+                        acc_eval += self.clear4;
+                    }
+                    PlacementKind::Tspin1 => {
+                        acc_eval += self.tspin1;
+                    }
+                    PlacementKind::Tspin2 => {
+                        acc_eval += self.tspin2;
+                    }
+                    PlacementKind::Tspin3 => {
+                        acc_eval += self.tspin3;
+                    }
+                    PlacementKind::MiniTspin1 => {
+                        acc_eval += self.mini_tspin1;
+                    }
+                    PlacementKind::MiniTspin2 => {
+                        acc_eval += self.mini_tspin2;
+                    }
                     _ => {}
                 }
             }
@@ -509,34 +444,14 @@ impl Evaluator for Standard {
         }
 
         // 规则惩罚：本次决策触发 allspin_1 重复惩罚 → 额外降低选取值。
-        // no_spin 模式下不判定 spin，allspin 重复惩罚不适用。
-        if self.no_spin == 0 && lock.allspin_repeat {
+        if lock.allspin_repeat {
             acc_eval += self.allspin_repeat_penalty;
         }
 
-
         if placed == Piece::T {
-            // no_spin 规则下“T 是否算作有效 spin 清除”（避免被 wasted_t 惩罚）：
-            //   no_spin=0：仅全 T-Spin 清除（Tspin1/2/3）不算浪费
-            //   no_spin=1：所有 spin（含 mini）都算有效，T 不浪费
-            //   no_spin=2：不判定 spin，T 落块一律视为浪费（无 spin 可用）
-            let is_spin_clear = match self.no_spin {
-                1 => matches!(
-                    lock.placement_kind,
-                    PlacementKind::Tspin1
-                        | PlacementKind::Tspin2
-                        | PlacementKind::Tspin3
-                        | PlacementKind::MiniTspin1
-                        | PlacementKind::MiniTspin2
-                ),
-                2 => false,
-                _ => matches!(
-                    lock.placement_kind,
-                    PlacementKind::Tspin1 | PlacementKind::Tspin2 | PlacementKind::Tspin3
-                ),
-            };
-            if !is_spin_clear {
-                acc_eval += self.wasted_t;
+            match lock.placement_kind {
+                PlacementKind::Tspin1 | PlacementKind::Tspin2 | PlacementKind::Tspin3 => {}
+                _ => acc_eval += self.wasted_t,
             }
         }
 

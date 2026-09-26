@@ -46,11 +46,6 @@ pub struct Board<R = u16> {
     pub last_clear_kind: i32,
     /// 上次消行的行数。
     pub last_clear_count: i32,
-    /// NoSpin 规则模式（int）：0=默认；1=所有Spin视为Mini（评估层处理）；2=不判定任何Spin。
-    /// no_spin=2 时 lock_piece 把 spin 归一化为普通消行（不触发 b2b、伤害走基础表），
-    /// 使 bot 评估与游戏 NoSpinII（无天赋II）完全一致。由 S 命令经 c-api 设置。
-    #[serde(default)]
-    pub no_spin: i32,
 }
 
 pub trait Row: Copy + Clone + 'static {
@@ -85,7 +80,6 @@ impl<R: Row> Board<R> {
             last_clear_kind: 0,
             last_clear_count: 0,
             solid_rows: 0,
-            no_spin: 0,
         }
     }
 
@@ -121,7 +115,6 @@ impl<R: Row> Board<R> {
             last_clear_kind: 0,
             last_clear_count: 0,
             solid_rows: solid_rows,
-            no_spin: 0,
         };
         board.set_field(field);
         board
@@ -268,7 +261,7 @@ impl<R: Row> Board<R> {
         }
         let cleared = self.remove_cleared_lines();
 
-        let mut placement_kind = if non_t_stuck {
+        let placement_kind = if non_t_stuck {
             match self.allspin_enabled {
                 0 => PlacementKind::get(cleared.len(), TspinStatus::Mini),
                 1 => PlacementKind::get(cleared.len(), TspinStatus::Full),
@@ -277,11 +270,6 @@ impl<R: Row> Board<R> {
         } else {
             PlacementKind::get(cleared.len(), piece.tspin)
         };
-        // no_spin=2（Talentless 无天赋II）：不判定任何 spin，所有 spin 归一化为普通消行。
-        // 由此 b2b（仅 4 行四消维持）、伤害表（基础表）、allspin 标志等与游戏 NoSpinII 完全一致。
-        if self.no_spin == 2 {
-            placement_kind = PlacementKind::get(cleared.len(), TspinStatus::None);
-        }
 
         let mut garbage_sent = placement_kind.garbage();
 
@@ -489,7 +477,6 @@ impl<R: Row> Board<R> {
             last_clear_kind: self.last_clear_kind,
             last_clear_count: self.last_clear_count,
             solid_rows: self.solid_rows,
-            no_spin: self.no_spin,
         }
     }
 
