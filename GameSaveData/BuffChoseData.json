@@ -115,7 +115,8 @@
 		"DoubleHole_1": {"garbage_hole_wide_count": 2},
 		"DoubleHole_2": {"garbage_hole_count": 2}
 	},
-	"ExtraBotChange":{
+	"_comment_bot": "以下 bot 参数原本用于 ColdClear（CC）。CC 已被 zzztoj 取代，故整块改名为 _disabled_* 保留作参考（JSON 不支持注释，改名后代码不再读取）。zzztoj 的参数见 Scripts/bot_play/zzz_bridge.gd 的 zzz_* 配置。",
+	"_disabled_ExtraBotChange":{
 		"Allspin_1": {"allspin_repeat_penalty": -500},
 		"Talentless_1": {
 			"mini_tspin1": 120,
