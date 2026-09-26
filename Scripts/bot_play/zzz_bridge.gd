@@ -28,6 +28,8 @@ const NEXT_MAX := 14
 @export var allow_hold: bool = true
 ## 是否允许 180 度旋转
 @export var allow_180: bool = true
+## Allspin 重复性惩罚扣分（>0 = 生效；本游戏 Allspin_1 下「与上一手同类型 spin + 同行数」会立刻涨一行垃圾）
+@export var repeat_penalty: float = 500.0
 
 var _stdio: FileAccess = null
 var _stderr: FileAccess = null
@@ -306,7 +308,25 @@ func _build_request(gc) -> String:
 	for cell in self_cells.keys():
 		parts.append(str(cell.x))
 		parts.append(str(cell.y))
+	# 尾部三项：上一手 spin 类型 / 上一手消行数 / 重复性惩罚扣分（0 = 关闭）
+	parts.append(str(_last_spin_type(cl)))
+	parts.append(str(int(cl._last_clear_count) if cl != null else 0))
+	parts.append(str(repeat_penalty if (cl != null and cl.tetris_allspin == 1) else 0.0))
 	return " ".join(parts)
+
+
+## 游戏的消行类型字符串 → zzz 的 ASpinType 数值
+## （None=0 / TSpin=1 / AllSpin=2 / TSpinMini=3 / ASpinMini=4）
+func _last_spin_type(cl) -> int:
+	if cl == null:
+		return 0
+	var t := str(cl._last_clear_type)
+	if t.is_empty():
+		return 0
+	var is_mini := t.find("Mini") != -1
+	if t.find("T-Spin") != -1:
+		return 3 if is_mini else 1
+	return 4 if is_mini else 2
 
 
 ## next 串：取 bag 队列前 NEXT_MAX 个方块类型字符

@@ -1,4 +1,4 @@
-﻿
+
 #include "tetris_core.h"
 #include "search_tspin.h"
 #include "search_amini.h"
@@ -280,6 +280,12 @@ namespace ai_zzz
             int garbage_cap;
             clock_t start_count;
             Param param;
+            // ==== TowerTris 追加：Allspin 重复性惩罚 ====
+            // 本游戏 Allspin_1 规则：本次消行类型+行数与上一手完全一致时，立刻上涨一行垃圾。
+            // repeat_penalty > 0 时，eval 会对「与上一手同类型 spin 且同行数」的候选扣该分数。
+            double repeat_penalty = 0;
+            int last_spin_type = 0;      // 上一手的 ASpinType 数值（0=None/1=TSpin/2=AllSpin/3=TSpinMini/4=ASpinMini）
+            int last_clear_count = 0;    // 上一手的消行数
         };
         struct Result
         {

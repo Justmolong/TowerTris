@@ -134,6 +134,34 @@ static void apply_config(int level, int gcap, int mult, bool lockout, bool can_h
     ac->multiplier = mult;
     ac->garbage_cap = gcap;
 
+    // 权重：直接采用 zzztoj 自带 io-DLL 的调参（src/io_dll.cpp 里的 init_21 候选，25 项按 Param 字段顺序）
+    ai_zzz::IO::Param &pp = ac->param;
+    pp.roof = 128.848632018967038;
+    pp.col_trans = 159.486229165944053;
+    pp.row_trans = 161.917442316092604;
+    pp.hole_count = 81.770591639349178;
+    pp.hole_line = 381.778776257560935;
+    pp.well_depth = 98.094088345045122;
+    pp.hole_depth = 34.677952239613163;
+    pp.b2b = 129.220619858914347;
+    pp.attack = 0.911925860653483;
+    pp.hold_t = 3.743571313305299;
+    pp.hold_i = 3.153364454826400;
+    pp.waste_t = 0.007065131195186;
+    pp.waste_i = -0.081683675915618;
+    pp.clear_1 = -0.954530616937391;
+    pp.clear_2 = 1.612455139641956;
+    pp.clear_3 = 0.570015487183247;
+    pp.clear_4 = 1.093367709554965;
+    pp.t2_slot = 1.511144844202827;
+    pp.t3_slot = 1.007928243238620;
+    pp.tspin_mini = -0.740554584228066;
+    pp.tspin_1 = 0.104364933113540;
+    pp.tspin_2 = 8.660904648990943;
+    pp.tspin_3 = 12.172353417045528;
+    pp.combo = 30.511480066561280;
+    pp.ratio = 1.585887060974325;
+
     g_level = level;
     g_gcap = gcap;
     g_mult = mult;
@@ -190,6 +218,17 @@ static std::string handle_request(std::vector<std::string> const &tok)
         zzzCells.push_back(std::make_pair(gx, GAME_BOTTOM_Y - gy));
     }
 
+    // 可选尾部三项：上一手 spin 类型 / 上一手消行数 / Allspin 重复惩罚扣分（0 = 关闭）
+    int last_spin_type = 0;
+    int last_clear_count = 0;
+    double repeat_penalty = 0.0;
+    if (i + 3 <= tok.size())
+    {
+        last_spin_type = std::atoi(tok[i].c_str());
+        last_clear_count = std::atoi(tok[i + 1].c_str());
+        repeat_penalty = std::atof(tok[i + 2].c_str());
+    }
+
     if (!prepare_ai())
         return std::string();
 
@@ -231,6 +270,11 @@ static std::string handle_request(std::vector<std::string> const &tok)
     if (st->under_attack != upcome)
         g_ai.update();
     st->under_attack = upcome;
+
+    // Allspin 重复性惩罚（本游戏 Allspin_1：与上一手同类型 spin + 同行数 → 立刻涨一行垃圾）
+    g_ai.ai_config()->repeat_penalty = repeat_penalty;
+    g_ai.ai_config()->last_spin_type = last_spin_type;
+    g_ai.ai_config()->last_clear_count = last_clear_count;
 
     int maxDepth = (int)nextStr.size();
     std::string result;

@@ -1,4 +1,4 @@
-﻿
+
 //by ZouZhiZhang
 
 #include "tetris_core.h"
@@ -2004,6 +2004,13 @@ namespace ai_zzz
             result.attack += curAtk = get_attack(baseAtk, result.combo, result.b2bcnt);
             result.like += (result.combo + result.b2bcnt) * (1 + result.attack) * p.clear_4;
             break;
+        }
+        // TowerTris：Allspin 重复性惩罚——候选与上一手「同类 spin + 同消行数」一致时，游戏会立刻上涨一行垃圾
+        if (config_->repeat_penalty > 0 && eval_result.clear > 0 && (int)node.type != 0
+            && (int)node.type == config_->last_spin_type
+            && (int)eval_result.clear == config_->last_clear_count)
+        {
+            result.like -= config_->repeat_penalty;
         }
         result.board_fill -= (eval_result.clear * 10) - 4;
         if (eval_result.count == 0 && result.map_rise == 0)
