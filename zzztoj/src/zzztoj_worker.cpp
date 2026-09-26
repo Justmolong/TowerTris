@@ -67,8 +67,35 @@ static void node_cells(TetrisNode const *n, std::vector<std::pair<int, int>> &ou
             out.push_back(std::make_pair(n->col + i, y));
 }
 
-// 由「本游戏的方块格子」找到 zzz 的节点（遍历 4 个旋转态按格子集合精确匹配）
-static TetrisNode const *find_node(char piece, std::vector<std::pair<int, int>> const &zzz_cells, std::string *dbg)
+// 决策落点描述："<方块> <最小x> <最小y> <旋转>"（zzz 坐标，y 向上）。
+// 附在回复末尾，游戏侧可以拿它和实际锁定位置对照，验证「决策 ↔ 落点」是否一致。
+static std::string g_last_target;
+
+static std::string node_target_desc(TetrisNode const *n)
+{
+    if (n == nullptr)
+        return std::string();
+    std::vector<std::pair<int, int>> cells;
+    node_cells(n, cells);
+    if (cells.empty())
+        return std::string();
+    int minX = INT_MAX, minY = INT_MAX;
+    for (size_t i = 0; i < cells.size(); ++i)
+    {
+        minX = std::min(minX, cells[i].first);
+        minY = std::min(minY, cells[i].second);
+    }
+    char buf[64];
+    std::snprintf(buf, sizeof(buf), "%c %d %d %d", n->status.t, minX, minY, (int)n->status.r);
+    return std::string(buf);
+}
+
+// 由「本游戏的方块格子」找到 zzz 的节点。// rot_hint = 本游戏的 current_rotation_index（0..3），-1 = 未知。
+// 两边旋转下标语义已核对一致（都以「从 spawn 顺时针转几次」编号，见 nodes 诊断命令），
+// 因此优先按 rot_hint 匹配：必须优先，否则 I/S/Z 这种「r0 与 r2 格子集合相同」的方块会被
+// 匹配成错误旋转态（旋转下标差 2 → 后续 'c'/'z' 转出不同形状 → 实际落点和决策不一致）。
+static TetrisNode const *find_node(char piece, std::vector<std::pair<int, int>> const &zzz_cells,
+                                   int rot_hint, std::string *dbg)
 {
     int tgtMinX = INT_MAX, tgtMinY = INT_MAX;
     for (size_t i = 0; i < zzz_cells.size(); ++i)
@@ -76,8 +103,19 @@ static TetrisNode const *find_node(char piece, std::vector<std::pair<int, int>> 
         tgtMinX = std::min(tgtMinX, zzz_cells[i].first);
         tgtMinY = std::min(tgtMinY, zzz_cells[i].second);
     }
-    for (uint8_t r = 0; r < 4; ++r)
+    int order[4] = {0, 1, 2, 3};
+    if (rot_hint >= 0 && rot_hint < 4)
     {
+        // 把提示的旋转态排到最前面，其余按原顺序兜底
+        order[0] = rot_hint;
+        int k = 1;
+        for (int r = 0; r < 4; ++r)
+            if (r != rot_hint)
+                order[k++] = r;
+    }
+    for (int oi = 0; oi < 4; ++oi)
+    {
+        uint8_t r = (uint8_t)order[oi];
         TetrisNode const *ref = g_ai.get(TetrisBlockStatus(piece, 3, 20, r));
         if (ref == nullptr)
             continue;
@@ -304,12 +342,15 @@ static std::string handle_request(std::vector<std::string> const &tok)
     int last_spin_type = 0;
     int last_clear_count = 0;
     double repeat_penalty = 0.0;
+    int rot_hint = -1;   // 可选第 4 项：本游戏 current_rotation_index（0..3）
     if (i + 3 <= tok.size())
     {
         last_spin_type = std::atoi(tok[i].c_str());
         last_clear_count = std::atoi(tok[i + 1].c_str());
         repeat_penalty = std::atof(tok[i + 2].c_str());
     }
+    if (i + 4 <= tok.size())
+        rot_hint = std::atoi(tok[i + 3].c_str());
 
     if (!prepare_ai())
         return std::string();
@@ -331,7 +372,7 @@ static std::string handle_request(std::vector<std::string> const &tok)
     }
 
     std::string dbg;
-    TetrisNode const *node = find_node(active, zzzCells, &dbg);
+    TetrisNode const *node = find_node(active, zzzCells, rot_hint, &dbg);
     if (node == nullptr)
     {
         std::fprintf(stderr, "[zzztoj_worker] 未能匹配当前方块节点\n");
@@ -362,6 +403,7 @@ static std::string handle_request(std::vector<std::string> const &tok)
     std::string result;
     bool got_target = false;
     char holdChar = sanitize_piece_char(holdTok, ' ');   // 本游戏的空 hold 哨兵是 '-'，zzz 约定是空格
+    g_last_target.clear();
 
     if (g_can_hold_global)
     {
@@ -372,6 +414,7 @@ static std::string handle_request(std::vector<std::string> const &tok)
             std::vector<char> path = g_ai.make_path(from, rr.target, map);
             result.assign(path.begin(), path.end());
             got_target = true;
+            g_last_target = node_target_desc(rr.target);
         }
         if (rr.change_hold)
             result.insert(result.begin(), 'v');
@@ -385,6 +428,7 @@ static std::string handle_request(std::vector<std::string> const &tok)
                 std::vector<char> path = g_ai.make_path(node, fb.target, map);
                 result.assign(path.begin(), path.end());
                 got_target = true;
+                g_last_target = node_target_desc(fb.target);
             }
         }
     }
@@ -396,6 +440,7 @@ static std::string handle_request(std::vector<std::string> const &tok)
             std::vector<char> path = g_ai.make_path(node, rr.target, map);
             result.assign(path.begin(), path.end());
             got_target = true;
+            g_last_target = node_target_desc(rr.target);
         }
     }
 
@@ -454,6 +499,49 @@ int main(int argc, char **argv)
         return path.empty() ? 2 : 0;
     }
 
+    // 诊断用：打印 zzz 侧每种方块 4 个旋转态的格子（相对最小角的偏移，便于和游戏侧对照）
+    // 用法：zzztoj_worker.exe nodes
+    if (argc > 1 && std::strcmp(argv[1], "nodes") == 0)
+    {
+        if (!prepare_ai())
+        {
+            std::printf("NODES_FAIL prepare\n");
+            return 1;
+        }
+        char const *pieces = "IJLOSTZ";
+        for (int pi = 0; pi < 7; ++pi)
+        {
+            for (int r = 0; r < 4; ++r)
+            {
+                TetrisNode const *n = g_ai.get(TetrisBlockStatus(pieces[pi], 3, 20, (uint8_t)r));
+                std::vector<std::pair<int, int>> cells;
+                node_cells(n, cells);
+                if (cells.empty())
+                {
+                    std::printf("%c r%d: <none>\n", pieces[pi], r);
+                    continue;
+                }
+                int minX = INT_MAX, minY = INT_MAX;
+                for (size_t k = 0; k < cells.size(); ++k)
+                {
+                    minX = std::min(minX, cells[k].first);
+                    minY = std::min(minY, cells[k].second);
+                }
+                std::sort(cells.begin(), cells.end());
+                std::string out;
+                char buf[32];
+                for (size_t k = 0; k < cells.size(); ++k)
+                {
+                    std::snprintf(buf, sizeof(buf), "%s%d,%d", k ? " " : "",
+                                  cells[k].first - minX, cells[k].second - minY);
+                    out += buf;
+                }
+                std::printf("%c r%d: %s\n", pieces[pi], r, out.c_str());
+            }
+        }
+        return 0;
+    }
+
     std::string line;
     while (std::getline(std::cin, line))
     {
@@ -507,8 +595,11 @@ int main(int argc, char **argv)
             std::string path = handle_request(tok);
             if (path.empty())
                 std::printf("ERR\n");
-            else
+            else if (g_last_target.empty())
                 std::printf("OK %s\n", path.c_str());
+            else
+                // 末尾附加决策落点（"<方块> <最小x> <最小y(zzz, y向上)> <旋转>"），游戏侧用于核对
+                std::printf("OK %s %s\n", path.c_str(), g_last_target.c_str());
         }
         else
         {

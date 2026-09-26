@@ -125,7 +125,7 @@ var bot_mode: bool = false
 #   每块最小间隔 = 1/bot_target_pps（_get_bot_piece_interval）
 #   每步动作间隔 = 1/(bot_target_pps*4)（_get_bot_action_interval）
 # 在 tetris_controller.gd 的 Inspector 中调整（@export）。
-@export var bot_target_pps: float = 10
+@export var bot_target_pps: float = 3.0
 
 # bot 每步“原生动作”的最小间隔（秒）。越小执行越快，但过小可能因物理/程序竞争出问题。
 # 在 tetris_controller.gd 的 Inspector 中调整（@export）。
@@ -878,6 +878,12 @@ func _try_move(delta_x: int, delta_y: int) -> bool:
 		return false
 
 func _check_underground_touch():
+	# bot 计划执行期间禁止「触底锁延」自动锁定：方块必须等计划执行完、由 bot 的 hard_drop 锁定。
+	# 否则方块会在计划走到一半时被锁死（旋转踢墙还没做完）→ 实际落点与决策不一致；
+	# 而且这种锁定不经过 hard_drop，会绕过 PPS 限制（实测 PPS 会飙到 7 以上）。
+	if bot_mode and _zzz_bridge != null and _zzz_bridge.is_plan_active():
+		lock_timer.stop()
+		return
 	var new_pos = Vector2i(current_position.x, current_position.y + 1)
 	if not _check_collision_pure(new_pos, current_piece, _get_piece_cells(current_piece, current_position)):
 		lock_timer.stop()
@@ -892,6 +898,10 @@ func _lock_piece():
 	# 已在等待生成新方块时避免重复触发
 	if current_piece.is_empty():
 		return
+	# PPS 兜底：任何锁定（不止 bot 的 hard_drop）都要保证「每块最小间隔」生效，
+	# 否则重力/锁延造成的锁定会让 PPS 超过 bot_target_pps。
+	if bot_mode:
+		_bot_piece_cooldown = max(_bot_piece_cooldown, _get_bot_piece_interval())
 	# 锁定瞬间刷新落块渐隐时间戳（隐形模式下按该时间戳做淡出）。
 	# 碰撞检测已改为无副作用的纯查询，不再顺带刷新，故在此显式刷新一次。
 	_draw_current_piece()
@@ -1231,9 +1241,23 @@ func hard_drop():
 	while _try_move(0, 1):
 		pass  # 继续移动
 	
-	# 调试：打印锁定前的最终位置（对比 CC 决策期望落点）
+	# 调试：打印锁定前的最终位置（与决策落点对照，用于核对「决策 ↔ 实际落块」是否一致）
+	# 坐标口径：x = 最左格，y = 最低格（与 worker 返回的落点口径一致）
 	if bot_debug_log:
-		print("[BotLock] piece=", current_piece_type, " final=(", current_position.x, ",", current_position.y, ")")
+		var cells: Array = _get_piece_cells(current_piece, current_position)
+		var minx := 99
+		var maxy := -99
+		for c in cells:
+			minx = mini(minx, c.x)
+			maxy = maxi(maxy, c.y)
+		var tgt: Dictionary = _zzz_bridge.get_plan_target() if _zzz_bridge != null else {}
+		var tgt_txt := "?"
+		if not tgt.is_empty() and tgt["valid"]:
+			tgt_txt = "%s(%d,%d) rot=%d" % [tgt["piece"], tgt["x"], tgt["y"], tgt["rot"]]
+		print("[BotLock] piece=", current_piece_type, " 实际落点=(", minx, ",", maxy, ") rot=",
+			current_rotation_index, " 上块间隔=", Time.get_ticks_msec() - _bot_t_lock_ms, "ms",
+			" / 决策落点=", tgt_txt)
+		_bot_t_lock_ms = Time.get_ticks_msec()
 	
 	# 触底后立即锁定
 	_lock_piece()
@@ -1243,11 +1267,11 @@ func hard_drop():
 func _process(delta):
 	if bot_mode:
 		_process_bot_control(delta)
-		# 等原生 ColdClear 决策期间暂停当前方块下落：
-		# bot 的移动序列（含旋转踢墙）是基于“当前方块仍在 spawn 位”规划的相对移动，
-		# 若决策等待期间方块持续下落，执行计划时旋转踢墙会在错误高度触发，
-		# 导致旋转/落点错乱（表现为“移动错乱 / missdrop”）。
-		if _zzz_bridge == null or not _zzz_bridge.is_waiting_decision():
+		# 原生决策等待期间 **以及计划执行期间** 都暂停重力下落：
+		# bot 的移动序列（含旋转踢墙）是按「方块仍在原高度」规划的相对移动，若执行途中方块持续下落，
+		# 旋转踢墙会在错误高度触发、还可能提前触底被锁死 → 实际落点与决策不一致（missdrop）。
+		# 只有「既没在等决策、也没有待执行计划」时才让重力接管（worker 不可用时的兜底）。
+		if _zzz_bridge == null or (not _zzz_bridge.is_waiting_decision() and not _zzz_bridge.is_plan_active()):
 			gravity_drop()
 		return
 	
@@ -1269,6 +1293,9 @@ var _bot_plan_log_budget: int = 12
 ## 进入 bot 循环的一次性日志标记 / 无方块空转计时
 var _bot_loop_logged: bool = false
 var _bot_idle_log_time: float = 0.0
+## 诊断计时：最近一次请求决策的时刻 / 最近一次锁定的时刻（毫秒）
+var _bot_t_req_ms: int = 0
+var _bot_t_lock_ms: int = 0
 ## zzz 桥脚本路径（按路径加载而不是依赖 class_name，避免编辑器类名缓存未刷新时找不到 ZzzBridge）
 const ZZZ_BRIDGE_SCRIPT := "res://Scripts/bot_play/zzz_bridge.gd"
 var _zzz_bridge_error_logged := false
@@ -1326,6 +1353,7 @@ func _process_bot_control(delta: float) -> void:
 	if _bot_tracking_piece_serial != _bot_piece_serial:
 		_bot_tracking_piece_serial = _bot_piece_serial
 		if _zzz_bridge.using_native_cc():
+			_bot_t_req_ms = Time.get_ticks_msec()
 			_zzz_bridge.request_plan(self)
 
 	# 垃圾行抬升期间版面已变化（force_raise_rows 已递增 board_version）。
@@ -1362,8 +1390,11 @@ func _process_bot_control(delta: float) -> void:
 
 	if bot_debug_log and _bot_plan_log_budget > 0:
 		_bot_plan_log_budget -= 1
+		var tgt: Dictionary = _zzz_bridge.get_plan_target()
 		print("[BotPlan] piece=", _bot_piece_serial, " steps=", _zzz_bridge.remaining_movements(),
-			" hold=", _zzz_bridge.plan_wants_hold())
+			" hold=", _zzz_bridge.plan_wants_hold(),
+			" 决策耗时=", Time.get_ticks_msec() - _bot_t_req_ms, "ms",
+			" 决策落点=", ("%s(%d,%d) rot=%d" % [tgt["piece"], tgt["x"], tgt["y"], tgt["rot"]]) if tgt["valid"] else "?")
 
 	# 执行计划中的下一个动作
 	var decided_action: BotAction = _zzz_bridge.next_plan_action()

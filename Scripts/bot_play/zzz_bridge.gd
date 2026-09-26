@@ -60,6 +60,12 @@ var _death_logged: bool = false
 var _warn_budget: int = 10
 ## 最近一次下发的 REQ（出错时一起打印，便于复现问题局面）
 var _last_req: String = ""
+## 最近一次决策的目标落点（本游戏坐标）——用于和实际锁定位置对照
+var _plan_target_valid: bool = false
+var _plan_target_piece: String = ""
+var _plan_target_x: int = 0
+var _plan_target_y: int = 0
+var _plan_target_rot: int = 0
 ## worker 意外退出后的自动重启（次数上限 + 延迟，避免崩溃时疯狂重启刷屏）
 const MAX_RESTARTS := 3
 const RESTART_DELAY := 1.0
@@ -197,6 +203,22 @@ func clear_plan() -> void:
 
 func is_waiting_decision() -> bool:
 	return _waiting
+
+
+## 决策目标落点（本游戏坐标）：{piece, x, y, rot, valid}
+func get_plan_target() -> Dictionary:
+	return {
+		"valid": _plan_target_valid,
+		"piece": _plan_target_piece,
+		"x": _plan_target_x,
+		"y": _plan_target_y,
+		"rot": _plan_target_rot,
+	}
+
+
+## bot 是否正在执行一份未走完的计划（控制器用它冻结重力/锁延）
+func is_plan_active() -> bool:
+	return has_plan()
 
 
 func reset_for_stall() -> void:
@@ -514,6 +536,10 @@ func _build_request(gc) -> String:
 	# 重复性惩罚：buff 覆盖优先，其次 @export 默认；仅 allspin 开启时下发
 	var rp: float = float(_param_overrides.get("repeat_penalty", repeat_penalty))
 	parts.append(str(rp if (cl != null and cl.tetris_allspin == 1) else 0.0))
+	# 第 4 个尾参：本游戏 current_rotation_index。
+	# 必须下发：worker 里 I/S/Z 的 r0 与 r2、r1 与 r3 格子集合相同，只靠格子匹配会认错旋转态，
+	# 于是后续 'c'/'z' 转出的形状与游戏实际不符 → 实际落点偏离决策。
+	parts.append(str(int(gc.current_rotation_index)))
 	return " ".join(parts)
 
 
@@ -554,10 +580,20 @@ func _parse_reply(reply: String) -> void:
 	if not reply.begins_with("OK"):
 		_note_error("REQ 返回非 OK：'" + reply.substr(0, 60) + "' → 本块直接硬降 | REQ='" + _last_req + "'")
 		return
-	var path := reply.substr(2).strip_edges()
-	if path.is_empty():
+	var body := reply.substr(2).strip_edges()
+	var parts := body.split(" ", false)
+	if parts.is_empty():
 		_note_error("REQ 返回空路径（worker 没搜到方案）→ 本块直接硬降 | REQ='" + _last_req + "'")
 		return
+	var path := String(parts[0])
+	# 可选尾随的决策落点："<方块> <最小x> <最小y(zzz,y向上)> <旋转>" → 换算成本游戏坐标
+	_plan_target_valid = false
+	if parts.size() >= 5:
+		_plan_target_valid = true
+		_plan_target_piece = String(parts[1])
+		_plan_target_x = int(parts[2])
+		_plan_target_y = GAME_BOTTOM_Y - int(parts[3])
+		_plan_target_rot = int(parts[4])
 	for i in range(path.length()):
 		var c := path[i]
 		match c:
@@ -578,12 +614,25 @@ func _parse_reply(reply: String) -> void:
 				_plan.append(BotAction.new("soft_drop", ["soft_drop"], "soft_drop"))
 			"z":
 				_plan.append(BotAction.new("rotate_left", ["rotate_left"], "rotate_left"))
+			"Z":
+				_plan.append(BotAction.new("rotate_left", ["rotate_left"], "rotate_left"))
 			"c":
 				_plan.append(BotAction.new("rotate_right", ["rotate_right"], "rotate_right"))
+			"C":
+				_plan.append(BotAction.new("rotate_right", ["rotate_right"], "rotate_right"))
+			"x":
+				# zzz 的 'x' = wall_kick_opposite，即一次 180° 旋转（游戏有 rotate_180，踢墙用同一张 ASC 表）
+				_plan.append(BotAction.new("rotate_180", ["rotate_180"], "rotate_180"))
+			"X":
+				_plan.append(BotAction.new("rotate_180", ["rotate_180"], "rotate_180"))
+			" ":
+				# zzz 路径里表示「下移一格」的占位（重力步），对应游戏的 down_one
+				_plan.append(BotAction.new("down_one", ["down_one"], "down_one"))
 			"V":
 				_plan.append(BotAction.new("hard_drop", ["hard_drop"], "hard_drop"))
 			_:
-				pass
+				# 未知字符会让这一步被静默丢掉 → 实际落点和决策不一致，必须报出来
+				_note_error("worker 路径里出现未知操作字符 '%s'（已忽略该步，落点可能与决策不符）" % c)
 
 
 # ========== 管道 I/O（子线程） ==========
