@@ -186,10 +186,39 @@ func _extra_data_deal():
 	if extra_data_dict.has("bot_threads"):
 		clear_line_controller.bot_threads = int(extra_data_dict["bot_threads"])
 
-	# Talentless（无才能）：为true时跳过整个Spin判定
+	# Talentless（无才能）：NoSpin 为 int（0=正常Spin判定；1=所有Spin降级为MiniSpin；2=不判定Spin）
 	if extra_data_dict.has("NoSpin"):
 		if clear_line_controller:
-			clear_line_controller.no_spin = bool(extra_data_dict["NoSpin"])
+			clear_line_controller.no_spin = int(extra_data_dict["NoSpin"])
+	
+	# ShortNext（短见）：限制 Next 显示数量 / 是否显示 Next 区
+	#   next_display_enabled=false（短见V）→ 不显示 next
+	#   next_count=N（短见I-IV）→ 显示 N 个 next
+	var next_changed: bool = false
+	if extra_data_dict.has("next_display_enabled"):
+		if board_drawer:
+			board_drawer.next_display_enabled = bool(extra_data_dict["next_display_enabled"])
+			next_changed = true
+	if extra_data_dict.has("next_count"):
+		if board_drawer:
+			board_drawer.next_count = clampi(int(extra_data_dict["next_count"]), 1, 7)
+			next_changed = true
+	# 首块可能在 TowerController._ready 之前已生成（此时用的是默认 next_count），
+	# 立即刷新一次 Next 显示，使 buff 立刻生效、next_pieces_data 与 next_count 一致。
+	if next_changed and tetris_controller and tetris_controller.has_method("_update_next_display"):
+		tetris_controller._update_next_display()
+	
+	# DoubleHole：垃圾行洞口形态
+	# garbage_hole_wide_count = X宽（每行一组紧邻连续洞口）；garbage_hole_count = 每行洞口数量。
+	# 两者互斥且默认 1（一个洞且 1 宽）；若同时被覆盖（均 > 1）则报错并不应用。
+	if extra_data_dict.has("garbage_hole_wide_count") or extra_data_dict.has("garbage_hole_count"):
+		var dh_wide: int = int(extra_data_dict.get("garbage_hole_wide_count", 1))
+		var dh_holes: int = int(extra_data_dict.get("garbage_hole_count", 1))
+		if dh_wide > 1 and dh_holes > 1:
+			push_error("DoubleHole参数冲突：garbage_hole_wide_count 与 garbage_hole_count 互斥，不能同时大于1")
+		elif garbage_line_controller:
+			garbage_line_controller.garbage_hole_wide_count = dh_wide
+			garbage_line_controller.garbage_hole_count = dh_holes
 	
 	# NoHold模式：关闭Hold显示并禁用Hold输入（JSON中键名为"NoHold"）
 	if extra_data_dict.has("NoHold") or extra_data_dict.has("no_hold"):
@@ -324,8 +353,10 @@ func total_get_data():
 	garbage_collect_percent = default_get_oneD_array_things(current_stage,garbage_collect_percent_array)
 	garbage_divide_percent = default_get_oneD_array_things(current_stage,garbage_divide_percent_array)
 	garbage_line_controller.garbage_messy = default_get_oneD_array_things(current_stage,garbage_hole_change_percent_array)
-	tetris_controller.gravity_drop_time = default_get_oneD_array_things(current_stage,gravity_drop_time_array)
-	tetris_controller.lock_delay = default_get_oneD_array_things(current_stage,lock_delay_array)
+	# 重力/锁延：走 TetrisController 的 setter，除字段外还要同步对应计时器的 wait_time
+	# （只改字段的话，关卡/Buff 设置的重力与锁延不会真正生效）
+	tetris_controller.set_gravity_drop_time(default_get_oneD_array_things(current_stage,gravity_drop_time_array))
+	tetris_controller.set_lock_delay(default_get_oneD_array_things(current_stage,lock_delay_array))
 
 func publish_make():
 	for i in range(0,publish_time_array.size()):

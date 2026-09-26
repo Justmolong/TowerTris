@@ -47,8 +47,47 @@ static func get_default_settings() -> Dictionary:
 		# 速度设置
 		"move_das": 0.1,
 		"move_arr": 0.0,
-		"softdrop_delay": 0.1
+		"softdrop_delay": 0.1,
+		# 帧率上限（0 = 无上限），见下方 MAX_FPS_OPTIONS
+		"max_fps": DEFAULT_MAX_FPS
 	}
+
+## ========== 帧率上限（设置界面下拉框用） ==========
+## 可选帧率上限：30 / 60 / 120 / 144 / 0（0 = 无上限）。数组顺序即下拉框顺序。
+const MAX_FPS_OPTIONS: Array[int] = [30, 60, 120, 144, 0]
+
+## 下拉框显示文本（与 MAX_FPS_OPTIONS 一一对应）
+const MAX_FPS_LABELS: Array[String] = ["30 FPS", "60 FPS", "120 FPS", "144 FPS", "∞ FPS（无上限）"]
+
+## 默认帧率上限（沿用原行为：60Hz 屏下垂直同步即为 60 帧）
+const DEFAULT_MAX_FPS: int = 60
+
+## 把帧率值映射为下拉框索引（不认识的取值退回默认档）
+static func get_max_fps_option_index(max_fps: int) -> int:
+	var idx := MAX_FPS_OPTIONS.find(max_fps)
+	if idx >= 0:
+		return idx
+	idx = MAX_FPS_OPTIONS.find(DEFAULT_MAX_FPS)
+	return idx if idx >= 0 else 0
+
+## 应用帧率上限：0 = 无上限（不限制）。
+## 说明：垂直同步会把帧率钉在显示器刷新率上（60Hz 屏就是 60），使自定义上限失效，
+## 因此这里统一关闭垂直同步，让 30/60/120/144/无上限 真正按所选值生效。
+## 若想改回「跟随显示器刷新率（垂直同步开）」，把方法体换成：
+##   DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED)
+##   Engine.max_fps = 0
+static func apply_max_fps(max_fps: int) -> void:
+	if max_fps < 0:
+		max_fps = 0
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	Engine.max_fps = max_fps
+
+## 从设置字典读取并应用帧率上限（启动与设置界面修改时调用）
+static func apply_max_fps_from_settings(settings: Dictionary) -> void:
+	var max_fps: int = DEFAULT_MAX_FPS
+	if settings != null and settings.has("max_fps"):
+		max_fps = int(settings["max_fps"])
+	apply_max_fps(max_fps)
 
 ## 动作名称列表
 static func get_action_list() -> Array:
@@ -211,9 +250,11 @@ static func initialize_settings():
 	if setting_file_exists():
 		var settings = load_settings()
 		apply_key_bindings_from_dict(settings)
+		apply_max_fps_from_settings(settings)
 		# 已注释（调试噪音）：print("已加载用户设置")
 	else:
 		var default_settings = get_default_settings()
 		save_settings(default_settings)
 		apply_default_key_bindings()
+		apply_max_fps_from_settings(default_settings)
 		# 已注释（调试噪音）：print("未找到配置文件，已创建默认设置")

@@ -12,6 +12,8 @@ class_name TetrisGarbageLineController
 # 垃圾行配置
 @export var garbage_cap: int = 3                      # 每次锁定最多增长的垃圾行数量（也用于版面garbage_cap线）
 @export var garbage_messy: float = 0.9               # 垃圾行更换洞口的概率（0-1）
+@export var garbage_hole_count: int = 1              # DoubleHole：每行洞口数量（默认 1）
+@export var garbage_hole_wide_count: int = 1         # DoubleHole：每个洞口的宽度（默认 1，>1 = 连续多格宽的洞口）
 @export var garbage_color: Color = Color(0.5, 0.5, 0.5, 1.0)  # 垃圾行颜色（浅灰色）
 @export var solid_garbage_color: Color = Color(0.3, 0.3, 0.3, 1.0)  # 实心垃圾行颜色（深灰色）
 @export var garbage_empty_color: Color = Color(0.08, 0.08, 0.08, 1.0)  # 垃圾行洞口颜色（与版面背景一致）
@@ -161,6 +163,43 @@ func _generate_row_holes(base_hole: Array, extra_hole_count: int) -> Array:
 			attempts += 1
 		if hole_x not in result:
 			result.append(hole_x)
+	return _apply_hole_settings(result)
+
+## DoubleHole：按 buff 设置调整某一行的洞口
+##   garbage_hole_count      = 每行洞口数量（默认 1）
+##   garbage_hole_wide_count = 每个洞口的宽度（默认 1，>1 = 连续多格宽的洞口）
+## 两者默认均为 1 时直接返回原结果，不影响原有行为。
+func _apply_hole_settings(holes: Array) -> Array:
+	if garbage_hole_count <= 1 and garbage_hole_wide_count <= 1:
+		return holes
+
+	var width: int = board_drawer.grid_width if board_drawer else 10
+	if width <= 0:
+		width = 10
+	var result: Array = holes.duplicate()
+
+	# 1) 洞口数量：不足则随机补洞（避免与已有洞口重叠）
+	if garbage_hole_count > 1:
+		var garbage_rng = RandomManager.get_random("GARBAGE")
+		var attempts: int = 0
+		while result.size() < garbage_hole_count and attempts < 200:
+			var hole_x = _get_random_hole_position(garbage_rng, -1)
+			if hole_x not in result:
+				result.append(hole_x)
+			attempts += 1
+
+	# 2) 洞口宽度：每个洞口扩展为连续 W 格（整体贴边时向左对齐，保证不越界）
+	if garbage_hole_wide_count > 1:
+		var w: int = mini(garbage_hole_wide_count, width)
+		var wide: Array = []
+		for hole_x in result:
+			var start: int = clampi(hole_x, 0, maxi(width - w, 0))
+			for offset in range(w):
+				var x: int = start + offset
+				if x not in wide:
+					wide.append(x)
+		result = wide
+
 	return result
 
 ## 生成单个垃圾行的洞口位置

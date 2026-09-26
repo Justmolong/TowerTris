@@ -178,7 +178,7 @@ var bot_wasted_t: int = -102
 var bot_move_time: int = -3
 # bot 并行搜索线程数（buff 可调；0 = 由 bridge 自动决定）
 var bot_threads: int = 0
-var no_spin: bool = false            # Talentless：为true时跳过整个Spin判定
+var no_spin: int = 0                 # Spin规则模式：0=正常Spin判定；1=所有Spin降级为MiniSpin（用mini伤害表）；2=NoSpin（不判定Spin）
 # 记录 buff 显式传参的权重键（仅这些键会被 bridge 采用，覆盖 bridge 默认权重）
 # 由 tower_controller._extra_data_deal 填入；get_damage_tables 只返回这些键的权重。
 var bot_weight_override_keys: Dictionary = {}
@@ -315,8 +315,10 @@ func check_and_clear_lines() -> int:
 		return 0
 	
 	lines_to_clear = _find_complete_lines()
-	# Talentless（无才能）：直接跳过整个Spin判定函数
-	var spin_type: String = "" if no_spin else _detect_spin_type()
+	# NoSpin模式（int）：0=正常Spin判定；2=跳过整个Spin判定；1=把所有Spin降级为MiniSpin
+	var spin_type: String = "" if no_spin == 2 else _detect_spin_type()
+	if no_spin == 1 and not spin_type.is_empty():
+		spin_type = _force_mini_spin(spin_type)
 	var clear_count = lines_to_clear.size()
 	
 	if clear_count == 0:
@@ -725,8 +727,17 @@ func _spawn_next_piece_after_clear():
 
 # ========== Spin检测系统 ==========
 
+## NoSpin==1：把所有 Spin 类型强制降级为 MiniSpin（"T-Spin"→"Mini T-Spin"，已是 Mini 保持不变）。
+## 这样 _calculate_damage 会命中 "Mini" 分支，采用 mini（基础）伤害表。
+func _force_mini_spin(spin_type: String) -> String:
+	if spin_type.is_empty():
+		return ""
+	if spin_type.find("Mini") != -1:
+		return spin_type
+	return "Mini " + spin_type
+
 func _detect_spin_type() -> String:
-	if no_spin:
+	if no_spin == 2:
 		return ""
 	if not spin_detection_enabled:
 		return ""
@@ -752,8 +763,14 @@ func _detect_spin_type() -> String:
 	# 非T块卡住 → 视作 Mini Spin
 	return "Mini " + last_rotation_piece_type + "-Spin"
 
+## 判定方块是否「卡住」（不可移动）：上下左右四个方向都无法移动即为卡住。
+## 本游戏的 spin 规则是「不可移动 → spin」，T 块再额外用「下2角 + 上1角」判 mini。
+##
+## 关键点：判定发生在方块锁定之后，此时方块自身的格子已写进版面
+## （_lock_piece 只清空 current_piece 矩阵，不清版面格子）。若不排除自身，
+## 把方块整体平移 1 格必然与自己重叠 → 四个方向恒为「堵」→ 任何转过一次的方块都会判 spin。
 func _is_piece_stuck(shape: Array, piece_position: Vector2i) -> bool:
-	if not tetris_controller:
+	if not tetris_controller or not board_drawer:
 		return false
 	
 	var directions = [
@@ -763,12 +780,48 @@ func _is_piece_stuck(shape: Array, piece_position: Vector2i) -> bool:
 		Vector2i(0, -1)
 	]
 	
+	# 自身占据的格子（判定位置上的 shape）：碰撞查询时视为空 → 排除自身
+	var self_cells := _get_occupied_cells(shape, piece_position)
+	
 	for dir in directions:
 		var new_pos = Vector2i(piece_position.x + dir.x, piece_position.y + dir.y)
-		if not tetris_controller._check_collision(new_pos, shape):
+		if not _check_collision_excluding(new_pos, shape, self_cells):
 			return false
 	
 	return true
+
+
+## 取某个形状在指定位置上占据的版面格子坐标（用于碰撞查询时排除自身）
+func _get_occupied_cells(shape: Array, pos: Vector2i) -> Array:
+	var cells: Array = []
+	for y in range(shape.size()):
+		for x in range(shape[y].size()):
+			if shape[y][x] == 1:
+				cells.append(Vector2i(pos.x + x, pos.y + y))
+	return cells
+
+
+## 纯查询碰撞检测：不修改版面、不触发重绘；exclude 中的格子（通常是自身）视为空。
+## 语义与 tetris_controller._check_collision 一致：左右不可越界、下方不可越界、
+## 顶部之上（y < 0）不算碰撞、已占用格子为碰撞。
+func _check_collision_excluding(pos: Vector2i, shape: Array, exclude: Array) -> bool:
+	for y in range(shape.size()):
+		for x in range(shape[y].size()):
+			if shape[y][x] != 1:
+				continue
+			var bx: int = pos.x + x
+			var by: int = pos.y + y
+			if bx < 0 or bx >= board_drawer.grid_width:
+				return true
+			if by >= board_drawer.grid_height + board_drawer.above_visible_rows:
+				return true
+			if by < 0:
+				continue
+			if exclude.has(Vector2i(bx, by)):
+				continue
+			if board_drawer.get_cell_color(bx, by) != null:
+				return true
+	return false
 
 
 ## 检测T块专用 Mini T-Spin

@@ -381,6 +381,28 @@ func _set_timer():
 	add_child(game_timer)
 	game_timer.start()
 
+## 设置重力下落间隔（秒/行；0 = 瞬间到底）。
+## 必须同时同步重力计时器的 wait_time：该计时器的 wait_time 只在 _set_timer() 里按字段默认值设过一次，
+## 只改字段而不改计时器的话，关卡/Buff（如 Gravity_1 的 gravity_drop_time_array）设置的重力不会生效。
+## TowerController.total_get_data() 每帧按当前阶段调用本方法。
+func set_gravity_drop_time(value: float) -> void:
+	gravity_drop_time = value
+	if gravity_timer == null:
+		return
+	if value > 0:
+		if gravity_timer.wait_time != value:
+			gravity_timer.wait_time = value
+	elif not gravity_timer.is_stopped():
+		# 0 = 瞬降模式（gravity_drop() 内走「一路落到底」分支），计时器不再需要
+		gravity_timer.stop()
+
+## 设置触底锁定延迟（秒）。同样必须同步锁定计时器的 wait_time（原因见 set_gravity_drop_time）。
+## 计时器要求 wait_time > 0，非法值忽略（保持原值）。
+func set_lock_delay(value: float) -> void:
+	lock_delay = value
+	if lock_timer != null and value > 0 and lock_timer.wait_time != value:
+		lock_timer.wait_time = value
+
 ## 初始化统计系统
 func _init_stats():
 	game_time = 0.0

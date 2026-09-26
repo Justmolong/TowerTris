@@ -21,10 +21,11 @@ GlobalData="*res://Scripts/auto_load/global_data.gd"
 InputInitializer="*res://Scripts/auto_load/input_initializer.gd"
 RandomManager="*res://Scripts/auto_load/random_manager.gd"
 UiScaler="*res://Scripts/auto_load/ui_scaler.gd"
+_mcp_game_helper="*res://addons/godot_ai/runtime/game_helper.gd"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/coldclear_export/plugin.cfg")
+enabled=PackedStringArray("res://addons/coldclear_export/plugin.cfg", "res://addons/godot_ai/plugin.cfg")
 
 [input]
 

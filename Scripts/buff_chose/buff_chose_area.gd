@@ -358,18 +358,34 @@ func get_buffed_tower_data() -> Dictionary:
 	if multipliers.has("total_apm_buff_mult"):
 		result["total_apm"] = result["total_apm"] * multipliers["total_apm_buff_mult"]
 	
-	# Step 2: 处理不在 tower_init_data 中的键 → 直接存入 extra_data_dict
+	# Step 2: 把已勾选 buff 的参数写回数据
+	#   键存在于 tower_init_data（顶层）→ 写回顶层值：数值相乘累加，其它（数组等）直接替换
+	#   键不在 tower_init_data 中 → 整个键值对加入 extra_data_dict，交给 TowerController 处理
+	# 注意：必须判断「键是否在 tower_init_data 中」。原实现直接跳过顶层键，
+	# 导致 Gravity_1 的 gravity_drop_time_array 被丢弃（重力列表没有被替换）。
 	for tb in toggle_boxes:
 		if tb and tb.is_checked_state() and _buff_config_map.has(tb.box_id):
 			var config: Dictionary = _buff_config_map[tb.box_id]
 			for key: String in config:
 				if key == "total_apm_buff_mult":
-					continue  # 倍率键，不存入数据
-				if not result.has(key):
-					# 键不在 tower_init_data 中 → 整个值键对加入 extra_data_dict
-					result["extra_data_dict"][key] = config[key]
+					continue  # 倍率键，由 Step 1 单独处理
+				var buff_value = config[key]
+				if result.has(key):
+					var current = result[key]
+					if _is_numeric_value(current) and _is_numeric_value(buff_value):
+						result[key] = float(current) * float(buff_value)  # 数值：相乘累加
+					else:
+						result[key] = buff_value                          # 其它（数组等）：直接替换
+					continue
+				# 键不在 tower_init_data 中 → 整个值键对加入 extra_data_dict
+				result["extra_data_dict"][key] = buff_value
 	
 	return result
+
+
+## 值是否为数值（int/float，可参与 buff 倍率相乘）
+static func _is_numeric_value(v) -> bool:
+	return typeof(v) == TYPE_INT or typeof(v) == TYPE_FLOAT
 
 
 ## 生成指定 box 的显示文本（仅描述，不含倍率数据——倍率数据由 _update_summary_label 合并显示）

@@ -23,6 +23,9 @@ class_name SettingArea
 @export var softdrop_slider: HSlider
 @export var softdrop_value_label: Label
 
+# 帧率上限下拉框（30/60/120/144/无上限，见 UserSetting.MAX_FPS_OPTIONS）
+@export var fps_option: OptionButton
+
 # 按钮
 @export var save_button: Button
 @export var reset_button: Button
@@ -74,6 +77,9 @@ func _ready():
 	# 加载设置
 	_load_settings()
 	
+	# 构建帧率下拉框（在更新UI之前，保证能按当前设置选中对应项）
+	_setup_fps_options()
+	
 	# 连接信号
 	_connect_signals()
 	
@@ -82,6 +88,14 @@ func _ready():
 	
 	# 设置滑块样式
 	_setup_slider_styles()
+
+## 构建帧率上限下拉框的选项（30/60/120/144/无上限）
+func _setup_fps_options():
+	if not fps_option:
+		return
+	fps_option.clear()
+	for i in range(UserSetting.MAX_FPS_OPTIONS.size()):
+		fps_option.add_item(UserSetting.MAX_FPS_LABELS[i], UserSetting.MAX_FPS_OPTIONS[i])
 
 ## 加载设置
 func _load_settings():
@@ -122,6 +136,10 @@ func _connect_signals():
 		arr_slider.value_changed.connect(_on_arr_changed)
 	if softdrop_slider:
 		softdrop_slider.value_changed.connect(_on_softdrop_changed)
+	
+	# 帧率上限下拉框
+	if fps_option:
+		fps_option.item_selected.connect(_on_fps_selected)
 	
 	# 按钮
 	if save_button:
@@ -164,6 +182,10 @@ func _update_ui():
 		softdrop_slider.value = current_settings.get("softdrop_delay", 0.1) * 100
 	if softdrop_value_label:
 		softdrop_value_label.text = "%.3fs" % current_settings.get("softdrop_delay", 0.1)
+	
+	# 更新帧率上限选项（0 = 无上限）
+	if fps_option:
+		fps_option.selected = UserSetting.get_max_fps_option_index(int(current_settings.get("max_fps", UserSetting.DEFAULT_MAX_FPS)))
 
 ## 更新单个键位按钮
 func _update_key_button(button: Button, action: String):
@@ -285,6 +307,17 @@ func _on_softdrop_changed(value: float):
 	if softdrop_value_label:
 		softdrop_value_label.text = "%.3fs" % current_settings["softdrop_delay"]
 
+## 帧率上限选择变化：立即生效（无需重启），保存时写入配置文件
+func _on_fps_selected(index: int):
+	if index < 0 or index >= UserSetting.MAX_FPS_OPTIONS.size():
+		return
+	var max_fps: int = UserSetting.MAX_FPS_OPTIONS[index]
+	current_settings["max_fps"] = max_fps
+	# 立即应用到引擎，便于玩家当场感知
+	UserSetting.apply_max_fps(max_fps)
+	if hint_label:
+		hint_label.text = "帧率上限已设为 %d FPS" % max_fps if max_fps > 0 else "帧率上限已设为无上限"
+
 # ========== 按钮功能 ==========
 
 ## 保存设置
@@ -312,6 +345,9 @@ func _on_reset_pressed():
 	
 	# 更新UI
 	_update_ui()
+	
+	# 帧率上限也立即恢复默认
+	UserSetting.apply_max_fps_from_settings(current_settings)
 	
 	if hint_label:
 		hint_label.text = "已重置为默认设置！"
