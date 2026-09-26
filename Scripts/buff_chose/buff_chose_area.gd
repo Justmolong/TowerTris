@@ -455,6 +455,8 @@ func _update_summary_label() -> void:
 
 ## 根据组名获取对应的box_id列表（精确匹配优先，失败时尝试大小写不敏感匹配）
 ## 兼容JSON中组名大小写差异（如 "Nohold" vs "NoHold"）
+## 若都不是组名，则把该名字当作单个 buff 名（box_id）直接返回——
+## 组合的 Group 里允许直接写具体 buff（如 "ChangeBag_3"），无需为它单独建组。
 func _get_group_box_ids(group_name: String) -> Array:
 	if _buff_group_map.has(group_name):
 		return _buff_group_map[group_name]
@@ -462,7 +464,19 @@ func _get_group_box_ids(group_name: String) -> Array:
 	for key: String in _buff_group_map:
 		if key.to_lower() == lower_name:
 			return _buff_group_map[key]
+	# 组不存在 → 退化为直接按 buff 名（box_id）查询
+	if _is_known_box_id(group_name):
+		return [group_name]
 	return []
+
+## 该名字是否为已存在的 buff 选框（box_id）
+func _is_known_box_id(box_id: String) -> bool:
+	if _buff_config_map.has(box_id):
+		return true
+	for tb in toggle_boxes:
+		if tb and tb.box_id == box_id:
+			return true
+	return false
 
 ## 解析颜色字段（支持 [r,g,b]/[r,g,b,a] 数组或 "#rrggbb" 字符串），失败返回 null
 func _parse_color(value: Variant) -> Variant:

@@ -410,6 +410,10 @@ func force_raise_rows(row_count: int, row_generator: Callable, skip_piece_handli
 		# 重新绘制当前方块
 		tetris_controller._draw_current_piece()
 		
+		# 整版上移时当前方块被一并上移：旋转判定记录里的位置要同步到方块实际位置，
+		# 否则 spin 判定会拿陈旧坐标探测（位置整体偏下 row_count 行）
+		tetris_controller.sync_rotation_record_position()
+		
 		# 更新影子
 		tetris_controller._update_shadow()
 	

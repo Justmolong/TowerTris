@@ -146,8 +146,27 @@ var _bot_piece_cooldown: float = 0.0
 signal game_started()
 signal game_ended()
 
+# ==================================================================================
+# ============================ 旋转系统开关（改这里即可切换） ============================
+# ==================================================================================
+## 旋转系统类型：
+##   ASC = 0（默认，历史行为）：单张 21 组踢墙表对全部方块/全部转换生效，
+##          逆时针由该表 X 取反镜像得到，180° 复用同一张表。
+##   SRS = 1（标准 SRS）：JLSTZ 与 I 两套踢墙表，按「旋转前状态 → 旋转后状态」成对选取，
+##          O 无踢墙（仅 (0,0)）；SRS 规范只定义 90° 旋转，180° 无官方踢墙表，
+##          因此 SRS 模式下 180° 仍沿用 ASC 候选表（见 get_kick_offsets_for）。
+## 注意：切换后踢墙表仍按 ASC 下发给 ColdClear（bot 侧只支持单张平铺踢墙表）。
+enum RotationSystemType { ASC = 0, SRS = 1 }
+
+## 当前使用的旋转系统（默认 ASC）。
+var rotation_system: int = RotationSystemType.ASC
+
+## 当前方块的旋转状态索引：0=初始(North) 1=顺时针90°(East) 2=180°(South) 3=逆时针90°(West)。
+## 由 spawn / hold / 每次旋转成功时维护，用于 SRS 的 from→to 踢墙表选择。
+var current_rotation_index: int = 0
+
 # ========== 踢墙表配置 ==========
-# 现代踢墙表
+# 现代踢墙表（ASC）
 var kick_table: Dictionary = {
 	"all": [
 		[0,0], [-1,0], [0,1], [-1,1], [0,2], [-1,2], [-2,0], [-2,1], [-2,2], [1,0], [1,1],
@@ -159,6 +178,79 @@ var kick_table: Dictionary = {
 func get_kick_table() -> Array:
 	var all: Array = kick_table.get("all", [])
 	return all
+
+# ---------------------------------------------------------------------------------
+# 标准 SRS 踢墙表（仅在 rotation_system == SRS 时使用）
+# 数据为 SRS 规范值（规范以 y 轴向上给出），下表已把 dy 取反为游戏坐标系（y 轴向下）。
+# 每行 = 一次「旋转前状态 → 旋转后状态」的 5 个候选（顺序即测试顺序，第 1 个恒为 (0,0)）。
+# 状态编号：0=North(初始) 1=East(顺时针90°) 2=South(180°) 3=West(逆时针90°)
+# ---------------------------------------------------------------------------------
+const SRS_TRANSITION_KEYS: Array = [[0,1],[1,0],[1,2],[2,1],[2,3],[3,2],[3,0],[0,3]]
+
+## SRS：J L S T Z（3x3 包围盒），每行 5 组 (dx,dy)
+const SRS_JLSTZ_FLAT: Array = [
+	[0,0, -1,0, -1,-1, 0,2, -1,2],   # 0→1
+	[0,0,  1,0,  1,1,  0,-2, 1,-2],  # 1→0
+	[0,0,  1,0,  1,1,  0,-2, 1,-2],  # 1→2
+	[0,0, -1,0, -1,-1, 0,2, -1,2],   # 2→1
+	[0,0,  1,0,  1,-1, 0,2,  1,2],   # 2→3
+	[0,0, -1,0, -1,1,  0,-2, -1,-2], # 3→2
+	[0,0, -1,0, -1,1,  0,-2, -1,-2], # 3→0
+	[0,0,  1,0,  1,-1, 0,2,  1,2],   # 0→3
+]
+
+## SRS：I（4x4 包围盒），每行 5 组 (dx,dy)
+const SRS_I_FLAT: Array = [
+	[0,0, -2,0,  1,0, -2,1,  1,-2],  # 0→1
+	[0,0,  2,0, -1,0,  2,-1, -1,2],  # 1→0
+	[0,0, -1,0,  2,0, -1,-2, 2,1],   # 1→2
+	[0,0,  1,0, -2,0,  1,2, -2,-1],  # 2→1
+	[0,0,  2,0, -1,0,  2,-1, -1,2],  # 2→3
+	[0,0, -2,0,  1,0, -2,1,  1,-2],  # 3→2
+	[0,0,  1,0, -2,0,  1,2, -2,-1],  # 3→0
+	[0,0, -1,0,  2,0, -1,-2, 2,1],   # 0→3
+]
+
+## SRS 表缓存（from*4+to → [[dx,dy],...]），避免每次旋转都重建数组
+var _srs_kick_cache: Dictionary = {}
+
+## 由「旋转前状态 + 方向」推算「旋转后状态」索引（0..3）
+func _calc_rotation_index(from_index: int, direction: int) -> int:
+	var step: int = 2 if direction == 2 else (-1 if direction < 0 else 1)
+	return ((from_index + step) % 4 + 4) % 4
+
+## 取本次旋转使用的踢墙候选表：
+##   ASC 模式（或任何模式下的 180°）：返回 ASC 单表；逆时针由调用方按 X 取反镜像。
+##   SRS 模式：按方块类型（JLSTZ / I / O）与 from→to 状态对选取 SRS 表。
+func get_kick_offsets_for(piece_type: String, from_index: int, to_index: int, direction: int) -> Array:
+	# 180° 无 SRS 官方踢墙表：统一沿用 ASC 候选（保证该键位手感一致）
+	if rotation_system != RotationSystemType.SRS or direction == 2:
+		return get_kick_table()
+
+	if piece_type == "O":
+		return [[0, 0]]
+
+	var flat: Array = SRS_I_FLAT if piece_type == "I" else SRS_JLSTZ_FLAT
+	var row: int = SRS_TRANSITION_KEYS.find([from_index, to_index])
+	if row < 0:
+		return get_kick_table()  # 兜底：状态对缺表时退回 ASC，避免旋转直接失效
+
+	var cache_key: int = (1 if piece_type == "I" else 0) * 100 + row
+	if _srs_kick_cache.has(cache_key):
+		return _srs_kick_cache[cache_key]
+
+	var values: Array = flat[row]
+	var pairs: Array = []
+	var i: int = 0
+	while i + 1 < values.size():
+		pairs.append([values[i], values[i + 1]])
+		i += 2
+	_srs_kick_cache[cache_key] = pairs
+	return pairs
+
+## 切换旋转系统（供关卡配置/调试调用）
+func set_rotation_system(system: int) -> void:
+	rotation_system = RotationSystemType.SRS if system == RotationSystemType.SRS else RotationSystemType.ASC
 
 func _ready():
 	_game_started_emitted = false
@@ -517,6 +609,9 @@ func spawn_new_piece():
 	current_piece_type = piece_data["type"]
 	current_original_shape = bag_controller.get_original_shape(current_piece_type)
 	current_position = Vector2i(spawn_x, spawn_y)
+	current_rotation_index = 0
+	# 新方块必然是未旋转状态：清掉上一块的旋转判定记录
+	_invalidate_rotation_record()
 	_bot_piece_serial += 1
 	# 调试：记录方块 spawn 位置（矩阵左上角），用于对照 CC 决策与执行
 	if bot_debug_log:
@@ -562,6 +657,9 @@ func spawn_new_piece_keep_hold():
 	current_piece_type = piece_data["type"]
 	current_original_shape = bag_controller.get_original_shape(current_piece_type)
 	current_position = Vector2i(spawn_x, spawn_y)
+	current_rotation_index = 0
+	# 新方块必然是未旋转状态：清掉上一块的旋转判定记录
+	_invalidate_rotation_record()
 	_bot_piece_serial += 1
 	
 	# 绘制方块到版面
@@ -695,6 +793,61 @@ func _check_collision(pos: Vector2i, piece: Array = current_piece, ignore_curren
 		_draw_current_piece()
 	return is_not_allow
 
+## 取某个形状在指定位置上占据的版面格子坐标（用于碰撞查询时排除自身）
+func _get_piece_cells(piece: Array, pos: Vector2i) -> Array:
+	var cells: Array = []
+	if piece == null or piece.is_empty():
+		return cells
+	for y in range(piece.size()):
+		for x in range(piece[y].size()):
+			if piece[y][x] == 1:
+				cells.append(Vector2i(pos.x + x, pos.y + y))
+	return cells
+
+## 纯查询碰撞检测：不修改版面数据、不触发重绘（无副作用）。
+## ignore_cells 中的格子（通常是自身方块占据的格子）视为空，用于排除自身（避免与自己重叠误判）。
+## 语义与 _check_collision 完全一致：左右不可越界、下方不可越界、顶部之上不算碰撞、已占用格子为碰撞。
+func _check_collision_pure(pos: Vector2i, piece: Array, ignore_cells: Array = []) -> bool:
+	if piece == null or piece.is_empty():
+		return false
+	for y in range(piece.size()):
+		for x in range(piece[y].size()):
+			if piece[y][x] != 1:
+				continue
+			var board_x: int = pos.x + x
+			var board_y: int = pos.y + y
+			if board_x < 0 or board_x >= board_drawer.grid_width:
+				return true
+			if board_y >= board_drawer.grid_height + board_drawer.above_visible_rows:
+				return true
+			if board_y < 0:
+				continue
+			if ignore_cells.has(Vector2i(board_x, board_y)):
+				continue
+			if board_drawer.get_cell_color(board_x, board_y) != null:
+				return true
+	return false
+
+## 纯查询：当前方块能否向 (dx,dy) 移动（自身格子视为空，无副作用）
+func _can_move(dx: int, dy: int) -> bool:
+	if current_piece.is_empty():
+		return false
+	var ignore_cells: Array = _get_piece_cells(current_piece, current_position)
+	var new_pos = Vector2i(current_position.x + dx, current_position.y + dy)
+	return not _check_collision_pure(new_pos, current_piece, ignore_cells)
+
+## 方块位置发生任何改变（移动/下落/暂存/换块/版面整体上移）后调用：
+## 使旋转判定记录失效——spin 的前提是「最后一次成功动作是旋转」，移动过就不该再判 spin。
+func _invalidate_rotation_record() -> void:
+	if clear_line_controller:
+		clear_line_controller.reset_rotation_record()
+
+## 版面整体位移（垃圾行上涨）后，方块与旋转记录一起位移：
+## 此时方块相对堆叠的位置未变，仅需把记录里的位置同步到方块的实际位置，避免 spin 判定用陈旧坐标。
+func sync_rotation_record_position() -> void:
+	if clear_line_controller:
+		clear_line_controller.sync_rotation_record_position(current_position)
+
 ## 尝试移动方块
 func _try_move(delta_x: int, delta_y: int) -> bool:
 	# 手上无方块（生成/消行延迟期间）：不移动，避免空方块在 while 循环里无限下落导致卡死
@@ -703,11 +856,14 @@ func _try_move(delta_x: int, delta_y: int) -> bool:
 	var new_pos = Vector2i(current_position.x + delta_x, current_position.y + delta_y)
 	_check_underground_touch()
 	
-	if not _check_collision(new_pos):
+	if _can_move(delta_x, delta_y):
 		# 移动成功
 		_clear_current_piece()
 		current_position = new_pos
 		_draw_current_piece()
+		
+		# 位置发生改变 → 旋转判定记录失效（spin 要求「最后一次成功动作为旋转」）
+		_invalidate_rotation_record()
 		
 		_check_underground_touch()
 		# 移动后重置锁延
@@ -723,7 +879,7 @@ func _try_move(delta_x: int, delta_y: int) -> bool:
 
 func _check_underground_touch():
 	var new_pos = Vector2i(current_position.x, current_position.y + 1)
-	if not _check_collision(new_pos):
+	if not _check_collision_pure(new_pos, current_piece, _get_piece_cells(current_piece, current_position)):
 		lock_timer.stop()
 	elif lock_timer.is_stopped():
 		lock_timer.start()
@@ -736,6 +892,9 @@ func _lock_piece():
 	# 已在等待生成新方块时避免重复触发
 	if current_piece.is_empty():
 		return
+	# 锁定瞬间刷新落块渐隐时间戳（隐形模式下按该时间戳做淡出）。
+	# 碰撞检测已改为无副作用的纯查询，不再顺带刷新，故在此显式刷新一次。
+	_draw_current_piece()
 	# 逻辑上清除当前方块（保留 board_data 中已锁定的格子）
 	current_piece = []
 	# 触发生成延迟；为 0 时直接处理消行
@@ -820,53 +979,51 @@ func rotate_right():
 func rotate_180():
 	_rotate_piece(2)
 
-## 旋转方块核心逻辑
-func _rotate_piece(direction: int):
+## 旋转方块核心逻辑（返回是否旋转成功；失败时方块状态不变）
+func _rotate_piece(direction: int) -> bool:
 	if current_piece.is_empty():
 		return false  # 手上无方块（延迟期间）：不旋转
-	var rotated_piece
 	
 	match direction:
 		1:  # 顺时针旋转 90度
-			rotated_piece = _get_rotated_matrix(current_piece, 1)
-			_apply_rotation_with_kick(rotated_piece, 1)
+			return _apply_rotation_with_kick(_get_rotated_matrix(current_piece, 1), 1)
 		-1:  # 逆时针旋转 90度
-			rotated_piece = _get_rotated_matrix(current_piece, -1)
-			_apply_rotation_with_kick(rotated_piece, -1)
+			return _apply_rotation_with_kick(_get_rotated_matrix(current_piece, -1), -1)
 		2:  # 180度旋转
-			rotated_piece = _get_rotated_matrix(current_piece, 2)
-			_apply_rotation_with_kick(rotated_piece, 2)
+			return _apply_rotation_with_kick(_get_rotated_matrix(current_piece, 2), 2)
 		_:
 			return false
 
-## 应用旋转并尝试踢墙
-func _apply_rotation_with_kick(rotated_piece: Array, direction: int):
-	# 获取踢墙表偏移
-	var kicks = kick_table["all"]
-	var kick_multiplier = 1
+## 应用旋转并尝试踢墙（返回是否旋转成功）
+func _apply_rotation_with_kick(rotated_piece: Array, direction: int) -> bool:
+	if direction != 1 and direction != -1 and direction != 2:
+		return false
 	
-	# 根据旋转方向确定踢墙偏移乘数
-	match direction:
-		1:  # 右旋：使用原始偏移
-			kick_multiplier = 1
-		-1:  # 左旋：X方向取反
-			kick_multiplier = -1
-		2:  # 180度旋转：使用原始偏移（对称）
-			kick_multiplier = 1
+	var from_index: int = current_rotation_index
+	var to_index: int = _calc_rotation_index(from_index, direction)
+	
+	# 踢墙候选：ASC = 单表（CCW 由 X 取反镜像）；SRS = 按方块类型与 from→to 状态对取表
+	var kicks: Array = get_kick_offsets_for(current_piece_type, from_index, to_index, direction)
+	
+	# ASC 的「单表 + 逆时针 X 取反」约定；SRS 表内已含方向信息，乘数恒为 1
+	var kick_multiplier: int = -1 if (rotation_system == RotationSystemType.ASC and direction == -1) else 1
+	
+	# 自身格子（旋转前位置）：踢墙查询时视为空，避免与自己重叠
+	var self_cells: Array = _get_piece_cells(current_piece, current_position)
 	
 	for kick in kicks:
-		var kick_x = kick[0] * kick_multiplier
-		var kick_y = kick[1]
-		var new_pos = Vector2i(current_position.x + kick_x, current_position.y + kick_y)
+		var new_pos = Vector2i(current_position.x + kick[0] * kick_multiplier, current_position.y + kick[1])
 		
-		if not _check_collision(new_pos, rotated_piece):
+		if not _check_collision_pure(new_pos, rotated_piece, self_cells):
 			# 旋转成功
 			_clear_current_piece()
 			current_piece = rotated_piece
 			current_position = new_pos
+			current_rotation_index = to_index
 			_draw_current_piece()
 			
 			# 记录旋转事件（用于Spin检测），传递方块颜色
+			# 注意：O 块旋转是几何空操作，其旋转记录不参与 spin 判定（见 TetrisClearLine._detect_spin_type）
 			if clear_line_controller:
 				clear_line_controller.record_rotation(current_piece_type, current_piece, current_position, current_color)
 			
@@ -949,12 +1106,14 @@ func hold_current_piece():
 		var temp_color = current_color
 		var temp_type = current_piece_type
 		var temp_original = current_original_shape
+		var temp_rotation_index: int = current_rotation_index
 		
 		# 从暂存区取出方块
 		current_piece = bag_controller.get_original_shape(hold_piece_type)
 		current_color = hold_color
 		current_piece_type = hold_piece_type
 		current_original_shape = hold_original_shape
+		current_rotation_index = 0  # 取出的方块是原始形状（未旋转）
 		
 		# 将当前方块存入暂存区
 		hold_piece = bag_controller.get_original_shape(temp_type)
@@ -978,6 +1137,7 @@ func hold_current_piece():
 			current_color = temp_color
 			current_piece_type = temp_type
 			current_original_shape = temp_original
+			current_rotation_index = temp_rotation_index
 			hold_piece = bag_controller.get_original_shape(hold_piece_type)
 			hold_color = temp_color  # 恢复hold颜色
 			board_drawer.set_hold_piece(hold_piece, hold_color)
@@ -991,6 +1151,9 @@ func hold_current_piece():
 		# 重置锁定状态
 		lock_timer.stop()
 		lock_times_limit = lock_times_limit_max
+	
+	# 换块后手上是一个未旋转的新块：旋转判定记录必须失效
+	_invalidate_rotation_record()
 	
 	# 标记暂存已使用
 	can_hold = false
@@ -1018,11 +1181,14 @@ func _calculate_shadow_position() -> Vector2i:
 		return Vector2i.ZERO
 	
 	var shadow_pos = current_position
+	# 用纯查询逐格下探：自身格子视为空，且不产生清绘/重绘副作用
+	# （原实现每个候选位置都会清空+重绘当前方块，一块从高处落下要跑几十次）
+	var self_cells: Array = _get_piece_cells(current_piece, current_position)
 	
 	# 一直向下移动直到碰撞
 	while true:
 		var test_pos = Vector2i(shadow_pos.x, shadow_pos.y + 1)
-		if _check_collision(test_pos, current_piece):
+		if _check_collision_pure(test_pos, current_piece, self_cells):
 			break
 		shadow_pos = test_pos
 	
@@ -1243,14 +1409,14 @@ func _process_input():
 		else:
 				if move_start_timer.is_stopped() and not keep_press_move:
 					_try_move(direction_press, 0)
-				elif move_start_timer.is_stopped() and keep_press_move and not _check_collision(current_position + Vector2i(direction_press,0)):
+				elif move_start_timer.is_stopped() and keep_press_move and _can_move(direction_press, 0):
 					var one_drop : bool = true
 					while _try_move(direction_press, 0):
-						if not _check_collision(current_position + Vector2i(0,1)) and one_drop and press_key["SoftDrop"] == 1:
+						if _can_move(0, 1) and one_drop and press_key["SoftDrop"] == 1:
 							while _try_move(0,1) and one_drop:
 								if softdrop_delay != 0:
 									one_drop = false
-						if gravity_drop_time == 0 and not _check_collision(current_position + Vector2i(0,1)):
+						if gravity_drop_time == 0 and _can_move(0, 1):
 							while _try_move(0,1):
 								pass
 				else:
@@ -1272,7 +1438,7 @@ func _process_input():
 			soft_drop()
 			softdrop_timer.start()
 		elif softdrop_delay == 0:
-			if not _check_collision(current_position + Vector2i(0,1)):
+			if _can_move(0, 1):
 				while _try_move(0,1):
 					pass
 		else:
@@ -1345,7 +1511,7 @@ func gravity_drop():
 		#garbage_line_controller.add_attack(5)
 		gravity_timer.start()
 	if gravity_drop_time == 0:
-		if not _check_collision(current_position + Vector2i(0,1)):
+		if _can_move(0, 1):
 			while _try_move(0,1):
 				pass
 

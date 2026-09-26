@@ -246,6 +246,10 @@ func _ready():
 	add_child(clear_line_delay_timer)
 
 ## 记录旋转事件
+## 注意：这里记录的 shape/position 是「旋转成功那一刻」的方块状态。
+## 该记录只在判定时（锁定后）使用，而任何一次成功的移动/下落/换块都会调用
+## reset_rotation_record() 使记录失效，因此记录仍然有效时方块必然没有移动过，
+## 记录的 position 就等于锁定位置（spin 判定与 mini 角块判定都依赖这一点）。
 func record_rotation(piece_type: String, shape: Array, position: Vector2i, piece_color: Color = Color.WHITE):
 	last_rotation_occurred = true
 	last_rotation_piece_type = piece_type
@@ -256,8 +260,20 @@ func record_rotation(piece_type: String, shape: Array, position: Vector2i, piece
 		pending_spin_color = piece_color
 		spin_color_ready = true
 
-## 重置旋转记录
+## 版面整体位移（垃圾行上涨）后同步旋转记录中的位置：
+## 方块被整版上移时相对堆叠的位置不变，只需把记录坐标改成方块的实际坐标，
+## 否则 spin 判定会拿陈旧坐标去探测（判定位置整体偏下行数）。
+func sync_rotation_record_position(piece_position: Vector2i):
+	if not last_rotation_occurred:
+		return
+	last_rotation_position = piece_position
+
+## 重置旋转记录（方块发生任何位移/换块/生成时调用）。
+## 该函数在移动热路径里会被频繁调用（如 ARR=0 滑墙、硬降），已是干净状态时直接返回，
+## 避免反复分配数组。
 func reset_rotation_record():
+	if not last_rotation_occurred and last_rotation_piece_shape.is_empty():
+		return
 	last_rotation_occurred = false
 	last_rotation_piece_type = ""
 	last_rotation_piece_shape = []
@@ -745,6 +761,12 @@ func _detect_spin_type() -> String:
 	if not last_rotation_occurred:
 		return ""
 	
+	# O 块旋转是几何空操作（2x2 矩阵旋转前后完全一样），不参与 spin 判定。
+	# 注意：O 的旋转仍算一次「成功旋转」（会重置锁延），该行为保持不变，
+	# 只是不产生 O-Spin / Mini O-Spin 文本与伤害。
+	if last_rotation_piece_type == "O":
+		return ""
+	
 	if not _is_piece_stuck(last_rotation_piece_shape, last_rotation_position):
 		# 未卡住 → T块额外检测 Mini T-Spin
 		if last_rotation_piece_type == "T":
@@ -781,47 +803,15 @@ func _is_piece_stuck(shape: Array, piece_position: Vector2i) -> bool:
 	]
 	
 	# 自身占据的格子（判定位置上的 shape）：碰撞查询时视为空 → 排除自身
-	var self_cells := _get_occupied_cells(shape, piece_position)
+	var self_cells: Array = tetris_controller._get_piece_cells(shape, piece_position)
 	
 	for dir in directions:
 		var new_pos = Vector2i(piece_position.x + dir.x, piece_position.y + dir.y)
-		if not _check_collision_excluding(new_pos, shape, self_cells):
+		# 纯查询（无清绘副作用），把自身格子视为空
+		if not tetris_controller._check_collision_pure(new_pos, shape, self_cells):
 			return false
 	
 	return true
-
-
-## 取某个形状在指定位置上占据的版面格子坐标（用于碰撞查询时排除自身）
-func _get_occupied_cells(shape: Array, pos: Vector2i) -> Array:
-	var cells: Array = []
-	for y in range(shape.size()):
-		for x in range(shape[y].size()):
-			if shape[y][x] == 1:
-				cells.append(Vector2i(pos.x + x, pos.y + y))
-	return cells
-
-
-## 纯查询碰撞检测：不修改版面、不触发重绘；exclude 中的格子（通常是自身）视为空。
-## 语义与 tetris_controller._check_collision 一致：左右不可越界、下方不可越界、
-## 顶部之上（y < 0）不算碰撞、已占用格子为碰撞。
-func _check_collision_excluding(pos: Vector2i, shape: Array, exclude: Array) -> bool:
-	for y in range(shape.size()):
-		for x in range(shape[y].size()):
-			if shape[y][x] != 1:
-				continue
-			var bx: int = pos.x + x
-			var by: int = pos.y + y
-			if bx < 0 or bx >= board_drawer.grid_width:
-				return true
-			if by >= board_drawer.grid_height + board_drawer.above_visible_rows:
-				return true
-			if by < 0:
-				continue
-			if exclude.has(Vector2i(bx, by)):
-				continue
-			if board_drawer.get_cell_color(bx, by) != null:
-				return true
-	return false
 
 
 ## 检测T块专用 Mini T-Spin
