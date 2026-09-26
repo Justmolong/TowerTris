@@ -40,7 +40,7 @@ var _thread: Thread = null
 var _mutex := Mutex.new()
 var _sem := Semaphore.new()
 
-var _pending_req: String = ""
+var _queue: Array = []          # 待发送命令队列 [[cmd, kind], ...]（kind: PING/CFG/PARAM/REQ）
 var _reply: String = ""
 var _reply_ready: bool = false
 var _waiting: bool = false
@@ -82,10 +82,8 @@ func start() -> bool:
 	_running = true
 	_thread = Thread.new()
 	_thread.start(_loop)
-	# 握手 + 下发初始规则
-	var ok := _send_sync("PING")
-	if not ok:
-		push_warning("[ZzzBridge] worker PING 未通过")
+	# 握手（异步；回复由子线程消费，不阻塞主线程）
+	_send_async("PING", "PING")
 	return true
 
 
@@ -173,7 +171,7 @@ func is_waiting_decision() -> bool:
 
 func reset_for_stall() -> void:
 	_mutex.lock()
-	_pending_req = ""
+	_queue.clear()
 	_reply = ""
 	_reply_ready = false
 	_waiting = false
@@ -215,7 +213,7 @@ func _push_params() -> void:
 		if _sent_params.has(name):
 			continue
 		_sent_params[name] = true
-		_send_async("PARAM %s %s" % [name, str(_param_overrides[k])])
+		_send_async("PARAM %s %s" % [name, str(_param_overrides[k])], "PARAM")
 
 
 # ========== 请求决策 ==========
@@ -229,13 +227,14 @@ func request_plan(game_controller) -> void:
 	var cfg := _build_cfg(game_controller)
 	if cfg != _cfg_sent:
 		_cfg_sent = cfg
-		_send_async(cfg)
+		_send_async(cfg, "CFG")
 		_sent_params.clear()   # CFG 会把参数重置为 worker 默认，需重新下发 buff 覆盖
 	_push_params()
 	var line := _build_request(game_controller)
 	if line.is_empty():
 		return
-	_send_async(line)
+	_waiting = true
+	_send_async(line, "REQ")
 
 
 func _process(_delta: float) -> void:
@@ -412,44 +411,50 @@ func _parse_reply(reply: String) -> void:
 
 
 # ========== 管道 I/O（子线程） ==========
+# 注意：Godot 的管道 FileAccess.get_line() 不会阻塞——没数据时返回空串，
+# 因此这里必须轮询等待整行，否则回复会错位（PING/CFG/PARAM 的回复被当成 REQ 的回复）。
 
 func _loop() -> void:
 	while _running:
 		_sem.wait()
 		if not _running:
 			break
+		var item: Array = []
 		_mutex.lock()
-		var req := _pending_req
-		_pending_req = ""
+		if not _queue.is_empty():
+			item = _queue.pop_front()
 		_mutex.unlock()
-		if req.is_empty() or _stdio == null:
+		if item.is_empty():
 			continue
-		var reply := _transact(req)
-		_mutex.lock()
-		_reply = reply
-		_reply_ready = true
-		_mutex.unlock()
+		var cmd := str(item[0])
+		var kind := str(item[1]) if item.size() > 1 else "CMD"
+		var reply := _transact(cmd)
+		if kind == "REQ":
+			_mutex.lock()
+			_reply = reply
+			_reply_ready = true
+			_mutex.unlock()
 
 
+## 写一条命令并轮询等待其回复（每 1ms 轮询，最多 5 秒）
 func _transact(cmd: String) -> String:
 	if _stdio == null:
 		return ""
 	_stdio.store_string(cmd + "\n")
 	_stdio.flush()
-	# CFG/PING 的回复由主线程忽略（_waiting 只在 REQ 时置位）
-	var line: String = _stdio.get_line()
-	return line.strip_edges()
+	var waited := 0
+	while waited < 5000 and _running:
+		var line: String = _stdio.get_line()
+		if line.is_empty():
+			OS.delay_msec(1)
+			waited += 1
+			continue
+		return line.strip_edges()
+	return ""
 
 
-func _send_async(cmd: String) -> void:
+func _send_async(cmd: String, kind: String = "CMD") -> void:
 	_mutex.lock()
-	_pending_req = cmd
+	_queue.append([cmd, kind])
 	_mutex.unlock()
 	_sem.post()
-
-
-## 同步发一条命令并等回复（仅用于握手，主线程会短暂阻塞）
-func _send_sync(cmd: String) -> bool:
-	if _stdio == null:
-		return false
-	return _transact(cmd).begins_with("OK")
