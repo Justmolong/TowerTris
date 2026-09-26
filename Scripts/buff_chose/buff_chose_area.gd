@@ -39,6 +39,8 @@ var _display_text_map: Dictionary = {}
 # 挑战组合配置（从BuffChoseData.json的BuffCombination读取）
 # 组合名 -> {"Info": 显示文本, "Group": [组名列表], "Color": [r,g,b](可选)}
 var _combination_map: Dictionary = {}
+## ExtraBotChange：{box_id: {zzz AI 参数名: 值}}，勾选对应 buff 时覆盖 zzztoj 的 AI 参数
+var _extra_bot_change_map: Dictionary = {}
 
 # 组合分组（从BuffChoseData.json的BuffGroup读取）：组名 -> [box_id, ...]
 var _buff_group_map: Dictionary = {}
@@ -190,6 +192,10 @@ func _load_buff_data_from_json() -> void:
 	# BuffChange → 倍率配置
 	if data.has("BuffChange") and typeof(data["BuffChange"]) == TYPE_DICTIONARY:
 		_buff_config_map = data["BuffChange"]
+	
+	# ExtraBotChange → 勾选 buff 时覆盖的 zzztoj AI 参数（键名 = ai_zzz::IO::Param 字段名）
+	if data.has("ExtraBotChange") and typeof(data["ExtraBotChange"]) == TYPE_DICTIONARY:
+		_extra_bot_change_map = data["ExtraBotChange"]
 	
 	# BuffCombination → 挑战组合配置
 	if data.has("BuffCombination") and typeof(data["BuffCombination"]) == TYPE_DICTIONARY:
@@ -380,6 +386,18 @@ func get_buffed_tower_data() -> Dictionary:
 				# 键不在 tower_init_data 中 → 整个值键对加入 extra_data_dict
 				result["extra_data_dict"][key] = buff_value
 	
+	# Step 3: 勾选的 buff → ExtraBotChange（zzztoj AI 参数覆盖：Param 字段名 → 值）
+	# 多个 buff 影响同一参数时后者覆盖前者
+	var extra_bot: Dictionary = {}
+	for tb in toggle_boxes:
+		if tb and tb.is_checked_state() and _extra_bot_change_map.has(tb.box_id):
+			var params = _extra_bot_change_map[tb.box_id]
+			if typeof(params) == TYPE_DICTIONARY:
+				for pk in params.keys():
+					extra_bot[pk] = params[pk]
+	if not extra_bot.is_empty():
+		result["extra_data_dict"]["ExtraBotChange"] = extra_bot
+
 	return result
 
 

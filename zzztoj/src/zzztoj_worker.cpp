@@ -186,6 +186,41 @@ static bool prepare_ai()
     return true;
 }
 
+// 按名字覆盖 ai_zzz::IO::Param 的某一项（供 buff 的 ExtraBotChange 下发）
+static bool set_param_by_name(std::string const &name, double v)
+{
+    if (!prepare_ai())
+        return false;
+    ai_zzz::IO::Param &p = g_ai.ai_config()->param;
+    if (name == "roof") p.roof = v;
+    else if (name == "col_trans") p.col_trans = v;
+    else if (name == "row_trans") p.row_trans = v;
+    else if (name == "hole_count") p.hole_count = v;
+    else if (name == "hole_line") p.hole_line = v;
+    else if (name == "well_depth") p.well_depth = v;
+    else if (name == "hole_depth") p.hole_depth = v;
+    else if (name == "b2b") p.b2b = v;
+    else if (name == "attack") p.attack = v;
+    else if (name == "hold_t") p.hold_t = v;
+    else if (name == "hold_i") p.hold_i = v;
+    else if (name == "waste_t") p.waste_t = v;
+    else if (name == "waste_i") p.waste_i = v;
+    else if (name == "clear_1") p.clear_1 = v;
+    else if (name == "clear_2") p.clear_2 = v;
+    else if (name == "clear_3") p.clear_3 = v;
+    else if (name == "clear_4") p.clear_4 = v;
+    else if (name == "t2_slot") p.t2_slot = v;
+    else if (name == "t3_slot") p.t3_slot = v;
+    else if (name == "tspin_mini") p.tspin_mini = v;
+    else if (name == "tspin_1") p.tspin_1 = v;
+    else if (name == "tspin_2") p.tspin_2 = v;
+    else if (name == "tspin_3") p.tspin_3 = v;
+    else if (name == "combo") p.combo = v;
+    else if (name == "ratio") p.ratio = v;
+    else return false;
+    return true;
+}
+
 // 处理一条 REQ：返回 path 字符集；失败返回空串
 static std::string handle_request(std::vector<std::string> const &tok)
 {
@@ -392,6 +427,11 @@ int main(int argc, char **argv)
                 std::printf("OK\n");
             else
                 std::printf("ERR\n");
+        }
+        else if (tok[0] == "PARAM" && tok.size() >= 3)
+        {
+            // 按名字覆盖 AI 参数：PARAM <Param字段名> <值>（供 buff 的 ExtraBotChange 使用）
+            std::printf(set_param_by_name(tok[1], std::atof(tok[2].c_str())) ? "OK\n" : "ERR\n");
         }
         else if (tok[0] == "CFG" && tok.size() >= 11)
         {

@@ -115,42 +115,27 @@
 		"DoubleHole_1": {"garbage_hole_wide_count": 2},
 		"DoubleHole_2": {"garbage_hole_count": 2}
 	},
-	"_comment_bot": "以下 bot 参数原本用于 ColdClear（CC）。CC 已被 zzztoj 取代，故整块改名为 _disabled_* 保留作参考（JSON 不支持注释，改名后代码不再读取）。zzztoj 的参数见 Scripts/bot_play/zzz_bridge.gd 的 zzz_* 配置。",
-	"_disabled_ExtraBotChange":{
-		"Allspin_1": {"allspin_repeat_penalty": -500},
+	"_comment_bot": "ExtraBotChange：勾选对应 buff 时覆盖 zzztoj 的 AI 参数（键名 = zzztoj/src/ai_zzz.h 的 io_zzz::IO::Param 字段名，另支持 repeat_penalty）。未列出的参数保持 worker 默认（zzz 自带 io-DLL 调参）。",
+	"ExtraBotChange":{
+		"Allspin_1": {"repeat_penalty": 500},
 		"Talentless_1": {
-			"mini_tspin1": 120,
-			"mini_tspin2": -180,
-			"tspin1": -200,
-			"tspin2": -300,
-			"tspin3": -250,
-			"allspin1": -200,
-			"allspin2": -300,
-			"allspin3": -250,
-			"allspin3plus": -250,
-			"clear1": -80,
-			"clear2": -20,
-			"clear3": 40,
-			"clear4": 580
+			"tspin_mini": 0.5,
+			"tspin_1": 0.2,
+			"tspin_2": 1.0,
+			"tspin_3": 1.0,
+			"clear_2": 2.5,
+			"clear_3": 2.0,
+			"clear_4": 3.0
 		},
 		"Talentless_2": {
-			"tspin1": -200,
-			"tspin2": -300,
-			"tspin3": -250,
-			"allspin1": -200,
-			"allspin2": -300,
-			"allspin3": -250,
-			"allspin3plus": -250,
-			"mini_tspin1": -150,
-			"mini_tspin2": -200,
-			"clear1": 0,
-			"clear2": 20,
-			"clear3": 120,
-			"clear4": 440,
-			"combo_garbage": 220,
-			"b2b_clear": 260,
-			"perfect_clear": 280,
-			"height": -80
+			"tspin_mini": 0,
+			"tspin_1": 0,
+			"tspin_2": 0,
+			"tspin_3": 0,
+			"clear_2": 4.0,
+			"clear_3": 3.0,
+			"clear_4": 6.0,
+			"combo": 40
 		}
 	}
 }

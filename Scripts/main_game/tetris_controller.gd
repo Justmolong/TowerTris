@@ -1259,11 +1259,23 @@ func _process(delta):
 	check_for_var_single_press()
 	gravity_drop()
 
+## 由 buff 下发的 zzz AI 参数覆盖（ExtraBotChange：Param 字段名 → 值）
+var bot_param_overrides: Dictionary = {}
+
 func _ensure_zzz_bridge() -> void:
 	if _zzz_bridge != null:
 		return
 	_zzz_bridge = ZzzBridge.new()
 	add_child(_zzz_bridge)
+	# 把已收集的参数覆盖补发给新桥（buff 可能在本节点之前就已处理）
+	if not bot_param_overrides.is_empty():
+		_zzz_bridge.set_param_overrides(bot_param_overrides)
+
+## 设置 zzz AI 参数覆盖（由 TowerController 依据 ExtraBotChange 调用）
+func set_bot_param_overrides(d: Dictionary) -> void:
+	bot_param_overrides = d.duplicate()
+	if _zzz_bridge != null:
+		_zzz_bridge.set_param_overrides(bot_param_overrides)
 
 func _process_bot_control(delta: float) -> void:
 	_ensure_zzz_bridge()

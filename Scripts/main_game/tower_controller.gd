@@ -147,40 +147,12 @@ func _extra_data_deal():
 	if extra_data_dict.has("tetris_allspin"):
 		clear_line_controller.tetris_allspin = extra_data_dict["tetris_allspin"]
 
-	# bot 评估权重（可由 buff 界面调整，经 bridge 的 S 命令下发到 ColdClear）。
-	# 原则：bridge 导出权重为主，仅当 buff 显式传参对应键时才覆盖 bridge。
-	# 这里把显式传参的键记入 clear_line_controller.bot_weight_override_keys，
-	# get_damage_tables 只返回这些键，bridge 才会覆盖默认权重。
-	clear_line_controller.bot_weight_override_keys = {}
-	var bot_key_to_var := {
-		"bot_eval_mult": "eval_mult",
-		"bot_attack_efficiency_weight": "attack_efficiency_weight",
-		"bot_b2b_clear": "b2b_clear",
-		"bot_height": "height",
-		"bot_clear4": "clear4",
-		"bot_clear1": "clear1",
-		"bot_clear2": "clear2",
-		"bot_clear3": "clear3",
-		"bot_tspin1": "tspin1",
-		"bot_tspin2": "tspin2",
-		"bot_tspin3": "tspin3",
-		"bot_mini_tspin1": "mini_tspin1",
-		"bot_mini_tspin2": "mini_tspin2",
-		"bot_allspin1": "allspin1",
-		"bot_allspin2": "allspin2",
-		"bot_allspin3": "allspin3",
-		"bot_allspin3plus": "allspin3plus",
-		"bot_perfect_clear": "perfect_clear",
-		"bot_combo_garbage": "combo_garbage",
-		"bot_wasted_t": "wasted_t",
-		"bot_move_time": "move_time",
-		"bot_allspin_repeat_penalty": "allspin_repeat_penalty",
-	}
-	for extra_key in bot_key_to_var:
-		if extra_data_dict.has(extra_key):
-			var weight_key: String = bot_key_to_var[extra_key]
-			clear_line_controller.set("bot_" + weight_key, int(extra_data_dict[extra_key]))
-			clear_line_controller.bot_weight_override_keys[weight_key] = true
+	# bot 参数覆盖（ExtraBotChange）：勾选的 buff → zzztoj AI 参数（键名 = ai_zzz::IO::Param 字段名，
+	# 另支持 repeat_penalty）。未列出的参数保持 worker 默认（zzz 自带 io-DLL 调参）。
+	if extra_data_dict.has("ExtraBotChange"):
+		var extra_bot = extra_data_dict["ExtraBotChange"]
+		if typeof(extra_bot) == TYPE_DICTIONARY and tetris_controller != null:
+			tetris_controller.set_bot_param_overrides(extra_bot)
 
 	# bot 并行搜索线程数（buff 可调，0 = 由 bridge 自动决定）
 	if extra_data_dict.has("bot_threads"):

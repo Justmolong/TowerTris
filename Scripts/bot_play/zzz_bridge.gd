@@ -190,6 +190,34 @@ func next_plan_action() -> BotAction:
 	return a
 
 
+# ========== buff 参数覆盖（ExtraBotChange） ==========
+
+## buff 覆盖的 zzz AI 参数：{Param 字段名: 数值}（repeat_penalty 单独走 REQ 尾部）
+var _param_overrides: Dictionary = {}
+var _sent_params: Dictionary = {}
+
+
+## 由关卡/ buff 下发参数覆盖（键名 = ai_zzz::IO::Param 字段名）
+func set_param_overrides(d: Dictionary) -> void:
+	_param_overrides = d.duplicate()
+	_sent_params.clear()   # 重新下发
+	_push_params()
+
+
+## 下发尚未发送过的参数覆盖
+func _push_params() -> void:
+	if not _started:
+		return
+	for k in _param_overrides.keys():
+		var name := str(k)
+		if name == "repeat_penalty":
+			continue   # 该值随 REQ 尾部发送（游戏侧每块都会判断 allspin 是否开启）
+		if _sent_params.has(name):
+			continue
+		_sent_params[name] = true
+		_send_async("PARAM %s %s" % [name, str(_param_overrides[k])])
+
+
 # ========== 请求决策 ==========
 
 ## 请求一次决策（每块一次；异步，结果在 _process 里落地）
@@ -202,6 +230,8 @@ func request_plan(game_controller) -> void:
 	if cfg != _cfg_sent:
 		_cfg_sent = cfg
 		_send_async(cfg)
+		_sent_params.clear()   # CFG 会把参数重置为 worker 默认，需重新下发 buff 覆盖
+	_push_params()
 	var line := _build_request(game_controller)
 	if line.is_empty():
 		return
@@ -311,7 +341,9 @@ func _build_request(gc) -> String:
 	# 尾部三项：上一手 spin 类型 / 上一手消行数 / 重复性惩罚扣分（0 = 关闭）
 	parts.append(str(_last_spin_type(cl)))
 	parts.append(str(int(cl._last_clear_count) if cl != null else 0))
-	parts.append(str(repeat_penalty if (cl != null and cl.tetris_allspin == 1) else 0.0))
+	# 重复性惩罚：buff 覆盖优先，其次 @export 默认；仅 allspin 开启时下发
+	var rp: float = float(_param_overrides.get("repeat_penalty", repeat_penalty))
+	parts.append(str(rp if (cl != null and cl.tetris_allspin == 1) else 0.0))
 	return " ".join(parts)
 
 
