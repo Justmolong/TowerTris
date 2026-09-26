@@ -1,19 +1,45 @@
-# 构建 zzztoj worker（本游戏用的 bot 进程）
-# 依赖：MinGW g++（本机 E:\mingw64\mingw64\bin\g++.exe，已加入 PATH）
-# 若要改用 MSVC/CMake，可参考 CMakeLists.txt 的 io_dll 目标（同一套源文件）
+# Build the zzztoj worker (the bot process used by this game).
+# Usage (from any directory):  powershell -File zzztoj\build_worker.ps1
+# Needs MinGW g++ on PATH, or at the fallback path below, or pass -Gxx <path>.
+# For an MSVC/CMake build, see the io_dll target in CMakeLists.txt (same sources).
+# NOTE: keep this file ASCII-only. Windows PowerShell 5.1 reads BOM-less files as ANSI,
+#       and non-ASCII text then breaks parsing.
+param(
+    [string]$Gxx = ""
+)
 $ErrorActionPreference = "Stop"
+
+# All relative paths below are relative to zzztoj/, so always switch to the script's own
+# directory first: running `powershell -File zzztoj\build_worker.ps1` from the project root
+# would otherwise fail to find src/.
+Set-Location $PSScriptRoot
+
 $srcs = @(
     "src/zzztoj_worker.cpp",
     "src/ai_zzz.cpp",
     "src/tetris_core.cpp",
-    "src/rule_asc.cpp",      # 本游戏 ASC 踢墙规则
-    "src/rule_srs.cpp",      # 节点几何/转向模板来源
-    "src/search_amini.cpp",  # 覆盖 T/AllSpin/Mini 的搜索
+    "src/rule_asc.cpp",      # ASC wall-kick rule used by this game
+    "src/rule_srs.cpp",      # node geometry / rotation templates
+    "src/search_amini.cpp",  # search with T / AllSpin / Mini handling
     "src/integer_utils.cpp",
     "src/random.cpp"
 )
-Write-Host "编译 zzztoj_worker.exe ..."
-& g++ -std=c++17 -O2 -Isrc @srcs -o worker/zzztoj_worker.exe -static -static-libgcc -static-libstdc++
-if ($LASTEXITCODE -ne 0) { throw "编译失败" }
-Write-Host ("完成: {0} 字节" -f (Get-Item worker/zzztoj_worker.exe).Length)
-Write-Host "自检： .\worker\zzztoj_worker.exe selftest"
+
+$candidates = @()
+if ($Gxx -ne "") { $candidates += $Gxx }
+$candidates += @("g++", "E:\mingw64\mingw64\bin\g++.exe")
+$compiler = $null
+foreach ($c in $candidates) {
+    if (Get-Command $c -ErrorAction SilentlyContinue) { $compiler = $c; break }
+}
+if ($null -eq $compiler) {
+    throw ("g++ not found. Tried: " + ($candidates -join ", ") + ". Install MinGW-w64 or pass -Gxx <path>.")
+}
+
+New-Item -ItemType Directory -Force -Path "worker" | Out-Null
+Write-Host ("compiler: " + $compiler)
+Write-Host "building zzztoj_worker.exe ..."
+& $compiler -std=c++17 -O2 -Isrc @srcs -o worker/zzztoj_worker.exe -static -static-libgcc -static-libstdc++
+if ($LASTEXITCODE -ne 0) { throw "build failed" }
+Write-Host ("done: {0} bytes" -f (Get-Item worker/zzztoj_worker.exe).Length)
+Write-Host "selftest: .\worker\zzztoj_worker.exe selftest"
