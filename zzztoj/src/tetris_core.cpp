@@ -1,4 +1,4 @@
-﻿#include <map>
+#include <map>
 #include <iostream>
 #include "tetris_core.h"
 #include "random.h"
@@ -275,6 +275,12 @@ namespace m_tetris
         width_ = width;
         height_ = height;
         type_max_ = 0;
+        // TowerTris 补丁：type_to_index_ 只会为 7 种方块写入 14 个表项，其余表项原本是未初始化的。
+        // convert() 直接读该表，于是任何非法方块字符都会得到垃圾下标，get_block() 里的
+        // &node_block_[垃圾下标 * 4 + r] 就是野指针（实测：把本游戏「空 hold」哨兵 '-' 传进来会
+        // 立刻 0xC0000005 崩溃）。这里全部清零兜底，非法字符退化为下标 0，绝不会越界。
+        for (int i = 0; i < 256; ++i)
+            type_to_index_[i] = 0;
         full_ = width == 32 ? 0xFFFFFFFFU : (1 << width) - 1;
         std::vector<TetrisBlockStatus> check;
         for (auto cit = generate_.begin(); cit != generate_.end(); ++cit)

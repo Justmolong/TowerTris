@@ -16,6 +16,11 @@
 //   由本进程换算到 zzz 坐标（y 向上、底行 = 0）后**按格子集合匹配节点**，因此不依赖旋转编号约定。
 //   path 字符集与 io_dll 一致：l/r/d 一格、L/R 到头、D 落到底、z 逆时针、c 顺时针，
 //   末尾 'V' = 落地(硬降)，开头 'v' = 建议先 Hold。
+//
+// ⚠ <hold> 的「空」写作 '-'（本游戏约定），进引擎前必须换成空格（zzz 约定）；
+//   绝不能把非方块字符交给引擎：TetrisContext::convert() 对未知字符会读到未初始化的表项，
+//   get_block() 里就成了野指针，实测直接把进程打成 0xC0000005（见 sanitize_piece_char）。
+//   <active> 必须是 ITLJZSO 之一，否则本函数返回 ERR（并写 stderr）。
 //============================================================================================
 #include <algorithm>
 #include <climits>
@@ -229,6 +234,34 @@ static bool set_param_by_name(std::string const &name, double v)
     return true;
 }
 
+// 方块字符合法性校验：zzz 只认识 I/J/L/O/S/T/Z（大小写）。
+// ⚠ 绝不能把其它字符（尤其是本游戏「空 hold」用的 '-'）传进引擎：
+// TetrisContext::convert() 查的是一张只填了 7 种方块的 256 项表，未初始化的表项会让
+// get_block() 里 &node_block_[垃圾下标*4+r] 变成野指针，实测直接把 worker 打成 0xC0000005。
+static bool is_valid_piece_char(char c)
+{
+    switch (::toupper((unsigned char)c))
+    {
+    case 'I': case 'J': case 'L': case 'O': case 'S': case 'T': case 'Z':
+        return true;
+    default:
+        return false;
+    }
+}
+
+// 把协议里的方块 token 变成引擎能安全接受的字；非法字符退回 fallback（hold 用空格）
+static char sanitize_piece_char(std::string const &tok, char fallback)
+{
+    if (tok.empty())
+        return fallback;
+    char c = tok[0];
+    if (is_valid_piece_char(c))
+        return c;
+    if (c != '-')   // '-' 就是「空」的正常写法，不当异常；其它字符才是异常
+        std::fprintf(stderr, "[zzztoj_worker] 非法方块字符 '%c' -> 按空处理\n", c);
+    return fallback;
+}
+
 // 处理一条 REQ：返回 path 字符集；失败返回空串
 static std::string handle_request(std::vector<std::string> const &tok)
 {
@@ -242,7 +275,13 @@ static std::string handle_request(std::vector<std::string> const &tok)
     for (size_t d = 0; d < kRows; ++d)
         rows[d] = (uint32_t)std::strtoul(tok[i++].c_str(), nullptr, 10);
 
-    char active = tok[i++][0];
+    std::string activeTok = tok[i++];
+    char active = sanitize_piece_char(activeTok, '\0');
+    if (active == '\0')
+    {
+        std::fprintf(stderr, "[zzztoj_worker] active 方块非法: '%s'\n", activeTok.c_str());
+        return std::string();
+    }
     std::string holdTok = tok[i++];
     bool canHoldNow = tok[i++] == "1";
     std::string nextStr = tok[i++];
@@ -322,7 +361,7 @@ static std::string handle_request(std::vector<std::string> const &tok)
     int maxDepth = (int)nextStr.size();
     std::string result;
     bool got_target = false;
-    char holdChar = holdTok.empty() ? ' ' : holdTok[0];
+    char holdChar = sanitize_piece_char(holdTok, ' ');   // 本游戏的空 hold 哨兵是 '-'，zzz 约定是空格
 
     if (g_can_hold_global)
     {
