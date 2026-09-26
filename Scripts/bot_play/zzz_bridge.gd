@@ -67,12 +67,12 @@ func start() -> bool:
 		return true
 	var exe := _resolve_worker_path()
 	if exe.is_empty():
-		_last_error = "%s 不存在（编辑器：res://zzztoj/；导出：exe 同目录 zzztoj/）" % WORKER_FILENAME
-		push_error("[ZzzBridge] " + _last_error)
+		push_error("[ZzzBridge] " + _last_error
+			+ "（编辑器请在项目根运行 zzztoj/build_worker.ps1 构建 worker；导出请在 exe 同目录放 zzztoj/zzztoj_worker.exe）")
 		return false
 	var res: Dictionary = OS.execute_with_pipe(exe, [], false)
 	if res.is_empty() or not res.has("stdio"):
-		_last_error = "无法启动 " + WORKER_FILENAME
+		_last_error = "无法启动 " + WORKER_FILENAME + "（" + exe + "）"
 		push_error("[ZzzBridge] " + _last_error)
 		return false
 	_stdio = res.get("stdio")
@@ -80,6 +80,7 @@ func start() -> bool:
 	_pid = int(res.get("pid", -1))
 	_started = true
 	_running = true
+	print("[ZzzBridge] 已启动 zzztoj worker: ", exe, " pid=", _pid)
 	_thread = Thread.new()
 	_thread.start(_loop)
 	# 握手（异步；回复由子线程消费，不阻塞主线程）
@@ -103,18 +104,25 @@ func stop() -> void:
 	_pid = -1
 
 
-## 定位 worker 可执行文件
+## 定位 worker 可执行文件（按顺序尝试多种可能位置，便于编辑器/导出/自定义放置）
 func _resolve_worker_path() -> String:
+	var tried: Array = []
 	# 1) 导出运行：exe 同目录下 zzztoj/
 	var exe_dir := OS.get_executable_path().get_base_dir()
-	var loose := exe_dir.path_join(WORKER_EXE_SUBDIR).path_join(WORKER_FILENAME)
-	if FileAccess.file_exists(loose):
-		return loose
+	for cand in [
+		exe_dir.path_join(WORKER_EXE_SUBDIR).path_join(WORKER_FILENAME),
+		exe_dir.path_join(WORKER_FILENAME),
+	]:
+		tried.append(cand)
+		if FileAccess.file_exists(cand):
+			return cand
 	# 2) 编辑器/开发：res:// 映射项目目录
-	var res_dir: String = ProjectSettings.globalize_path(WORKER_RES_DIR)
-	var dev := res_dir.path_join(WORKER_FILENAME)
-	if FileAccess.file_exists(dev):
-		return dev
+	for rel in [WORKER_RES_DIR, "res://zzztoj"]:
+		var dev: String = ProjectSettings.globalize_path(rel).path_join(WORKER_FILENAME)
+		tried.append(dev)
+		if FileAccess.file_exists(dev):
+			return dev
+	_last_error = "未找到 %s，已尝试：%s" % [WORKER_FILENAME, str(tried)]
 	return ""
 
 

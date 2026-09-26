@@ -1261,11 +1261,20 @@ func _process(delta):
 
 ## 由 buff 下发的 zzz AI 参数覆盖（ExtraBotChange：Param 字段名 → 值）
 var bot_param_overrides: Dictionary = {}
+## zzz 桥脚本路径（按路径加载而不是依赖 class_name，避免编辑器类名缓存未刷新时找不到 ZzzBridge）
+const ZZZ_BRIDGE_SCRIPT := "res://Scripts/bot_play/zzz_bridge.gd"
+var _zzz_bridge_error_logged := false
 
 func _ensure_zzz_bridge() -> void:
 	if _zzz_bridge != null:
 		return
-	_zzz_bridge = ZzzBridge.new()
+	var script: GDScript = load(ZZZ_BRIDGE_SCRIPT)
+	if script == null:
+		if not _zzz_bridge_error_logged:
+			_zzz_bridge_error_logged = true
+			push_error("[ZzzBridge] 无法加载 " + ZZZ_BRIDGE_SCRIPT)
+		return
+	_zzz_bridge = script.new()
 	add_child(_zzz_bridge)
 	# 把已收集的参数覆盖补发给新桥（buff 可能在本节点之前就已处理）
 	if not bot_param_overrides.is_empty():
@@ -1281,6 +1290,9 @@ func _process_bot_control(delta: float) -> void:
 	_ensure_zzz_bridge()
 	if _zzz_bridge == null:
 		return
+	if not _zzz_bridge.using_native_cc() and not _zzz_bridge_error_logged:
+		_zzz_bridge_error_logged = true
+		push_error("[ZzzBridge] zzztoj worker 未就绪 → bot 会退化为「每块直接硬降」（请看上面的 ZzzBridge 报错定位 worker 路径）")
 	if current_piece.is_empty():
 		return
 
