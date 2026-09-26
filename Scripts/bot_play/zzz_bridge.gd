@@ -30,6 +30,10 @@ const NEXT_MAX := 14
 @export var allow_180: bool = true
 ## Allspin 重复性惩罚扣分（>0 = 生效；本游戏 Allspin_1 下「与上一手同类型 spin + 同行数」会立刻涨一行垃圾）
 @export var repeat_penalty: float = 500.0
+## 单条命令等待回复的上限（毫秒）：超时按「worker 无响应」处理并打日志
+@export var reply_timeout_ms: int = 2000
+## 打印每次 REQ 的收发内容（排查「已启动但无决策」时打开）
+@export var log_protocol: bool = false
 
 var _stdio: FileAccess = null
 var _stderr: FileAccess = null
@@ -49,8 +53,13 @@ var _last_error: String = ""
 var _plan: Array = []          # Array[BotAction]
 var _plan_index: int = 0
 var _plan_wants_hold: bool = false
-var _request_id: int = 0
 var _cfg_sent: String = ""
+## worker 进程存活标记：进程退出后置 false，bot 退化为「每块硬降」，避免主循环被「等待决策」冻住
+var _alive: bool = true
+var _death_logged: bool = false
+var _warn_budget: int = 10
+## 最近一次下发的 REQ（出错时一起打印，便于复现问题局面）
+var _last_req: String = ""
 
 
 func _ready() -> void:
@@ -80,6 +89,8 @@ func start() -> bool:
 	_pid = int(res.get("pid", -1))
 	_started = true
 	_running = true
+	_alive = true
+	_death_logged = false
 	print("[ZzzBridge] 已启动 zzztoj worker: ", exe, " pid=", _pid)
 	_thread = Thread.new()
 	_thread.start(_loop)
@@ -127,7 +138,7 @@ func _resolve_worker_path() -> String:
 
 
 func using_native_cc() -> bool:
-	return _started
+	return _started and _alive
 
 
 func is_native_available() -> bool:
@@ -215,13 +226,13 @@ func _push_params() -> void:
 	if not _started:
 		return
 	for k in _param_overrides.keys():
-		var name := str(k)
-		if name == "repeat_penalty":
+		var pname := str(k)
+		if pname == "repeat_penalty":
 			continue   # 该值随 REQ 尾部发送（游戏侧每块都会判断 allspin 是否开启）
-		if _sent_params.has(name):
+		if _sent_params.has(pname):
 			continue
-		_sent_params[name] = true
-		_send_async("PARAM %s %s" % [name, str(_param_overrides[k])], "PARAM")
+		_sent_params[pname] = true
+		_send_async("PARAM %s %s" % [pname, str(_param_overrides[k])], "PARAM")
 
 
 # ========== 请求决策 ==========
@@ -241,22 +252,72 @@ func request_plan(game_controller) -> void:
 	var line := _build_request(game_controller)
 	if line.is_empty():
 		return
+	_last_req = line
+	if log_protocol:
+		print("[ZzzBridge] REQ <- '", line, "'")
 	_waiting = true
 	_send_async(line, "REQ")
 
 
 func _process(_delta: float) -> void:
+	_drain_stderr()
+	_check_worker_alive()
+	_consume_main_thread_errors()
 	_mutex.lock()
-	var ready := _reply_ready
+	var has_reply := _reply_ready
 	var reply := _reply
-	if ready:
+	if has_reply:
 		_reply_ready = false
 		_reply = ""
 	_mutex.unlock()
-	if not ready:
+	if not has_reply:
 		return
 	_waiting = false
+	if log_protocol:
+		print("[ZzzBridge] REQ -> '", reply.substr(0, 80), "' (len=", reply.length(), ")")
 	_parse_reply(reply)
+
+
+## 非阻塞读取 worker 的 stderr（worker 的报错都在这里，例如「未能匹配当前方块节点」）
+func _drain_stderr() -> void:
+	if _stderr == null:
+		return
+	var budget := 16
+	while budget > 0:
+		var line: String = _stderr.get_line()
+		if line.is_empty():
+			return
+		budget -= 1
+		var text := line.strip_edges()
+		if not text.is_empty():
+			push_warning("[ZzzBridge][worker] " + text)
+
+
+## 检测 worker 子进程是否还活着；退出后停止等待决策，让游戏继续（退化为硬降）
+func _check_worker_alive() -> void:
+	if not _started or _pid <= 0:
+		return
+	if OS.is_process_running(_pid):
+		return
+	_alive = false
+	_started = false
+	_waiting = false
+	if not _death_logged:
+		_death_logged = true
+		push_error("[ZzzBridge] worker 进程已退出（pid=%d）→ bot 退化为「每块直接硬降」" % _pid)
+
+
+## 打印子线程记录的错误（超时/写管道失败等），每条只打印一次
+func _consume_main_thread_errors() -> void:
+	_mutex.lock()
+	var err := _last_error
+	_last_error = ""
+	_mutex.unlock()
+	if err.is_empty():
+		return
+	if _warn_budget > 0:
+		_warn_budget -= 1
+		push_warning("[ZzzBridge] " + err)
 
 
 # ========== 协议构造 ==========
@@ -385,10 +446,15 @@ func _build_next(gc) -> String:
 
 func _parse_reply(reply: String) -> void:
 	clear_plan()
-	if reply.is_empty() or not reply.begins_with("OK"):
+	if reply.is_empty():
+		_note_error("REQ 无回复（worker 无响应或已退出）→ 本块直接硬降 | REQ='" + _last_req + "'")
+		return
+	if not reply.begins_with("OK"):
+		_note_error("REQ 返回非 OK：'" + reply.substr(0, 60) + "' → 本块直接硬降 | REQ='" + _last_req + "'")
 		return
 	var path := reply.substr(2).strip_edges()
 	if path.is_empty():
+		_note_error("REQ 返回空路径（worker 没搜到方案）→ 本块直接硬降 | REQ='" + _last_req + "'")
 		return
 	for i in range(path.length()):
 		var c := path[i]
@@ -444,21 +510,31 @@ func _loop() -> void:
 			_mutex.unlock()
 
 
-## 写一条命令并轮询等待其回复（每 1ms 轮询，最多 5 秒）
+## 写一条命令并轮询等待其回复（每 1ms 轮询，最多 reply_timeout_ms 毫秒）
 func _transact(cmd: String) -> String:
 	if _stdio == null:
+		_note_error("管道不可用（stdio == null）")
 		return ""
 	_stdio.store_string(cmd + "\n")
 	_stdio.flush()
 	var waited := 0
-	while waited < 5000 and _running:
+	var timeout: int = max(200, reply_timeout_ms)
+	while waited < timeout and _running:
 		var line: String = _stdio.get_line()
 		if line.is_empty():
 			OS.delay_msec(1)
 			waited += 1
 			continue
 		return line.strip_edges()
+	_note_error("命令等待 %.1fs 无回复（worker 卡死/已退出）：%s" % [timeout / 1000.0, cmd.substr(0, 24)])
 	return ""
+
+
+## 记录一条错误（子线程调用，主线程在 _process 里打印）
+func _note_error(msg: String) -> void:
+	_mutex.lock()
+	_last_error = msg
+	_mutex.unlock()
 
 
 func _send_async(cmd: String, kind: String = "CMD") -> void:

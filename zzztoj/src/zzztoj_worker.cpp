@@ -111,9 +111,14 @@ static TetrisNode const *find_node(char piece, std::vector<std::pair<int, int>> 
 }
 
 // 按当前等级/规则设置 search 与 ai 配置（等级变化时才 update）
-static void apply_config(int level, int gcap, int mult, bool lockout, bool can_hold,
+// 按当前等级/规则设置 search 与 ai 配置
+// 参数 think = 协议里 CFG 的第一个字段，语义为「搜索时间上限（毫秒）」。
+// 注意：上游 io_dll 把该字段当作等级并用 pow 换算 think_limit（等级 100 会变成几乎无限的耗时），
+// 本工程按协议注释直接当毫秒用，并做上限保护。
+static void apply_config(int think, int gcap, int mult, bool lockout, bool can_hold,
                          bool allow180, bool amini, bool aspin, bool tspin, bool immobile_t)
 {
+    g_think = think > 2000 ? 2000 : (think < 1 ? 1 : think);
     search_amini::Search::Config *sc = g_ai.search_config();
     sc->allow_rotate_move = false;
     sc->allow_180 = allow180;
@@ -162,6 +167,9 @@ static void apply_config(int level, int gcap, int mult, bool lockout, bool can_h
     pp.combo = 30.511480066561280;
     pp.ratio = 1.585887060974325;
 
+    // 引擎等级固定为 io-DLL 默认 8：本工程只把 CFG 首字段当搜索时间预算，不用它当等级
+    // （上游用 pow(100^(1/8), level) 换算，等级被填成 100 时会变成几乎无限耗时）。
+    const int level = 8;
     g_level = level;
     g_gcap = gcap;
     g_mult = mult;
@@ -181,7 +189,7 @@ static bool prepare_ai()
     if (!g_ai.prepare(GAME_W, 40))
         return false;
     g_ai.memory_limit(512ull << 20);
-    apply_config(8, 8, 1, false, true, true, true, false, true, true);
+    apply_config(100, 8, 1, false, true, true, true, false, true, true);
     g_prepared = true;
     return true;
 }
@@ -313,6 +321,7 @@ static std::string handle_request(std::vector<std::string> const &tok)
 
     int maxDepth = (int)nextStr.size();
     std::string result;
+    bool got_target = false;
     char holdChar = holdTok.empty() ? ' ' : holdTok[0];
 
     if (g_can_hold_global)
@@ -323,9 +332,22 @@ static std::string handle_request(std::vector<std::string> const &tok)
             TetrisNode const *from = rr.change_hold ? g_ai.context()->generate(rr.target->status.t) : node;
             std::vector<char> path = g_ai.make_path(from, rr.target, map);
             result.assign(path.begin(), path.end());
+            got_target = true;
         }
         if (rr.change_hold)
             result.insert(result.begin(), 'v');
+        // hold 路径搜不到落点（实测：hold 槽已被占用 + 版面非空时 zzz 的 run_hold 会返回空结果，
+        // 上游 io_dll 此时只给「就地落地」，会白扔一手）→ 回退到不带 hold 的搜索，尽量给出真实方案。
+        if (!got_target && !rr.change_hold)
+        {
+            auto fb = g_ai.run(map, node, nextStr.c_str(), maxDepth, g_think);
+            if (fb.target != nullptr)
+            {
+                std::vector<char> path = g_ai.make_path(node, fb.target, map);
+                result.assign(path.begin(), path.end());
+                got_target = true;
+            }
+        }
     }
     else
     {
@@ -334,12 +356,13 @@ static std::string handle_request(std::vector<std::string> const &tok)
         {
             std::vector<char> path = g_ai.make_path(node, rr.target, map);
             result.assign(path.begin(), path.end());
+            got_target = true;
         }
     }
 
-    if (result.empty())
-        return result;
-    result.push_back('V');   // 末尾 = 落地
+    // 与 zzz 官方 io_dll 一致：即使没搜到落点也返回「就地落地(V)」，绝不返回空串。
+    // 空串会被游戏当成 ERR → 该块直接硬降（表现为 bot 完全不动），而 V 至少语义明确。
+    result.push_back('V');
     return result;
 }
 

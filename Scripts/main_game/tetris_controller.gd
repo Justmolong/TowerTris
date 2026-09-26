@@ -1261,6 +1261,14 @@ func _process(delta):
 
 ## 由 buff 下发的 zzz AI 参数覆盖（ExtraBotChange：Param 字段名 → 值）
 var bot_param_overrides: Dictionary = {}
+## 等待 worker 决策的累计时间；超过 BOT_WAIT_TIMEOUT 就复位（防止 worker 卡死时整局冻结）
+var _bot_waiting_time: float = 0.0
+const BOT_WAIT_TIMEOUT := 3.0
+## bot 决策日志次数上限
+var _bot_plan_log_budget: int = 12
+## 进入 bot 循环的一次性日志标记 / 无方块空转计时
+var _bot_loop_logged: bool = false
+var _bot_idle_log_time: float = 0.0
 ## zzz 桥脚本路径（按路径加载而不是依赖 class_name，避免编辑器类名缓存未刷新时找不到 ZzzBridge）
 const ZZZ_BRIDGE_SCRIPT := "res://Scripts/bot_play/zzz_bridge.gd"
 var _zzz_bridge_error_logged := false
@@ -1293,8 +1301,19 @@ func _process_bot_control(delta: float) -> void:
 	if not _zzz_bridge.using_native_cc() and not _zzz_bridge_error_logged:
 		_zzz_bridge_error_logged = true
 		push_error("[ZzzBridge] zzztoj worker 未就绪 → bot 会退化为「每块直接硬降」（请看上面的 ZzzBridge 报错定位 worker 路径）")
+	if bot_debug_log and not _bot_loop_logged:
+		_bot_loop_logged = true
+		print("[BotLoop] bot_mode=", bot_mode, " native=", _zzz_bridge.using_native_cc(),
+			" pps=", bot_target_pps, " 每块间隔=", _get_bot_piece_interval(),
+			" 每步间隔=", _get_bot_action_interval(), " 原生每步间隔=", bot_native_action_interval)
 	if current_piece.is_empty():
+		# 无活动方块时 bot 不会请求决策：把这种情况明确打出来（否则表现为「已启动但毫无反应」）
+		_bot_idle_log_time += delta
+		if bot_debug_log and _bot_idle_log_time >= 1.0:
+			_bot_idle_log_time = 0.0
+			print("[BotIdle] 当前无活动方块 → 未请求决策（检查 spawn/消行/锁定流程）")
 		return
+	_bot_idle_log_time = 0.0
 
 	if _bot_piece_cooldown > 0.0:
 		_bot_piece_cooldown = max(0.0, _bot_piece_cooldown - delta)
@@ -1322,9 +1341,15 @@ func _process_bot_control(delta: float) -> void:
 			if _zzz_bridge.is_plan_empty():
 				_zzz_bridge.request_plan(self)
 
-	# 等待原生 ColdClear 异步决策期间，暂停动作
+	# 等待原生 zzz 异步决策期间，暂停动作（带看门狗：worker 卡死时复位，避免整局冻结）
 	if _zzz_bridge.using_native_cc() and _zzz_bridge.is_waiting_decision():
+		_bot_waiting_time += delta
+		if _bot_waiting_time >= BOT_WAIT_TIMEOUT:
+			_bot_waiting_time = 0.0
+			_zzz_bridge.reset_for_stall()
+			push_warning("[ZzzBridge] 等待决策超过 %.1fs → 复位桥状态（本块直接硬降）" % BOT_WAIT_TIMEOUT)
 		return
+	_bot_waiting_time = 0.0
 
 	# 无可用原生计划（原生不可用/决策失败/计划已消费）时，直接硬降锁定当前块
 	if not _zzz_bridge.using_native_cc() or not _zzz_bridge.has_plan():
@@ -1334,6 +1359,11 @@ func _process_bot_control(delta: float) -> void:
 		hard_drop()
 		_bot_piece_cooldown = _get_bot_piece_interval()
 		return
+
+	if bot_debug_log and _bot_plan_log_budget > 0:
+		_bot_plan_log_budget -= 1
+		print("[BotPlan] piece=", _bot_piece_serial, " steps=", _zzz_bridge.remaining_movements(),
+			" hold=", _zzz_bridge.plan_wants_hold())
 
 	# 执行计划中的下一个动作
 	var decided_action: BotAction = _zzz_bridge.next_plan_action()
