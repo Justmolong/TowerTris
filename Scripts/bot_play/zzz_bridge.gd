@@ -60,6 +60,14 @@ var _death_logged: bool = false
 var _warn_budget: int = 10
 ## 最近一次下发的 REQ（出错时一起打印，便于复现问题局面）
 var _last_req: String = ""
+## worker 意外退出后的自动重启（次数上限 + 延迟，避免崩溃时疯狂重启刷屏）
+const MAX_RESTARTS := 3
+const RESTART_DELAY := 1.0
+var _restarts: int = 0
+var _restart_delay: float = 0.0
+var _should_restart: bool = false
+## 连续多少帧读不到 worker 进程才认定其退出（防偶发查询失败误判）
+var _dead_checks: int = 0
 
 
 func _ready() -> void:
@@ -91,6 +99,8 @@ func start() -> bool:
 	_running = true
 	_alive = true
 	_death_logged = false
+	_should_restart = false
+	_dead_checks = 0
 	print("[ZzzBridge] 已启动 zzztoj worker: ", exe, " pid=", _pid)
 	_thread = Thread.new()
 	_thread.start(_loop)
@@ -102,6 +112,7 @@ func start() -> bool:
 ## 停止 worker
 func stop() -> void:
 	_running = false
+	_should_restart = false
 	if _started and _stdio != null:
 		_stdio.store_string("QUIT\n")
 		_stdio.flush()
@@ -262,6 +273,7 @@ func request_plan(game_controller) -> void:
 func _process(_delta: float) -> void:
 	_drain_stderr()
 	_check_worker_alive()
+	_tick_restart(_delta)
 	_consume_main_thread_errors()
 	_mutex.lock()
 	var has_reply := _reply_ready
@@ -293,18 +305,108 @@ func _drain_stderr() -> void:
 			push_warning("[ZzzBridge][worker] " + text)
 
 
-## 检测 worker 子进程是否还活着；退出后停止等待决策，让游戏继续（退化为硬降）
+## 检测 worker 子进程是否还活着；退出后停止等待决策，让游戏继续（退化为硬降），并尝试自动重启
 func _check_worker_alive() -> void:
 	if not _started or _pid <= 0:
 		return
 	if OS.is_process_running(_pid):
+		_dead_checks = 0
 		return
+	# 退出码 259 (STILL_ACTIVE) 说明进程其实还在（查询失败/句柄受限），不要误判成崩溃
+	var code := OS.get_process_exit_code(_pid)
+	if code == 259:
+		_dead_checks = 0
+		return
+	# 连续多帧都读不到进程才认定退出，避免偶发查询失败
+	_dead_checks += 1
+	if _dead_checks < 3:
+		return
+	_dead_checks = 0
 	_alive = false
 	_started = false
 	_waiting = false
 	if not _death_logged:
 		_death_logged = true
-		push_error("[ZzzBridge] worker 进程已退出（pid=%d）→ bot 退化为「每块直接硬降」" % _pid)
+		push_error("[ZzzBridge] worker 进程已退出（pid=%d, exit_code=%d）→ %s" % [
+			_pid, code, _describe_exit_code(code)])
+	# 上一次的 worker 可能还有一端没读完的 stderr
+	_drain_stderr()
+	if _stdio != null:
+		_drain_pipe_tail()
+	_restart_delay = RESTART_DELAY
+	_should_restart = true
+
+
+## worker 意外退出后尝试自动重启（不阻塞主线程：线程还在收尾就等下一帧）
+func _tick_restart(delta: float) -> void:
+	if not _should_restart or _started:
+		return
+	if not is_inside_tree():
+		_should_restart = false
+		return
+	if _restarts >= MAX_RESTARTS:
+		if _restart_delay > 0.0:
+			_restart_delay = 0.0
+			push_error("[ZzzBridge] worker 已连续退出 %d 次，停止重启 → 本局 bot 退化为「每块直接硬降」" % _restarts)
+		return
+	if _restart_delay > 0.0:
+		_restart_delay = max(0.0, _restart_delay - delta)
+		return
+	if _thread != null:
+		# 注意：is_started() 在「线程函数已返回但还没 wait_to_finish」时依然是 true，
+		# 所以这里不能靠它判断线程是否收尾——先让 _loop 退出，然后直接 wait_to_finish()。
+		# 子线程最多停在 _transact 的一次 1ms 轮询里，因此这个等待是极短的。
+		_running = false
+		_sem.post()
+		_thread.wait_to_finish()
+		_thread = null
+	_stdio = null
+	_stderr = null
+	_restarts += 1
+	_cfg_sent = ""            # 新 worker 需要重新下发 CFG
+	_sent_params.clear()      # 以及 buff 参数覆盖
+	clear_plan()
+	print("[ZzzBridge] 尝试重启 worker（第 %d/%d 次）" % [_restarts, MAX_RESTARTS])
+	start()
+
+
+## 把退出码翻译成人话（Windows 上 0xC0000005 之类以负数呈现）
+func _describe_exit_code(code: int) -> String:
+	if code == 0:
+		return "正常退出（stdin 被关闭或收到 QUIT）"
+	match code:
+		-1:
+			return "被外部强杀（TerminateProcess）"
+		-1073741819:
+			return "0xC0000005 访问违例（worker 崩溃）→ 请把这条日志发出来"
+		-1073741571:
+			return "0xC00000FD 栈溢出（搜索递归过深）→ 调低 think_budget 或修 zzz 搜索"
+		-1073740791:
+			return "0xC0000409 栈缓冲区溢出/检测到异常"
+		-1073741510:
+			return "0xC000013A 被 Ctrl+C/外部终止"
+		-1073741823:
+			return "0xC00000FF 未知严重错误"
+		-1073741822:
+			return "0xC0000100 未知严重错误"
+	if code < 0:
+		return "异常退出（16 进制 0x%08X）" % (code & 0xFFFFFFFF)
+	return "退出码 %d" % code
+
+
+## 读取管道里残留的内容（阻塞式读到底，仅用于进程已退出时）
+func _drain_pipe_tail() -> void:
+	if _stderr == null:
+		return
+	var budget := 64
+	while budget > 0:
+		var line: String = _stderr.get_line()
+		if line.is_empty():
+			return
+		budget -= 1
+		var text := line.strip_edges()
+		if not text.is_empty():
+			push_warning("[ZzzBridge][worker 退出前] " + text)
 
 
 ## 打印子线程记录的错误（超时/写管道失败等），每条只打印一次
