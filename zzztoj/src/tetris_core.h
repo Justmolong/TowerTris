@@ -1,4 +1,4 @@
-﻿
+
 #pragma once
 
 #include <algorithm>
@@ -21,7 +21,8 @@
 namespace m_tetris
 {
     const int max_height = 40;
-    const int max_wall_kick = 16;
+    const int max_wall_kick = 24;   // 原为 16；本游戏使用 21 组 ASC 踢墙表（去掉隐式 (0,0) 后 20 组），
+                                    // 16 放不下，故上调到 24（仅数组上界，不影响 SRS/TOJ 等原有规则）
 
     struct TetrisNode;
     struct TetrisWallKickOpertion;
