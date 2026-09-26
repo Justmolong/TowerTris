@@ -394,7 +394,7 @@ func check_and_clear_lines() -> int:
 	current_damage = damage
 	tower_controller.attack_increase_tower(damage)
 	
-	_update_btb(is_spin_or_quad)
+	_update_btb_pc_aware(is_spin_or_quad, is_perfect_clear)
 	
 	# 添加到伤害累积显示
 	_add_damage_to_display(damage)
@@ -437,6 +437,21 @@ func _update_btb(is_spin_or_quad: bool):
 			text_printer.remove_text("btb")
 		board_drawer.queue_redraw()
 
+## BTB 更新（带 PC 规则）：PC（Perfect Clear）时 BTB 链**不断开**，且计数 **+2**。
+## 例：已有 BTB 链 3 → 5；此前没有 BTB → 直接 2（视作一次延续 + 额外一次）。
+## 注意 _calculate_damage() 在本函数之前执行，所以本手 PC 的伤害仍按「本手之前的 BTB 状态」加成，
+## 与原有「本次消行不计入自身加成」的口径一致。
+func _update_btb_pc_aware(is_spin_or_quad: bool, is_perfect_clear: bool):
+	if is_perfect_clear:
+		if is_btb_active:
+			btb_count += 2
+		else:
+			is_btb_active = true
+			btb_count = 2
+		_update_btb_text()
+		return
+	_update_btb(is_spin_or_quad)
+
 ## 更新BTB文本（常驻显示，不随消行淡出）
 func _update_btb_text():
 	var btb_text = _get_btb_text()
@@ -457,11 +472,23 @@ func _update_btb_text():
 
 ## 检查是否 Perfect Clear（场上没有任何方块）
 func _check_perfect_clear() -> bool:
+	# ⚠ 必须排除「当前方块自身」的格子：
+	# clear_line_delay_time == 0（默认）时，_clear_lines_animated() 会在清行之后、本判定之前
+	# 立刻调用 _spawn_next_piece_after_clear() → spawn_new_piece() → _draw_current_piece()，
+	# 新方块的 4 格已经被写进 board_data。若不排除，board_data 永远非空 → PC 永远判不出来。
+	var active_cells: Dictionary = {}
+	if tetris_controller != null and not tetris_controller.current_piece.is_empty():
+		var self_cells: Array = tetris_controller._get_piece_cells(
+			tetris_controller.current_piece, tetris_controller.current_position)
+		for c in self_cells:
+			active_cells[c] = true
 	for y in range(board_drawer.get_playable_height()):
 		# 待清除的行（消行延迟期间仍物理存在）视为已清除
 		if _pending_clear_lines.has(y):
 			continue
 		for x in range(board_drawer.grid_width):
+			if active_cells.has(Vector2i(x, y)):
+				continue
 			if board_drawer.get_cell_color(x, y) != null:
 				return false
 	return true
