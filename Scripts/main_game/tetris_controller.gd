@@ -1280,24 +1280,30 @@ func hard_drop():
 
 # ========== 更新循环 ==========
 
-## 游戏内按 ESC 返回 buff 选择界面（可在 Inspector 改路径）
+## 返回 buff 选择界面的按键映射名（project.godot → 输入映射 里的动作名）
+## 默认 "ExitPress"（绑定 ESC，physical_keycode=4194305）。改成别的键只需改这个映射。
+const BOT_EXIT_ACTION := "ExitPress"
+## 游戏内按该映射返回 buff 选择界面（可在 Inspector 改路径）
 @export var buff_scene_path: String = "res://Tscns/buff_chose_area.tscn"
 ## 防止一帧内重复触发返回
 var _leaving_to_buff: bool = false
+## 映射缺失时只警告一次
+var _exit_action_warned: bool = false
 
 
-## ESC 返回 buff 选择界面。
+## 按 ExitPress 映射返回 buff 选择界面。
 ## 用 _unhandled_input 而不是 _process 轮询：一旦以后游戏里加了 UI（暂停菜单等），
-## 被 UI 消费掉的 ESC 不会再触发返回。
+## 被 UI 消费掉的按键不会再触发返回。
 func _unhandled_input(event: InputEvent) -> void:
 	if _leaving_to_buff:
 		return
-	var is_escape := event.is_action_pressed("ui_cancel")
-	if not is_escape:
-		# 兜底：直接判 ESC 键，避免项目的 InputMap 被改过导致 ui_cancel 不是 ESC
-		is_escape = event is InputEventKey and event.pressed and not event.echo \
-			and event.keycode == KEY_ESCAPE
-	if not is_escape:
+	if not InputMap.has_action(BOT_EXIT_ACTION):
+		if not _exit_action_warned:
+			_exit_action_warned = true
+			push_warning("[退出] 项目设置里没有输入映射 \"%s\"，返回 buff 界面功能不可用（请到 项目设置 → 输入映射 添加）"
+				% BOT_EXIT_ACTION)
+		return
+	if not event.is_action_pressed(BOT_EXIT_ACTION):
 		return
 	get_viewport().set_input_as_handled()
 	return_to_buff_scene()
