@@ -203,6 +203,14 @@ func _extra_data_deal():
 	if extra_data_dict.has("BotMode"):
 		tetris_controller.bot_mode = true
 
+	# 旋转系统：关卡/Buff 可覆盖（0=ASC / 1=SRS / 2=ARS，也接受 "ASC"/"SRS"/"ARS"）
+	if extra_data_dict.has("rotation_system") or extra_data_dict.has("RotationSystem"):
+		var rs = extra_data_dict.get("rotation_system", extra_data_dict.get("RotationSystem"))
+		if tetris_controller:
+			tetris_controller.set_rotation_system(rs)
+		if tetris_controller and tetris_controller.bot_debug_log:
+			print("[旋转系统] 由关卡/Buff 切换为 ", tetris_controller.get_rotation_system_name())
+
 	# StartBoard：按参数直接印刷自定义初始版面（从下往上）。
 	# 版面由 BuffChoseData 的 StartBoard 参数（二维数组）指定，第 0 行为最底层（最大 y）。
 	# 宽度与版面不一致或行数超出可玩高度时 push_error。

@@ -1980,6 +1980,18 @@ namespace m_tetris
             }
             return true;
         }
+        // TowerTris：运行时切换规则（踢墙表在 prepare 时被烘焙进节点）用。
+        // prepare() 在宽高不变时会直接 return true，无法重新读取 TetrisRule::get_opertion()，
+        // 因此需要先丢弃 context 再重建。
+        bool reprepare(int width, int height)
+        {
+            shared_context_.reset();
+            node_storage_.clear();
+            node_storage_.emplace_back();
+            root_ = &node_storage_.back();
+            status_ = decltype(status_)();
+            return prepare(width, height);
+        }
         // 从状态获取当前块
         TetrisNode const *get(TetrisBlockStatus const &status) const
         {

@@ -469,9 +469,12 @@ func _build_cfg(gc) -> String:
 	var gcap := 8
 	if gc.garbage_line_controller != null:
 		gcap = int(gc.garbage_line_controller.garbage_cap)
-	return "CFG %d %d %d %d %d %d %d %d %d %d" % [
+	# 最后一个字段：游戏当前的旋转系统（0=ASC 1=SRS 2=ARS）。
+	# worker 据此选用对应踢墙表，保证 bot 规划的踢墙与游戏实际执行的一致。
+	var rot_mode := int(gc.rotation_system)
+	return "CFG %d %d %d %d %d %d %d %d %d %d %d" % [
 		think_budget, gcap, 1, 0, hold_flag,
-		1 if allow_180 else 0, amini, aspin, tspin, immobile_t,
+		1 if allow_180 else 0, amini, aspin, tspin, immobile_t, rot_mode,
 	]
 
 

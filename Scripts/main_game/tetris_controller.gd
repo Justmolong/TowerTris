@@ -163,11 +163,19 @@ signal game_ended()
 ##   SRS = 1（标准 SRS）：JLSTZ 与 I 两套踢墙表，按「旋转前状态 → 旋转后状态」成对选取，
 ##          O 无踢墙（仅 (0,0)）；SRS 规范只定义 90° 旋转，180° 无官方踢墙表，
 ##          因此 SRS 模式下 180° 仍沿用 ASC 候选表（见 get_kick_offsets_for）。
-## 注意：切换后踢墙表仍按 ASC 下发给 ColdClear（bot 侧只支持单张平铺踢墙表）。
-enum RotationSystemType { ASC = 0, SRS = 1 }
+##   ARS = 2（Arika Rotation System，TGM1/TGM2 基准）：
+##          踢墙只测三个位置，顺序为「默认位置 → 向右 1 格 → 向左 1 格」（优先向右，
+##          俗称「三原的阴谋」）；**基础版 ARS 中 I 没有踢墙**，O 亦无；
+##          ARS 没有 180° 旋转，本模式下 180° 只允许原地旋转（候选仅 (0,0)）。
+##          参考：Arika Rotation System（Tetris Wiki / 俄罗斯方块中文维基）。
+##          ⚠ 已知偏差：本游戏方块几何/入场朝向是 SRS 风格（矩阵旋转），
+##          未实现 ARS 的「T/L/J 最长边朝上入场」「S/Z 竖向居中」「I 旋转中心偏右一格」
+##          以及 J/L/T「居中阻挡」判定，仅实现了 ARS 的踢墙候选与顺序。
+enum RotationSystemType { ASC = 0, SRS = 1, ARS = 2 }
 
-## 当前使用的旋转系统（默认 ASC）。
-var rotation_system: int = RotationSystemType.ASC
+## 当前使用的旋转系统。可在 Inspector 里直接切换，也可由关卡/Buff 的
+## extra_data_dict["rotation_system"]（0/1/2 或 "ASC"/"SRS"/"ARS"）覆盖。
+@export_enum("ASC", "SRS", "ARS") var rotation_system: int = RotationSystemType.ASC
 
 ## 当前方块的旋转状态索引：0=初始(North) 1=顺时针90°(East) 2=180°(South) 3=逆时针90°(West)。
 ## 由 spawn / hold / 每次旋转成功时维护，用于 SRS 的 from→to 踢墙表选择。
@@ -222,21 +230,42 @@ const SRS_I_FLAT: Array = [
 ## SRS 表缓存（from*4+to → [[dx,dy],...]），避免每次旋转都重建数组
 var _srs_kick_cache: Dictionary = {}
 
+# ---------------------------------------------------------------------------------
+# ARS（Arika Rotation System，TGM1/TGM2 基准）踢墙表
+#   ARS 只测试三个位置，顺序固定为「默认 → 右 1 → 左 1」，优先向右踢（「三原的阴谋」）。
+#   基础版 ARS 中 I 没有踢墙；O 也不用踢墙；ARS 本身没有 180° 旋转。
+#   来源：Arika Rotation System（tetris.wiki / 俄罗斯方块中文维基）。
+# ---------------------------------------------------------------------------------
+const ARS_KICK_ORDER: Array = [[0, 0], [1, 0], [-1, 0]]
+## ARS 下没有任何踢墙候选的方块（基础版 I 无踢墙）
+const ARS_NO_KICK_PIECES: Array = ["I", "O"]
+## 原地候选（O / 180° / 无踢墙方块用）
+const KICK_NONE: Array = [[0, 0]]
+
 ## 由「旋转前状态 + 方向」推算「旋转后状态」索引（0..3）
 func _calc_rotation_index(from_index: int, direction: int) -> int:
 	var step: int = 2 if direction == 2 else (-1 if direction < 0 else 1)
 	return ((from_index + step) % 4 + 4) % 4
 
 ## 取本次旋转使用的踢墙候选表：
-##   ASC 模式（或任何模式下的 180°）：返回 ASC 单表；逆时针由调用方按 X 取反镜像。
-##   SRS 模式：按方块类型（JLSTZ / I / O）与 from→to 状态对选取 SRS 表。
+##   ASC 模式：返回 ASC 单表；逆时针由调用方按 X 取反镜像。
+##   SRS 模式：按方块类型（JLSTZ / I / O）与 from→to 状态对选取 SRS 表；
+##             180° 无官方表，沿用 ASC 候选。
+##   ARS 模式：JLSTZ = 默认/右/左；I、O = 无踢墙；180° = 只允许原地旋转。
 func get_kick_offsets_for(piece_type: String, from_index: int, to_index: int, direction: int) -> Array:
+	if rotation_system == RotationSystemType.ARS:
+		if direction == 2:
+			return KICK_NONE                      # ARS 没有 180°：只允许原地转
+		if ARS_NO_KICK_PIECES.has(piece_type):
+			return KICK_NONE                      # 基础版 ARS：I 不踢墙
+		return ARS_KICK_ORDER
+
 	# 180° 无 SRS 官方踢墙表：统一沿用 ASC 候选（保证该键位手感一致）
 	if rotation_system != RotationSystemType.SRS or direction == 2:
 		return get_kick_table()
 
 	if piece_type == "O":
-		return [[0, 0]]
+		return KICK_NONE
 
 	var flat: Array = SRS_I_FLAT if piece_type == "I" else SRS_JLSTZ_FLAT
 	var row: int = SRS_TRANSITION_KEYS.find([from_index, to_index])
@@ -256,9 +285,28 @@ func get_kick_offsets_for(piece_type: String, from_index: int, to_index: int, di
 	_srs_kick_cache[cache_key] = pairs
 	return pairs
 
-## 切换旋转系统（供关卡配置/调试调用）
-func set_rotation_system(system: int) -> void:
-	rotation_system = RotationSystemType.SRS if system == RotationSystemType.SRS else RotationSystemType.ASC
+## 切换旋转系统（供关卡配置/调试调用）。
+## 接受 0/1/2 或 "ASC"/"SRS"/"ARS"（大小写不敏感）。非法值保持原样不变。
+func set_rotation_system(system) -> void:
+	if system is String or system is StringName:
+		match str(system).to_upper():
+			"ASC": rotation_system = RotationSystemType.ASC
+			"SRS": rotation_system = RotationSystemType.SRS
+			"ARS": rotation_system = RotationSystemType.ARS
+			_: push_warning("[旋转系统] 未知名称 \"%s\"，忽略（可用 ASC / SRS / ARS）" % str(system))
+		return
+	var value: int = int(system)
+	if value < RotationSystemType.ASC or value > RotationSystemType.ARS:
+		push_warning("[旋转系统] 未知编号 %d，忽略（0=ASC / 1=SRS / 2=ARS）" % value)
+		return
+	rotation_system = value
+
+## 当前旋转系统名（日志/调试用）
+func get_rotation_system_name() -> String:
+	match rotation_system:
+		RotationSystemType.SRS: return "SRS"
+		RotationSystemType.ARS: return "ARS"
+		_: return "ASC"
 
 func _ready():
 	_game_started_emitted = false

@@ -10,6 +10,14 @@
 //   这与游戏 _apply_rotation_with_kick 的「单表 + 逆时针 X 镜像 + 180 复用同表」等价。
 namespace rule_asc
 {
+    // 踢墙模式（与游戏侧 RotationSystemType 对应）：
+    //   0 = ASC：本游戏历史单表（默认）
+    //   1 = SRS：标准 SRS 两套表（180° 与游戏一致沿用 ASC 表）
+    //   2 = ARS：Arika Rotation System（默认位置 → 右 1 → 左 1，优先向右；基础版 I 无踢墙；
+    //            ARS 无 180° 踢墙，本模式下 180° 只能原地转）
+    // 必须在 TetrisEngine::prepare() 之前设置；运行中改值需要用 reprepare() 重建 context。
+    extern int g_kick_mode;
+
     struct TetrisRule
     {
         static bool init(int w, int h);

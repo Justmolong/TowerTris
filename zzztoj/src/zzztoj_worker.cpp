@@ -43,6 +43,13 @@ using namespace m_tetris;
 
 static m_tetris::TetrisEngine<rule_asc::TetrisRule, ai_zzz::IO, search_amini::Search> g_ai;
 static bool g_prepared = false;
+static int g_prepared_kick_mode = -1;
+// 踢墙模式（与游戏 RotationSystemType 对应）：0=ASC 1=SRS 2=ARS，由 CFG 第 11 个字段下发
+static int g_kick_mode = 0;
+// 最近一次 CFG 参数（reprepare 后需要重新应用）
+static int g_last_think = 100, g_last_gcap = 8, g_last_mult = 1;
+static bool g_last_lockout = false, g_last_can_hold = true, g_last_allow180 = true;
+static bool g_last_amini = true, g_last_aspin = false, g_last_tspin = true, g_last_immobile_t = true;
 
 // 本游戏可玩区域：10 宽 × 90 行(y 向下)，底行 y = 89
 static const int GAME_W = 10;
@@ -218,6 +225,17 @@ static void apply_config(int think, int gcap, int mult, bool lockout, bool can_h
     g_mult = mult;
     g_lockout = lockout;
     g_can_hold_global = can_hold;
+    // 记录最近一次 CFG，供 reprepare（切换踢墙模式）之后重新应用
+    g_last_think = think;
+    g_last_gcap = gcap;
+    g_last_mult = mult;
+    g_last_lockout = lockout;
+    g_last_can_hold = can_hold;
+    g_last_allow180 = allow180;
+    g_last_amini = amini;
+    g_last_aspin = aspin;
+    g_last_tspin = tspin;
+    g_last_immobile_t = immobile_t;
     if (g_last_level_applied != level)
     {
         g_last_level_applied = level;
@@ -227,13 +245,30 @@ static void apply_config(int think, int gcap, int mult, bool lockout, bool can_h
 
 static bool prepare_ai()
 {
-    if (g_prepared)
+    // 踢墙表在 prepare 时被烘焙进节点：踢墙模式变化必须重建 context
+    // （prepare() 在尺寸不变时会直接 return true，不会重新读取 get_opertion()）
+    if (g_prepared && g_prepared_kick_mode == g_kick_mode)
         return true;
-    if (!g_ai.prepare(GAME_W, 40))
+    rule_asc::g_kick_mode = g_kick_mode;
+    bool ok = true;
+    if (g_prepared)
+    {
+        ok = g_ai.reprepare(GAME_W, 40);
+        if (ok)
+            apply_config(g_last_think, g_last_gcap, g_last_mult, g_last_lockout, g_last_can_hold,
+                         g_last_allow180, g_last_amini, g_last_aspin, g_last_tspin, g_last_immobile_t);
+    }
+    else if (!g_ai.prepare(GAME_W, 40))
+    {
+        return false;
+    }
+    if (!ok)
         return false;
     g_ai.memory_limit(512ull << 20);
-    apply_config(100, 8, 1, false, true, true, true, false, true, true);
+    if (!g_prepared)
+        apply_config(100, 8, 1, false, true, true, true, false, true, true);
     g_prepared = true;
+    g_prepared_kick_mode = g_kick_mode;
     return true;
 }
 
@@ -588,6 +623,10 @@ int main(int argc, char **argv)
             apply_config(std::atoi(tok[1].c_str()), std::atoi(tok[2].c_str()), std::atoi(tok[3].c_str()),
                          tok[4] == "1", tok[5] == "1", tok[6] == "1", tok[7] == "1",
                          tok[8] == "1", tok[9] == "1", tok[10] == "1");
+            // 可选第 11 个字段：踢墙/旋转系统（0=ASC 1=SRS 2=ARS）。
+            // 变更会在下一次 REQ 的 prepare_ai() 里触发 context 重建（踢墙表在 prepare 时烘焙）。
+            if (tok.size() >= 12)
+                g_kick_mode = std::atoi(tok[11].c_str());
             std::printf("OK\n");
         }
         else if (tok[0] == "REQ")
