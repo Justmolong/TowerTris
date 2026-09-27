@@ -105,6 +105,14 @@ const RPM_WINDOW_SECONDS: float = 60.0  # 滚动窗口大小（秒）
 # 上次更新统计的时间
 var last_stats_update_time: float = 0.0
 
+# 上次统计更新时的引擎时间戳（毫秒）。game_time 按「真实经过时间」累计，
+# 不再用固定 +0.1（Timer 抖动/掉帧会让固定步进与实际时间产生累积漂移）。
+var _last_stats_ticks: int = 0
+
+# 单次统计间隔的累计上限（秒）：窗口拖动/系统卡顿造成的超长间隔不计入游戏时长，
+# 否则会把「没在操作」的时间也算进 APM / PPS 的分母。
+const STATS_MAX_DELTA: float = 1.0
+
 #结束数据
 var max_combo: int = 0  # 最大连击数
 var max_btb: int = 0    # 最大BTB数
@@ -504,13 +512,21 @@ func _init_stats():
 	apm_value = 0.0
 	rpm_value = 0.0
 	last_stats_update_time = 0.0
+	# 记录统计基准时间戳（game_time 由真实经过时间累加而来）
+	_last_stats_ticks = Time.get_ticks_msec()
 	# 重置 RPM 滚动窗口
 	_rpm_events.clear()
 
 ## 更新统计信息（每0.1秒调用）
 func _update_stats():
-	# 更新游戏时间
-	game_time += 0.1
+	# 游戏时长按真实经过时间累计（引擎时间戳差值），避免固定 +0.1 的累积漂移。
+	# 单次增量上限 STATS_MAX_DELTA：超长间隔视为「非游戏时间」，不计入分母。
+	var now_ticks: int = Time.get_ticks_msec()
+	var real_delta: float = 0.0
+	if _last_stats_ticks > 0:
+		real_delta = (now_ticks - _last_stats_ticks) / 1000.0
+	_last_stats_ticks = now_ticks
+	game_time += clampf(real_delta, 0.0, STATS_MAX_DELTA)
 	
 	# 计算PPS
 	if game_time > 0:
@@ -1263,6 +1279,43 @@ func hard_drop():
 	_lock_piece()
 
 # ========== 更新循环 ==========
+
+## 游戏内按 ESC 返回 buff 选择界面（可在 Inspector 改路径）
+@export var buff_scene_path: String = "res://Tscns/buff_chose_area.tscn"
+## 防止一帧内重复触发返回
+var _leaving_to_buff: bool = false
+
+
+## ESC 返回 buff 选择界面。
+## 用 _unhandled_input 而不是 _process 轮询：一旦以后游戏里加了 UI（暂停菜单等），
+## 被 UI 消费掉的 ESC 不会再触发返回。
+func _unhandled_input(event: InputEvent) -> void:
+	if _leaving_to_buff:
+		return
+	var is_escape := event.is_action_pressed("ui_cancel")
+	if not is_escape:
+		# 兜底：直接判 ESC 键，避免项目的 InputMap 被改过导致 ui_cancel 不是 ESC
+		is_escape = event is InputEventKey and event.pressed and not event.echo \
+			and event.keycode == KEY_ESCAPE
+	if not is_escape:
+		return
+	get_viewport().set_input_as_handled()
+	return_to_buff_scene()
+
+
+## 返回 buff 选择界面：与结算界面 BACK 按钮同一套语义
+## （标记恢复上次勾选、不重置 stats），并先停掉 bot 子进程。
+func return_to_buff_scene() -> void:
+	if _leaving_to_buff:
+		return
+	_leaving_to_buff = true
+	# 显式停掉 zzz worker：场景销毁时也会停，这里保证返回瞬间就释放子进程
+	if _zzz_bridge != null:
+		_zzz_bridge.stop()
+		_zzz_bridge = null
+	GlobalData.restore_buffs = true
+	get_tree().change_scene_to_file(buff_scene_path)
+
 
 func _process(delta):
 	if bot_mode:
