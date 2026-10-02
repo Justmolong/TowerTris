@@ -242,12 +242,15 @@ func add_attack(attack_count: int, add_extra_hole: int = 0):
 	var base_hole: Array = [base_hole_x]
 	
 	# 添加到缓冲队列（带计时器）
+	# timer = 剩余缓冲时间；timer_total = 本次缓冲总时长（供垃圾槽画「自下上涨」的进度填充，
+	# 即使运行中 buffer_duration 被 buff 改动，进度也按入队时的时长算）
 	var buffer_entry = {
 		"count": attack_count,
 		"holes": base_hole,
 		"base_hole": base_hole,
 		"extra_hole_count": add_extra_hole,
 		"timer": buffer_duration,
+		"timer_total": buffer_duration,
 		"is_buffered": true
 	}
 	garbage_buffer.append(buffer_entry)
@@ -266,6 +269,14 @@ func get_buffered_garbage() -> Array:
 ## 检查是否有缓冲中的垃圾
 func has_buffered_garbage() -> bool:
 	return not garbage_buffer.is_empty()
+
+## 缓冲中的垃圾总行数（供 bot 动态 PPS 判断「垃圾高度」用）。
+## 只统计仍在缓冲、尚未落地的行；已进入上涨队列的行请用 get_enter_queue_size()。
+func get_buffered_garbage_rows() -> int:
+	var rows := 0
+	for entry in garbage_buffer:
+		rows += int(entry["count"])
+	return rows
 
 ## ========== 强制上涨系统（核心功能） ==========
 
@@ -286,12 +297,18 @@ func _get_new_rows_start(row_count: int) -> int:
 			break
 	return (H - bottom_solid) - row_count
 
-func force_raise_rows(row_count: int, row_generator: Callable, skip_piece_handling: bool = false) -> bool:
+## 强制整版上涨 row_count 行（row_generator 生成新行内容）
+## skip_piece_handling：跳过「当前方块」处理（仅在调用点确定没有活动方块时使用，
+##   否则方块会被当成版面内容一起上移，见 insert_allspin_garbage_directly 的注释）
+## ignore_row_cap：不受 garbage_cap 限制（用于 NoSpin=4 的「触发 Spin 上涨 20 行实心行」惩罚）
+func force_raise_rows(row_count: int, row_generator: Callable, skip_piece_handling: bool = false,
+		ignore_row_cap: bool = false) -> bool:
 	if row_count <= 0:
 		return false
 	
 	# 限制单次上涨数量
-	row_count = min(row_count, garbage_cap)
+	if not ignore_row_cap:
+		row_count = min(row_count, garbage_cap)
 	
 	# 如果tetris_controller存在，先清除当前方块并记录其位置
 	var current_pos = null
@@ -301,13 +318,19 @@ func force_raise_rows(row_count: int, row_generator: Callable, skip_piece_handli
 		# 清除当前方块（从版面上移除）
 		tetris_controller._clear_current_piece()
 	
-	# 收集当前版面所有数据
+	# 收集当前版面所有数据（颜色 + 每个格子的锁定时间戳）
+	# 时间戳必须一起搬：整版上涨只是把已有格子挪到新行，若用 set_cell_color() 写回，
+	# 时间戳会被刷成「刚刚落下」→ 隐形模式（tetris_invisible==1）下整片版面突然显形。
 	var board_data = []
+	var lock_data = []
 	for y in range(board_drawer.get_playable_height()):
 		var row = []
+		var lock_row = []
 		for x in range(board_drawer.grid_width):
 			row.append(board_drawer.get_cell_color(x, y))
+			lock_row.append(board_drawer.get_cell_lock_time(x, y))
 		board_data.append(row)
+		lock_data.append(lock_row)
 	
 	# 计算需要上移的行数
 	var shift_amount = row_count
@@ -325,45 +348,57 @@ func force_raise_rows(row_count: int, row_generator: Callable, skip_piece_handli
 	# 新垃圾行插入的起始行：紧贴实心块上方（无实心块时即为版面底部）
 	var new_row_start: int = max(0, solid_start - shift_amount)
 	
-	# 创建新版面数据
+	# 创建新版面数据（颜色 + 时间戳并行搬动）
 	var new_board_data = []
+	var new_lock_data = []
 	
 	# 上移实心块上方的非实心内容（顶部被挤出）
 	for y in range(new_row_start):
 		var row_data = []
+		var lock_row = []
 		var source_y = y + shift_amount
 		if source_y < board_data.size():
 			for x in range(board_drawer.grid_width):
 				row_data.append(board_data[source_y][x])
+				lock_row.append(lock_data[source_y][x])
 		else:
 			for x in range(board_drawer.grid_width):
 				row_data.append(null)
+				lock_row.append(0)
 		new_board_data.append(row_data)
+		new_lock_data.append(lock_row)
 	
-	# 添加新行到实心块上方（紧贴实心块）
+	# 添加新行到实心块上方（紧贴实心块）；新垃圾行的时间戳无意义（垃圾行始终显示）
 	for i in range(shift_amount):
 		var row_data = row_generator.call(i, shift_amount)
 		new_board_data.append(row_data)
+		var lock_row = []
+		for x in range(board_drawer.grid_width):
+			lock_row.append(0)
+		new_lock_data.append(lock_row)
 	
 	# 保留底部实心块（位置不变）
 	for y in range(solid_start, H):
 		var row_data = []
+		var lock_row = []
 		for x in range(board_drawer.grid_width):
 			row_data.append(board_data[y][x])
+			lock_row.append(lock_data[y][x])
 		new_board_data.append(row_data)
+		new_lock_data.append(lock_row)
 	
 	# 清空版面
 	for y in range(board_drawer.get_playable_height()):
 		for x in range(board_drawer.grid_width):
 			board_drawer.set_cell_color(x, y, null)
 	
-	# 写入新数据
+	# 写入新数据（连时间戳一起写回，不刷新）
 	for y in range(min(new_board_data.size(), board_drawer.get_playable_height())):
 		for x in range(board_drawer.grid_width):
 			if y < new_board_data.size() and x < new_board_data[y].size():
 				var color = new_board_data[y][x]
-				if color != null:
-					board_drawer.set_cell_color(x, y, color)
+				var lock_time: int = new_lock_data[y][x] if y < new_lock_data.size() else 0
+				board_drawer.set_cell_color_with_lock_time(x, y, color, lock_time)
 	
 	# 检查是否有任何非空方块超过第50行（y < 50，高于第50行即触发游戏结束）
 	# 隐藏区域共70行（0-69），第0-49行为禁止区，第50-69行为安全缓冲
@@ -392,13 +427,17 @@ func force_raise_rows(row_count: int, row_generator: Callable, skip_piece_handli
 		# 更新方块位置
 		tetris_controller.current_position = new_pos
 		
-		# 检查新位置是否碰撞（如果碰撞，说明方块被卡死，可能需要游戏结束处理）
-		if tetris_controller._check_collision(new_pos):
+		# 检查新位置是否碰撞（如果碰撞，说明方块被卡死，可能需要游戏结束处理）。
+		# ⚠ 必须用纯查询 _check_collision_pure()：_check_collision() 默认 ignore_current_piece=true，
+		#   会先把候选位置清空再检测（擦掉那里的版面方块，并让检测误判为空位），
+		#   随后重绘就把方块画在那，造成「方块直接覆盖原有版面」。
+		var piece: Array = tetris_controller.current_piece
+		if tetris_controller._check_collision_pure(new_pos, piece):
 			# 如果碰撞，尝试逐步上移直到找到有效位置
 			var test_pos = new_pos
-			while test_pos.y > 0 and tetris_controller._check_collision(test_pos):
+			while test_pos.y > 0 and tetris_controller._check_collision_pure(test_pos, piece):
 				test_pos.y -= 1
-			if test_pos.y >= 0 and not tetris_controller._check_collision(test_pos):
+			if test_pos.y >= 0 and not tetris_controller._check_collision_pure(test_pos, piece):
 				tetris_controller.current_position = test_pos
 			else:
 				# 无法找到有效位置，游戏结束
@@ -475,18 +514,19 @@ func _generate_solid_row_generator() -> Callable:
 		return row_data
 
 ## 上涨X行实心垃圾行（无法消除）
-func add_solid_garbage(row_count: int):
+## ignore_row_cap：不受 garbage_cap 限制（NoSpin=4 惩罚一次要涨 20 行，超过常规上限）
+func add_solid_garbage(row_count: int, ignore_row_cap: bool = false):
 	if row_count <= 0:
 		return
 	
 	# 消行延迟期间：暂存起来，延迟结束后统一上涨（不丢弃行，避免在消行动画期间改动
 	# 版面，造成待消行位移、实心行被意外消除/填充）
 	if is_clear_delay_active():
-		_deferred_solid_raises.append(row_count)
+		_deferred_solid_raises.append({"count": row_count, "ignore_cap": ignore_row_cap})
 		return
 	
 	# 使用强制上涨 + 实心行生成器
-	var success = force_raise_rows(row_count, _generate_solid_row_generator())
+	var success = force_raise_rows(row_count, _generate_solid_row_generator(), false, ignore_row_cap)
 	if success:
 		# 清除旧的实心垃圾行记录（因为行索引已经变化）
 		solid_garbage_rows.clear()
@@ -863,7 +903,15 @@ func insert_allspin_garbage_directly(row_count: int = 1) -> void:
 		return
 	# 创建行生成器
 	var gen = _generate_garbage_row_generator(all_holes[0], false)
-	force_raise_rows(row_count, gen, true)
+	# 必须走「处理当前方块」的上涨（skip_piece_handling = false）。
+	# 原因：clear_line_delay_time == 0（默认）时，TetrisClearLine._clear_lines_animated() 会先消行并
+	# 立刻 spawn 新方块（已由 _draw_current_piece() 写进版面），随后才调用本函数。
+	# 若 skip_piece_handling = true，方块的 4 格会被当成版面内容一起上移：
+	#   · 变成永远留在出生区的假锁定垃圾（方块自身在新位置反而没被画出来）
+	#   · current_position 不随版面上移 → 与版面错位，方块锁定后又多写 4 格
+	#   · 下一个方块 spawn 时出生点被这些残留格占住 → 立刻判定窒息、游戏结束
+	# 交给 force_raise_rows 统一处理（清除方块 → 版面上移 → 方块同步上移 → 重绘/影子/旋转记录）
+	force_raise_rows(row_count, gen, false)
 
 ## Allspin：上涨 x 行标准垃圾行（直接推到上升队列最前面）
 func add_allspin_garbage(row_count: int = 1) -> void:
@@ -1038,8 +1086,12 @@ func _on_rise_timer_timeout() -> void:
 func resume_rise_if_pending() -> void:
 	# 执行延迟期间暂存的实心垃圾行上涨（不丢弃行）
 	if not _deferred_solid_raises.is_empty():
-		for count in _deferred_solid_raises:
-			add_solid_garbage(count)
+		for deferred in _deferred_solid_raises:
+			# 暂存项为 {"count": 行数, "ignore_cap": 是否不受 garbage_cap 限制}
+			if typeof(deferred) == TYPE_DICTIONARY:
+				add_solid_garbage(int(deferred.get("count", 0)), bool(deferred.get("ignore_cap", false)))
+			else:
+				add_solid_garbage(int(deferred))   # 兼容旧形式（仅行数）
 		_deferred_solid_raises.clear()
 	# 执行延迟期间暂存的一次性直接上涨（如 Allspin 直接上涨）
 	if not _deferred_direct_raises.is_empty():
@@ -1049,6 +1101,10 @@ func resume_rise_if_pending() -> void:
 			if holes.is_empty():
 				continue
 			var gen = _generate_garbage_row_generator(holes[0], false)
+			# 此处必然没有活动方块：本函数由 TetrisClearLine._on_clear_line_delay_timeout() 在
+			# _spawn_next_piece_after_clear() 之前调用，而上一个方块已在 _lock_piece() 里清空
+			# （current_piece = []）。因此这里跳过方块处理是安全的。
+			# 「有活动方块」的那条路径见 insert_allspin_garbage_directly()，那里必须传 false。
 			force_raise_rows(count, gen, true)
 		_deferred_direct_raises.clear()
 	# 恢复逐行上涨

@@ -10,6 +10,7 @@ class_name TetrisClearLine
 @export var garbage_line_controller: TetrisGarbageLineController
 @export var tower_controller: TowerController
 @export var text_printer: TextPrinter  # 文本打印器节点（用于显示消行/Spin/连击/BTB文本）
+@export var spike_display: SpikeDisplay  # Spike 数字显示（落块位置的白底黑字累加攻击）
 
 # 消行配置
 @export var clear_animation_duration: float = 0.3  # 消行动画持续时间（秒）
@@ -55,17 +56,24 @@ var _is_clear_animating: bool = false  # 是否正在播放消行动画（延迟
 @export var btb_text_outline_color: Color = Color.BLACK  # BTB文本描边颜色
 @export var btb_text_offset_y_cells: float = 4.5  # BTB文本相对于Hold框底部的偏移（格子数，正值向下）
 
+# BTB 系统选择（仅影响 BTB 加成数值，具体见 _get_btb_bonus()）
+# 可由 buff 切换：extra_data_dict["BtbBonus"]（buff「Btb奖励」BtbBonus_1 → 2），
+# 见 tower_controller.gd::_extra_data_deal()。
+#   1 = surge break 系统（现有系统）：连续 4消/Spin 从第 2 手起 +1（与界面显示的 "1 x BTB" 对齐），
+#       btb_count >= 4 时 +2；长链被普通消行打断时另结算 surge break 伤害
+#   2 = 累加奖励系统（tetr.io S1 的 BTB 伤害系统）：BTB=btb_count，BTB=1 → +1；
+#       BTB>=2 → 1+ln(0.8*BTB+1) 取整后小数部分折算为 (1+b)/3；
+#       无 surge break 兑现（断链不额外结算伤害）
+var btb_system_use: int = 1
+
 # PC（Perfect Clear）配置
 @export var pc_text_color: Color = Color.GOLD  # PC文本颜色
 @export var pc_text_outline_color: Color = Color.BLACK  # PC文本描边颜色
 @export var pc_text_offset_y_cells: float = 3.5  # PC文本相对于Hold框底部的偏移（格子数，正值向下）
-@export var pc_damage: int = 10  # PC附加伤害值
+@export var pc_damage: int = 6  # PC附加伤害值
 
-# 伤害显示配置
-@export var damage_text_color: Color = Color.ORANGE  # 伤害文本颜色
-@export var damage_text_outline_color: Color = Color.BLACK  # 伤害文本描边颜色
-@export var damage_text_offset_y_cells: float = 5.5  # 伤害文本相对于Hold框底部的偏移（格子数，正值向下）
-@export var damage_display_duration: float = 1.5  # 伤害显示持续时间（秒）
+# 伤害累积配置（累积伤害只用于击杀奖励结算与 Spike 数字的重置窗口，不再有独立文本显示）
+@export var damage_display_duration: float = 1.0  # 伤害累积窗口（秒）：击杀奖励结算与 Spike 数字重置都按它
 
 # 消行文本映射
 var clear_texts: Dictionary = {
@@ -139,7 +147,6 @@ var clear_text_position: Vector2 = Vector2.ZERO
 var spin_text_position: Vector2 = Vector2.ZERO
 var combo_text_position: Vector2 = Vector2.ZERO
 var btb_text_position: Vector2 = Vector2.ZERO
-var damage_text_position: Vector2 = Vector2.ZERO
 
 # 连击和BTB状态
 var combo_count: int = 0
@@ -178,7 +185,8 @@ var bot_wasted_t: int = -102
 var bot_move_time: int = -3
 # bot 并行搜索线程数（buff 可调；0 = 由 bridge 自动决定）
 var bot_threads: int = 0
-var no_spin: int = 0                 # Spin规则模式：0=正常Spin判定；1=所有Spin降级为MiniSpin（用mini伤害表）；2=NoSpin（不判定Spin）
+var no_spin: int = 0                 # Spin规则模式：0=正常Spin判定（含Allspin）；1=只判定T-Spin（不判Allspin）；2=所有Spin降级为MiniSpin（用mini伤害表）；3=不判定Spin；4=正常判定Spin，但触发Spin（含Spin0）立刻上涨 no_spin4_solid_rows 行实心行
+var no_spin4_solid_rows: int = 20    # no_spin==4 的惩罚量：每次触发 Spin 上涨的实心垃圾行数（不受 garbage_cap 限制）
 # 记录 buff 显式传参的权重键（仅这些键会被 bridge 采用，覆盖 bridge 默认权重）
 # 由 tower_controller._extra_data_deal 填入；get_damage_tables 只返回这些键的权重。
 var bot_weight_override_keys: Dictionary = {}
@@ -231,6 +239,15 @@ func _ready():
 	# 自动查找text_printer（如果未设置）
 	if not text_printer:
 		text_printer = get_node_or_null("../TextPrinter")
+	
+	# 自动查找spike_display（如果未设置）
+	if not spike_display:
+		spike_display = get_node_or_null("../SpikeDisplay")
+	# Spike 的累加窗口必须与「Attack 累积伤害」同一口径（damage_display_duration）：
+	# 两者窗口不同时（例如 Spike 1.0s / Attack 1.5s），间隔落在两者之间的攻击会让
+	# 「N Attack」继续累加而 Spike 数字已重置，导致显示的数字对不上。
+	if spike_display:
+		spike_display.reset_time = damage_display_duration
 	
 	# 创建伤害计时器
 	damage_timer = Timer.new()
@@ -287,15 +304,15 @@ func clear_spin_color():
 
 ## 伤害计时器超时
 func _on_damage_timer_timeout():
-	# 计时归零，清除伤害显示
+	# 计时归零：结算击杀奖励并清空累积
+	# （原先画在版面左侧的 "N Attack" 文本已移除：累积伤害只用于击杀结算与窗口计时，
+	#   数字显示交给落块位置的 SpikeDisplay）
 	tower_controller.try_give_kill_reward(accumulated_damage)
 	accumulated_damage = 0
 	damage_pending = false
-	if text_printer:
-		text_printer.remove_text("damage")
 
-## 添加伤害到累积显示
-func _add_damage_to_display(damage: int):
+## 累积伤害（窗口 = damage_display_duration，与 Spike 数字的重置窗口同口径）
+func _accumulate_damage(damage: int):
 	if damage <= 0:
 		return
 	
@@ -303,27 +320,44 @@ func _add_damage_to_display(damage: int):
 	accumulated_damage += damage
 	damage_pending = true
 	
-	# 计算显示位置（在BTB下方，版面外侧距边框一小段距离）
-	var hold_pos = board_drawer._get_hold_position()
-	var hold_height = board_drawer.hold_display_height * board_drawer.cell_size
-	var bottom_y = hold_pos.y + hold_height
-	var offset_y = damage_text_offset_y_cells * board_drawer.cell_size
-	damage_text_position = Vector2(_get_text_anchor_x(), bottom_y + offset_y)
-	
-	if text_printer:
-		# damage 文本固定显示：不漂移、不淡出，常驻直到计时器结束再移除
-		text_printer.show_text("damage", "%d Attack" % accumulated_damage, damage_text_position,
-			damage_text_color, damage_text_outline_color, board_drawer.cell_size * 0.9,
-			true, 1.0)
-	
 	# 重置计时器（如果正在运行则停止并重新开始）
 	if damage_timer.is_stopped():
 		damage_timer.start()
 	else:
 		damage_timer.stop()
 		damage_timer.start()
-	
-	board_drawer.queue_redraw()
+
+## 触发一次 Spike 数字（本次消行打出的攻击）。显示逻辑（1s 内累加、1.5s 淡出）在 SpikeDisplay 内。
+func _emit_spike(damage: int) -> void:
+	if spike_display == null or damage <= 0:
+		return
+	spike_display.add_spike(damage, _get_spike_anchor_position())
+
+## Spike 数字的落点：本次锁定方块中「被消掉的那些格子」的中心（即落块/消行位置）。
+## 取不到落块格子时退回「消行行的中心」，再退回版面中心。
+func _get_spike_anchor_position() -> Vector2:
+	var cell_size: float = float(board_drawer.cell_size)
+	var locked_cells: Array = tetris_controller.last_locked_cells if tetris_controller else []
+	var cleared_cells: Array = []
+	for cell in locked_cells:
+		if lines_to_clear.has(cell.y):
+			cleared_cells.append(cell)
+	var use_cells: Array = cleared_cells if not cleared_cells.is_empty() else locked_cells
+	if not use_cells.is_empty():
+		var sum := Vector2.ZERO
+		for cell in use_cells:
+			sum += board_drawer.cell_to_world(cell.x, cell.y)
+		# cell_to_world 给的是格子左上角，+半格取格子中心
+		return sum / float(use_cells.size()) + Vector2(cell_size, cell_size) * 0.5
+	# 兜底：消行行的中心（X 取版面中心）
+	var center_x: float = board_drawer.offset_x + board_drawer.grid_width * cell_size * 0.5
+	var center_y: float = board_drawer.offset_y + board_drawer.grid_height * cell_size * 0.5
+	if not lines_to_clear.is_empty():
+		center_y = 0.0
+		for row in lines_to_clear:
+			center_y += board_drawer.cell_to_world(0, row).y
+		center_y = center_y / float(lines_to_clear.size()) + cell_size * 0.5
+	return Vector2(center_x, center_y)
 
 ## 检查并消除完整的行
 func check_and_clear_lines() -> int:
@@ -331,14 +365,19 @@ func check_and_clear_lines() -> int:
 		return 0
 	
 	lines_to_clear = _find_complete_lines()
-	# NoSpin模式（int）：0=正常Spin判定；2=跳过整个Spin判定；1=把所有Spin降级为MiniSpin
-	var spin_type: String = "" if no_spin == 2 else _detect_spin_type()
-	if no_spin == 1 and not spin_type.is_empty():
+	# Spin规则模式（int）：
+	#   0=正常判定；1=只判定T-Spin（非T块一律不算Spin，即不判Allspin）；
+	#   2=全部Spin降级为MiniSpin（用mini伤害表）；3=不判定Spin；
+	#   4=正常判定，但触发Spin（含Spin0）立刻上涨 no_spin4_solid_rows 行实心垃圾行
+	var spin_type: String = "" if no_spin == 3 else _detect_spin_type()
+	if no_spin == 2 and not spin_type.is_empty():
 		spin_type = _force_mini_spin(spin_type)
 	var clear_count = lines_to_clear.size()
 	
 	if clear_count == 0:
 		if not spin_type.is_empty():
+			# no_spin==4：Spin0 也属于「触发 Spin」→ 先上涨实心行（此时版面无需位移，安全）
+			_apply_no_spin4_penalty()
 			# Spin0：显示spin文本，不显示消行文本
 			_show_spin_text_only(spin_type)
 			
@@ -347,6 +386,9 @@ func check_and_clear_lines() -> int:
 				_update_btb(true)
 			# 正常情况下spin0不触发BTB也不断开BTB
 			
+			# 连击：Spin0 与普通无消行放置一样清空连击（bot 侧 case 0 也是无条件清空，
+			# 两边口径一致；连击文本不主动移除，按原样自然淡出）
+			combo_count = 0
 			reset_rotation_record()
 			# 记录Spin0消行信息
 			_last_clear_type = spin_type
@@ -357,8 +399,8 @@ func check_and_clear_lines() -> int:
 			reset_rotation_record()
 			current_damage = 0
 			has_cleared_lines = false
-		# 没有可消除的行：消行处理结束，直接生成新方块
-		_spawn_next_piece_after_clear()
+		# 没有可消除的行：消行处理结束，直接生成新方块（本次没消行 → 不给 clutch 容错）
+		_spawn_next_piece_after_clear(false)
 		return 0
 	
 	# Allspin判定：落块时判定此消行是否与上次完全一致
@@ -394,10 +436,13 @@ func check_and_clear_lines() -> int:
 	current_damage = damage
 	tower_controller.attack_increase_tower(damage)
 	
+	# Spike 数字显示：在落块（被消掉的方块）位置弹出白底黑字的累加攻击数字
+	_emit_spike(damage)
+	
 	_update_btb_pc_aware(is_spin_or_quad, is_perfect_clear)
 	
-	# 添加到伤害累积显示
-	_add_damage_to_display(damage)
+	# 累加伤害（用于击杀奖励结算与 Spike 重置窗口；显示由 SpikeDisplay 负责）
+	_accumulate_damage(damage)
 	
 	if is_spin and spin_color_ready:
 		display_spin_color = pending_spin_color
@@ -408,6 +453,11 @@ func check_and_clear_lines() -> int:
 	
 	reset_rotation_record()
 	combo_count += 1
+	
+	# no_spin==4：本手是 Spin 消行 → 上涨实心垃圾行。
+	# 必须放在消行位移之后：若在消行前上涨，lines_to_clear 记录的行号会随版面上移而整体失效。
+	if no_spin == 4 and is_spin:
+		_apply_no_spin4_penalty()
 	
 	# Allspin延续：消行计算完成后直接上涨一行垃圾行（不走延迟队列，类似突然死亡VIII）
 	if is_allspin_repeat and garbage_line_controller:
@@ -536,15 +586,18 @@ func _calculate_damage(clear_count: int, spin_type: String) -> int:
 	# 记录本次消行的攻击值（base+spin，不含BTB加成），供连击公式使用
 	var attack_value: int = base_damage + spin_damage
 	
-	# BTB 加成（从第二次连续BTB开始；btb>=4 时额外+1，即 +2）- 适用于 spin 和 quad
-	if btb_count > 1:
-		var btb_boost: int = 2 if btb_count >= 4 else 1
+	# BTB 加成（数值由 btb_system_use 选择，见 _get_btb_bonus()）- 仅适用于 spin 和 quad
+	var btb_bonus: int = _get_btb_bonus()
+	if btb_bonus > 0:
 		if not spin_type.is_empty():
-			spin_damage += btb_boost
+			spin_damage += btb_bonus
 		elif clear_count >= 4:
-			base_damage += btb_boost
+			base_damage += btb_bonus
 	
-	if btb_count >= 4 and spin_type.is_empty() and clear_count < 4:
+	# surge break 兑现：长链（btb_count >= 4）被普通消行（非 Spin、非四消）打断时结算。
+	# 只有 surge break 系统（btb_system_use == 1）有这个机制；
+	# 累加奖励系统（btb_system_use == 2）的收益全部体现在链内的 _get_btb_bonus() 上，断链不额外兑现。
+	if btb_system_use == 1 and btb_count >= 4 and spin_type.is_empty() and clear_count < 4:
 		surge_break = btb_count
 	else:
 		surge_break = 0
@@ -579,6 +632,35 @@ func _calculate_damage(clear_count: int, spin_type: String) -> int:
 					combo_damage = min(5, combo_damage_list[-1] + extra)
 	
 	return base_damage + spin_damage + combo_damage + surge_break
+
+## 计算本次消行的 BTB 加成值（是否作用于 spin/quad 由调用方 _calculate_damage 门控）。
+## btb_system_use == 1（surge break 系统）：
+##   btb_count <= 0 → 0；btb_count == 1~3 → +1；btb_count >= 4 → +2
+##   btb_count == 1 表示「上一手已经是 4消/Spin」，本手即第 2 手连续 BTB，
+##   应吃到 +1；该手的 btb_count 结算为 2，界面正好显示 "1 x BTB"，两者对齐。
+## btb_system_use == 2（累加奖励系统，tetr.io S1 的 BTB 伤害系统；由 buff「Btb奖励」开启）：令 BTB = btb_count
+##   BTB <= 0 → 0
+##   BTB == 1 → 1（规则直接给定）
+##   BTB >= 2 → 原始值 raw = 1 + ln(0.8*BTB + 1)，
+##              取整数部分 a = floor(raw)、小数部分 b = raw - a，
+##              加成 = a + (1+b)/3
+## 注意：本手伤害最终按整数伤害结算（floor），因此 (1+b)/3 的小数部分不足 1 时
+## 不会产生实际伤害点数（公式保留在此，便于日后改为保留小数伤害）。
+func _get_btb_bonus() -> int:
+	if btb_system_use == 2:
+		if btb_count < 1:
+			return 0
+		if btb_count == 1:
+			return 1
+		var raw: float = 1.0 + log(0.8 * float(btb_count) + 1.0)
+		var int_part: int = floori(raw)
+		var frac_part: float = raw - float(int_part)
+		return floori(float(int_part) + (1.0 + frac_part) / 3.0)
+	
+	# surge break 系统：第 2 手连续 BTB（btb_count == 1）起 +1，btb_count >= 4 时 +2
+	if btb_count >= 1:
+		return 2 if btb_count >= 4 else 1
+	return 0
 
 ## 获取Spin的键名
 func _get_spin_key(spin_type: String) -> String:
@@ -710,10 +792,14 @@ func _clear_lines(lines: Array):
 	board_drawer.queue_redraw()
 
 func _clear_single_line(line_y: int):
+	# 整行下移：颜色与锁定时间戳必须一起搬。
+	# 若走 set_cell_color()，时间戳会被刷成「刚刚落下」，隐形模式下消行后
+	# 上侧原本已经隐形的方块会整片显形（只有刚落下的方块才该现形）。
 	for y in range(line_y, 0, -1):
 		for x in range(board_drawer.grid_width):
 			var color = board_drawer.get_cell_color(x, y - 1)
-			board_drawer.set_cell_color(x, y, color)
+			var lock_time: int = board_drawer.get_cell_lock_time(x, y - 1)
+			board_drawer.set_cell_color_with_lock_time(x, y, color, lock_time)
 	
 	for x in range(board_drawer.grid_width):
 		board_drawer.set_cell_color(x, 0, null)
@@ -725,8 +811,8 @@ func _clear_single_line(line_y: int):
 ## clear_line_delay_time == 0 时直接清除并立即生成新方块。
 func _clear_lines_animated(lines: Array) -> void:
 	if lines.is_empty():
-		# 没有可消除的行：无需等待，直接生成新方块
-		_spawn_next_piece_after_clear()
+		# 没有可消除的行：无需等待，直接生成新方块（本次没消行 → 不给 clutch 容错）
+		_spawn_next_piece_after_clear(false)
 		return
 	lines.sort()
 	if clear_line_delay_time > 0:
@@ -740,9 +826,10 @@ func _clear_lines_animated(lines: Array) -> void:
 		clear_line_delay_timer.start()
 	else:
 		# 无延迟：立即执行正式消行（位移）并生成新方块
+		# clutch = true：本次是「消行后的出块」，重叠时允许向上移（clutch 机制）
 		_pending_clear_lines = []
 		_clear_lines(lines)
-		_spawn_next_piece_after_clear()
+		_spawn_next_piece_after_clear(true)
 
 ## 消行延迟计时结束：结束动画，执行正式消行（位移）并生成新方块
 func _on_clear_line_delay_timeout():
@@ -750,27 +837,29 @@ func _on_clear_line_delay_timeout():
 	if board_drawer:
 		board_drawer.clear_clearing_lines()
 	# 消行延迟结束：此时才执行正式消行（把行进行位移清除）
-	if not _pending_clear_lines.is_empty():
+	var did_clear: bool = not _pending_clear_lines.is_empty()
+	if did_clear:
 		_clear_lines(_pending_clear_lines)
 		_pending_clear_lines = []
 	# 消行延迟结束：恢复消行延迟期间被暂缓的垃圾行上涨（不丢弃行）
 	if garbage_line_controller:
 		garbage_line_controller.resume_rise_if_pending()
-	# 消行延迟结束：生成新方块
-	_spawn_next_piece_after_clear()
+	# 消行延迟结束：生成新方块（本次确实消了行 → clutch 出块）
+	_spawn_next_piece_after_clear(did_clear)
 
 ## 是否正处于消行动画/消行延迟中（供垃圾行控制器判断是否需暂缓上涨）
 func is_clear_animating_active() -> bool:
 	return _is_clear_animating
 
 ## 消行结束后生成新方块
-func _spawn_next_piece_after_clear():
+## clutch = true 时（本次确实消掉了行）出块允许「重叠就向上移」，见 TetrisController.spawn_new_piece()
+func _spawn_next_piece_after_clear(clutch: bool = false):
 	if tetris_controller:
-		tetris_controller.spawn_new_piece()
+		tetris_controller.spawn_new_piece(clutch)
 
 # ========== Spin检测系统 ==========
 
-## NoSpin==1：把所有 Spin 类型强制降级为 MiniSpin（"T-Spin"→"Mini T-Spin"，已是 Mini 保持不变）。
+## no_spin==2：把所有 Spin 类型强制降级为 MiniSpin（"T-Spin"→"Mini T-Spin"，已是 Mini 保持不变）。
 ## 这样 _calculate_damage 会命中 "Mini" 分支，采用 mini（基础）伤害表。
 func _force_mini_spin(spin_type: String) -> String:
 	if spin_type.is_empty():
@@ -779,10 +868,23 @@ func _force_mini_spin(spin_type: String) -> String:
 		return spin_type
 	return "Mini " + spin_type
 
+## no_spin==4（无天赋IV）的惩罚：触发 Spin（含 Spin0）时上涨 no_spin4_solid_rows 行实心垃圾行（不可消除）。
+## 必须用 ignore_row_cap=true：一次要涨 20 行，走常规上涨会被 garbage_cap（默认 3）截断。
+## 消行延迟期间 GarbageLineController 会把它暂存，延迟结束后统一上涨（不动正在播放动画的版面）。
+func _apply_no_spin4_penalty() -> void:
+	if no_spin != 4 or no_spin4_solid_rows <= 0 or not garbage_line_controller:
+		return
+	garbage_line_controller.add_solid_garbage(no_spin4_solid_rows, true)
+
 func _detect_spin_type() -> String:
-	if no_spin == 2:
+	if no_spin == 3:
 		return ""
 	if not spin_detection_enabled:
+		return ""
+	
+	# no_spin==1（buff「NoSpin_1」）：只判定 T-Spin，任何非 T 方块都不判 Spin
+	# （因此也不会产生 Allspin；该模式与 tetris_allspin 的开关无关）
+	if no_spin == 1 and last_rotation_piece_type != "T":
 		return ""
 	
 	if not last_rotation_occurred:

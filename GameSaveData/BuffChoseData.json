@@ -24,7 +24,8 @@
 		"TheToppedOut":["SuddenlyDeath_10"],
 		"Gravity": ["Gravity_1"],
 		"NoHold": ["NoHold_1"],
-		"Talentless": ["Talentless_1","Talentless_2"],
+		"RotateSystem": ["RotateSystem_1","RotateSystem_2","RotateSystem_3"],
+		"Talentless": ["Talentless_1","Talentless_2","Talentless_3","Talentless_4"],
 		"ShortNext": ["ShortNext_1","ShortNext_2","ShortNext_3","ShortNext_4","ShortNext_5"],
 		"DoubleHole": ["DoubleHole_1","DoubleHole_2"]
 	},
@@ -35,7 +36,8 @@
 		"Gravity": ["Gravity_1"],
 		"NoHold": ["NoHold_1"],
 		"ChangeBag": ["ChangeBag_1","ChangeBag_2","ChangeBag_3"],
-		"Talentless": ["Talentless_1","Talentless_2"],
+		"RotateSystem": ["RotateSystem_1","RotateSystem_2","RotateSystem_3"],
+		"Talentless": ["Talentless_1","Talentless_2","Talentless_3","Talentless_4"],
 		"ShortNext": ["ShortNext_1","ShortNext_2","ShortNext_3","ShortNext_4","ShortNext_5"],
 		"DoubleHole": ["DoubleHole_1","DoubleHole_2"]
 	},
@@ -59,12 +61,18 @@
 		"Invisible_1":"隐形I：开启隐形",
 		"Allspin_1":"全旋I：启用Allspin，当消行类型与行数都与上次完全一致时立刻上涨一行垃圾行",
 		"NoHold_1":"无暂存I：禁用暂存",
-		"Talentless_1":"无天赋I：全部Spin判定为mini",
-		"Talentless_2":"无天赋II：禁用全部Spin",
+		"Talentless_1":"无天赋I：只判定T-Spin，不判定Allspin",
+		"Talentless_2":"无天赋II：全部Spin判定为mini",
+		"Talentless_3":"无天赋III：禁用全部Spin",
+		"Talentless_4":"无天赋IV：正常判定Spin，但每次触发Spin（含Spin0）立刻上涨20行实心行",
 		"BotPlay":"Bot模式：将会开启bot",
 		"ChangeBag_1":"干旱I: 采用14bag出块",
 		"ChangeBag_2":"干旱II: 采用概率出块",
 		"ChangeBag_3":"干旱III: 采用完全随机出块",
+		"RotateSystem_1":"旋转系统I: 采用标准 SRS 旋转",
+		"RotateSystem_2":"旋转系统II: 采用 ARS 旋转",
+		"RotateSystem_3":"旋转系统III: 无旋转系统",
+		"BtbBonus_1":"Btb奖励: 使用tetr.io S1的btb伤害系统",
 		"StartBoard":"StartBoard：自定义初始版面（从下往上印刷）",
 		"ShortNext_1":"短见I: 只显示5next",
 		"ShortNext_2":"短见II: 只显示4next",
@@ -75,9 +83,9 @@
 		"DoubleHole_2":"双洞II: 所有垃圾行拥有2个洞口"
 	},
 	"BuffChange":{
-		"Pressure1": {"total_apm_buff_mult": 1.2},
-		"Pressure2": {"total_apm_buff_mult": 1.3},
-		"Pressure3": {"total_apm_buff_mult": 1.5},
+		"Pressure1": {"extra_pressure_mult": 1.2},
+		"Pressure2": {"extra_pressure_mult": 1.3},
+		"Pressure3": {"extra_pressure_mult": 1.5},
 		"StrengthA": {"send_mult_attack": 2.0},
 		"StrengthB": {"mult_defend": 2.0},
 		"Gravity_1": {"gravity_drop_time_array": [1,0.95,0.9,0.85,0.8,0.7,0.6,0.5,0.4,0.3]},
@@ -96,10 +104,16 @@
 		"NoHold_1": {"NoHold": true},
 		"Talentless_1": {"NoSpin": 1},
 		"Talentless_2": {"NoSpin": 2},
+		"Talentless_3": {"NoSpin": 3},
+		"Talentless_4": {"NoSpin": 4},
 		"BotPlay": {"BotMode": true},
 		"ChangeBag_1": {"BagType": 1},
 		"ChangeBag_2": {"BagType": 2},
 		"ChangeBag_3": {"BagType": 3},
+		"RotateSystem_1": {"RotateSystem": 1},
+		"RotateSystem_2": {"RotateSystem": 2},
+		"RotateSystem_3": {"RotateSystem": 3},
+		"BtbBonus_1": {"BtbBonus": 2},
 		"StartBoard": {
 			"StartBoard": [
 				["#E74C3C","#E74C3C","#E74C3C",0,0,0,0,"#E74C3C","#E74C3C","#E74C3C"],
@@ -118,7 +132,7 @@
 	"_comment_bot": "ExtraBotChange：勾选对应 buff 时覆盖 zzztoj 的 AI 参数（键名 = zzztoj/src/ai_zzz.h 的 io_zzz::IO::Param 字段名，另支持 repeat_penalty）。未列出的参数保持 worker 默认（zzz 自带 io-DLL 调参）。",
 	"ExtraBotChange":{
 		"Allspin_1": {"repeat_penalty": 500},
-		"Talentless_1": {
+		"Talentless_2": {
 			"tspin_mini": 0.5,
 			"tspin_1": 0.2,
 			"tspin_2": 1.0,
@@ -127,7 +141,7 @@
 			"clear_3": 2.0,
 			"clear_4": 3.0
 		},
-		"Talentless_2": {
+		"Talentless_3": {
 			"tspin_mini": 0,
 			"tspin_1": 0,
 			"tspin_2": 0,

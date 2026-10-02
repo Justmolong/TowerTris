@@ -8,6 +8,7 @@
 [ext_resource type="Script" uid="uid://1rqswyci2p50" path="res://Scripts/main_game/tower_controller.gd" id="6_7iclg"]
 [ext_resource type="Script" uid="uid://cix84cmt6nee6" path="res://Scripts/main_game/fps_display.gd" id="7_et6fd"]
 [ext_resource type="Script" uid="uid://csm65d5mycwnu" path="res://Scripts/main_game/text_printer.gd" id="8_tprnt"]
+[ext_resource type="Script" uid="uid://bjqlon188epg0" path="res://Scripts/main_game/spike_display.gd" id="9_spkds"]
 
 [node name="Tetris" type="Node2D" unique_id=1813233852]
 
@@ -20,6 +21,7 @@ garbage_line_controller = NodePath("../GarbageLineController")
 tetris_controller = NodePath("../TetrisController")
 tower_controller = NodePath("../../TowerController")
 grid_line_color = Color(0.36157545, 0.36157548, 0.36157548, 1)
+speed_bars_enabled = true
 
 [node name="TetrisController" type="Node2D" parent="MainBoard" unique_id=1118993081 node_paths=PackedStringArray("board_drawer", "bag_controller", "garbage_line_controller", "clear_line_controller")]
 script = ExtResource("2_rfoi6")
@@ -31,12 +33,14 @@ clear_line_controller = NodePath("../TetrisClearLine")
 [node name="TetrisBagController" type="Node2D" parent="MainBoard" unique_id=1341406123]
 script = ExtResource("3_tksln")
 
-[node name="TetrisClearLine" type="Node2D" parent="MainBoard" unique_id=841602006 node_paths=PackedStringArray("board_drawer", "tetris_controller", "garbage_line_controller", "tower_controller")]
+[node name="TetrisClearLine" type="Node2D" parent="MainBoard" unique_id=841602006 node_paths=PackedStringArray("board_drawer", "tetris_controller", "garbage_line_controller", "tower_controller", "text_printer", "spike_display")]
 script = ExtResource("4_y1iia")
 board_drawer = NodePath("../TetrisBoardDrawer")
 tetris_controller = NodePath("../TetrisController")
 garbage_line_controller = NodePath("../GarbageLineController")
 tower_controller = NodePath("../../TowerController")
+text_printer = NodePath("../TextPrinter")
+spike_display = NodePath("../SpikeDisplay")
 
 [node name="GarbageLineController" type="Node2D" parent="MainBoard" unique_id=423059118 node_paths=PackedStringArray("board_drawer", "tetris_controller")]
 script = ExtResource("5_xatp6")
@@ -51,10 +55,15 @@ script = ExtResource("7_et6fd")
 [node name="TextPrinter" type="Node2D" parent="MainBoard" unique_id=1907623470]
 script = ExtResource("8_tprnt")
 
-[node name="TowerController" type="Node2D" parent="." unique_id=154904659 node_paths=PackedStringArray("tetris_controller", "garbage_line_controller", "board_drawer", "clear_line_controller")]
+[node name="SpikeDisplay" type="Node2D" parent="MainBoard" unique_id=1907623471 node_paths=PackedStringArray("board_drawer")]
+script = ExtResource("9_spkds")
+board_drawer = NodePath("../TetrisBoardDrawer")
+
+[node name="TowerController" type="Node2D" parent="." unique_id=154904659 node_paths=PackedStringArray("tetris_controller", "garbage_line_controller", "board_drawer", "clear_line_controller", "text_printer")]
 unique_name_in_owner = true
 script = ExtResource("6_7iclg")
 tetris_controller = NodePath("../MainBoard/TetrisController")
 garbage_line_controller = NodePath("../MainBoard/GarbageLineController")
 board_drawer = NodePath("../MainBoard/TetrisBoardDrawer")
 clear_line_controller = NodePath("../MainBoard/TetrisClearLine")
+text_printer = NodePath("../MainBoard/TextPrinter")

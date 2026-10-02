@@ -31,6 +31,10 @@ namespace search_amini
             bool is_aspin = false;
             bool is_tspin = true;
             bool allow_immobile_t = true;
+            // TowerTris：游戏 no_spin==2（无天赋II：所有 Spin 一律降级为 Mini）时置 true。
+            // 打开后，本 search 判定出的全旋（AllSpin / ASpinMini）一律标成 ASpinMini，
+            // 与游戏上报的类型（"Mini ..."）以及 mini 伤害表口径一致。
+            bool spin_force_mini = false;
         };
         struct TetrisNodeWithASpinType
         {
