@@ -4,8 +4,10 @@ class_name BuffChoseArea
 ## Buff选择区域控制器
 ## 负责Back返回主菜单和Start开始游戏的功能
 ## 管理 ToggleBox 列表，支持批量读取切换状态
-## 支持 buff/debuff 倍率累加（additive stacking）：勾选后自动计算并显示实际数值变化
-## 多个选框影响同一 key 时，倍率按累加方式叠加：1.0 + (m₁-1.0) + (m₂-1.0) + ...
+## 所有 buff 都通过参数传递（界面对任何键都不做特判）：
+##   buff 参数的键名是 TowerController 成员变量 → 写进顶层（数值相乘、数组等直接替换）
+##   buff 参数的键名不是 → 进 extra_data_dict，由 tower_controller._extra_data_deal() 处理
+## 界面只显示「勾了什么 buff」的介绍文本，不显示任何参数/倍率变化。
 
 
 # ========== 节点引用 ==========
@@ -25,9 +27,6 @@ const BUFF_DATA_PATH: String = "res://GameSaveData/BuffChoseData.json"
 
 # 已勾选框对应的 Label 字典（box_id -> Label）
 var _label_by_id: Dictionary = {}
-
-# 合并效果汇总 Label（显示所有唯一 key 的累加倍率，去重合并）
-var _summary_label: Label = null
 
 ## 互斥选框组配置：同一组内的选框互斥，选中一个则其他自动取消
 ## 组名 -> [box_id1, box_id2, ...]
@@ -50,48 +49,21 @@ var _combination_label: Label = null
 
 # ========== Buff/Debuff 倍率配置 ==========
 
-## TowerController 初始数据字典（可在编辑器中修改，点击 START 时自动存入 GlobalData）
-@export var tower_init_data: Dictionary = {
-	# ---- APM / Stage ----
-	total_apm = 70.0,
-	stage_percent_apm = [0.01,0.02,0.05,0.1,0.25,0.4,0.55,0.7,0.8,0.9,1.0],
-	extra_percent_apm = 0.0,
-	
-	# ---- Garbage ----
-	stage_garbage_time = [10,8,7,7,6,6,5,5,4,3,2,2,2,1,1,1,0.5],
-	garbage_collect_percent_array = [0.4,0.3,0.2,0.1,0.1,0.2,0.2,0.3,0.3,0.4],
-	garbage_divide_percent_array = [0.8,0.6,0.4,0.2,0.2,0.1,0.1,0,0.1,0.2,0.3],
-	pressure_mult_array = [1,1,1,1,1,1,1,1,1,1,1.25,1.5,2,2.5,3,4,5,6,7],
-	garbage_hole_change_percent_array = [0.1,0.1,0.1,0.2,0.4,0.5,0.6,0.7,0.8,0.9],
-	send_mult_attack = 1.0,
-	
-	# Gravity
-	gravity_drop_time_array = [5],
-	
-	# ---- Tower Climb ----
-	tower_lowest_speed = 0.1,
-	tower_dropped_speed = 0.01,
-	tower_dropped_mult = [1,1,1,1,1,1.1,1.2,1.3,1.4,1.5,1.7,1.9,2],
-	attack_to_meter_mult = 0.2,
-	attack_to_speed_mult = 0.1,
-	
-	# ---- Big Attack / Warning ----
-	warning_count = 4,
-	segment_line = 4,
-	big_attack_delay = 4.0,
-	
-	# ---- Kill Reward ----
-	killer_spike = 10,
-	kill_possible_percent = 0.15,
-	kill_reward = [10, 4],
-	
-	#额外数据
-	extra_data_dict = {}
-}
+## 关卡初始数据：**已清空**，留空即代表「数值/数组一律以 TowerController 的默认值为准」。
+##
+## 为什么留空：这份字典只是 TowerController 默认值的副本，唯一的用途是「点 START 时覆盖对应变量」。
+## 两边各存一份时，改关卡数值必须同时改两处，且键名写错只会在运行时 push_warning（例如
+## killer_spike → base_killer_spike 的重命名就漏改过这里）。留空后：
+##   · TowerController 直接用自身默认值（在 tower_controller.gd 里改，改一处即生效）
+##   · 想由 buff 覆盖某个参数时，仍照常写进 BuffChoseData.json 的 BuffChange：
+##       键在 TowerController 里存在 → 由 get_buffed_tower_data 写进这里（顶层键）后覆盖；
+##       键不存在（NoSpin/BagType/RotateSystem/BtbBonus…）→ 进 extra_data_dict 由 _extra_data_deal 处理。
+## 注意：本轮及以后都走「buff 参数 → 顶层键 / extra_data_dict」通道，本字典不需要预留任何键。
+@export var tower_init_data: Dictionary = {}
 
-## Buff/Debuff 配置（直接赋值倍率，不再引用 tower_init_data）
-## 值直接写倍率/原始值，float 类型的值会与 tower_init_data 对应键相乘累加
-## 键不在 tower_init_data 中时，整个值键对会存入 extra_data_dict
+## Buff/Debuff 配置（从 BuffChoseData.json 的 BuffChange 读入）
+## 值即「要传给 TowerController 的参数」：数值与控制器当前值相乘，数组等直接替换
+## 键名对不上 TowerController 成员时，整个键值对进 extra_data_dict
 var _buff_config_map: Dictionary = {}
 
 # ToggleBox 节点引用（可在编辑器中拖入或由代码动态添加）
@@ -207,12 +179,12 @@ func _load_buff_data_from_json() -> void:
 
 
 ## 内置兜底配置：某些buff不依赖JSON配置，代码内置默认值
-## Talentless（无才能）：勾选后传递 NoSpin=true，禁用整个Spin判定
+## Talentless（无才能）：勾选后传递 NoSpin=3，禁用整个Spin判定
 func _apply_builtin_fallbacks() -> void:
 	if not _display_text_map.has("Talentless"):
 		_display_text_map["Talentless"] = "无才能：禁用Spin判定"
 	if not _buff_config_map.has("Talentless"):
-		_buff_config_map["Talentless"] = {"NoSpin": true}
+		_buff_config_map["Talentless"] = {"NoSpin": 3}
 
 
 # ========== 生命周期 ==========
@@ -234,7 +206,6 @@ func _ready():
 	
 	# 更新已有标签显示（如 default_checked 为 true 的选框）
 	_update_all_labels()
-	_update_summary_label()
 	_update_combination_label()
 	
 	# 从游戏结束界面返回时，恢复上次勾选的 buff
@@ -289,10 +260,6 @@ func _apply_ui_scale(_new_scale: float = -1.0) -> void:
 		if label:
 			label.add_theme_font_size_override("font_size", max(12, int(20 * s)))
 	
-	# 调整汇总标签字体
-	if _summary_label:
-		_summary_label.add_theme_font_size_override("font_size", max(12, int(18 * s)))
-	
 	# 调整挑战组合标签字体
 	if _combination_label:
 		_combination_label.add_theme_font_size_override("font_size", max(12, int(20 * s)))
@@ -336,57 +303,41 @@ func _connect_toggle_boxes():
 
 # ========== Buff/Debuff 计算核心 ==========
 
-## 计算所有已勾选框的 APM 总倍率累加
-## 只关注 total_apm_buff_mult 键（累加 stacking: 1.0 + (m₁-1.0) + (m₂-1.0) + ...）
-## 其他键由 get_buffed_tower_data 直接放入 extra_data_dict
-func _calculate_accumulated_multipliers() -> Dictionary:
-	var multipliers: Dictionary = {}
-	for tb in toggle_boxes:
-		if tb and tb.is_checked_state() and _buff_config_map.has(tb.box_id):
-			var config: Dictionary = _buff_config_map[tb.box_id]
-			if config.has("total_apm_buff_mult"):
-				var mult: float = config["total_apm_buff_mult"] as float
-				if multipliers.has("total_apm_buff_mult"):
-					multipliers["total_apm_buff_mult"] = multipliers["total_apm_buff_mult"] + (mult - 1.0)
-				else:
-					multipliers["total_apm_buff_mult"] = mult
-	return multipliers
-
-
-## 获取应用了所有已勾选框倍率（累加叠加）后的完整数据字典
-## total_apm_buff_mult 倍率应用于 total_apm
-## 不在 tower_init_data 中的键值对整个添加入 extra_data_dict（排除 total_apm_buff_mult）
+## 获取应用了所有已勾选框参数后的数据字典（交给 GlobalData.tower_init_data）。
+## 所有 buff 走同一条通用通道，界面对任何键都不做特判：
+##   键名是 TowerController 的成员变量 → 写进顶层，数值相乘、数组/布尔等直接替换；
+##   其它键 → 整个键值对进 extra_data_dict，由 tower_controller._extra_data_deal() 处理。
+## 由于本文件的 tower_init_data 已清空，数值相乘时需要在**选中时**重算：
+## 例：默认 extra_pressure_mult=1.0，勾 Pressure3 得 1.5；若同时勾 Pressure1 与 Pressure3
+## （互斥组会拦掉，这里仅示语义），则按 1.0×1.2×1.5 叠加。
 func get_buffed_tower_data() -> Dictionary:
 	var result: Dictionary = tower_init_data.duplicate(true)
-	var multipliers: Dictionary = _calculate_accumulated_multipliers()
+	# extra_data_dict 必须存在（即使空），TowerController 与 TetrisBagController 都会读它
+	if not result.has("extra_data_dict"):
+		result["extra_data_dict"] = {}
 	
-	# Step 1: 将 total_apm_buff_mult 倍率应用于 total_apm
-	if multipliers.has("total_apm_buff_mult"):
-		result["total_apm"] = result["total_apm"] * multipliers["total_apm_buff_mult"]
+	# 本次已累加过的顶层数值键 → 其「进入循环前」的基准值
+	var base_number: Dictionary = {}
 	
-	# Step 2: 把已勾选 buff 的参数写回数据
-	#   键存在于 tower_init_data（顶层）→ 写回顶层值：数值相乘累加，其它（数组等）直接替换
-	#   键不在 tower_init_data 中 → 整个键值对加入 extra_data_dict，交给 TowerController 处理
-	# 注意：必须判断「键是否在 tower_init_data 中」。原实现直接跳过顶层键，
-	# 导致 Gravity_1 的 gravity_drop_time_array 被丢弃（重力列表没有被替换）。
+	# Step 1: 把已勾选 buff 的参数写回数据
 	for tb in toggle_boxes:
 		if tb and tb.is_checked_state() and _buff_config_map.has(tb.box_id):
 			var config: Dictionary = _buff_config_map[tb.box_id]
 			for key: String in config:
-				if key == "total_apm_buff_mult":
-					continue  # 倍率键，由 Step 1 单独处理
 				var buff_value = config[key]
 				if result.has(key):
-					var current = result[key]
-					if _is_numeric_value(current) and _is_numeric_value(buff_value):
-						result[key] = float(current) * float(buff_value)  # 数值：相乘累加
+					if _is_numeric_value(result[key]) and _is_numeric_value(buff_value):
+						# 数值：在基准值上累乘（清空 tower_init_data 后不能按已覆盖过的值连乘）
+						if not base_number.has(key):
+							base_number[key] = result[key]
+						result[key] = float(base_number[key]) * float(buff_value)
 					else:
 						result[key] = buff_value                          # 其它（数组等）：直接替换
 					continue
-				# 键不在 tower_init_data 中 → 整个值键对加入 extra_data_dict
+				# 键不在顶层（即 TowerController 没这个成员）→ 交给 _extra_data_deal 处理
 				result["extra_data_dict"][key] = buff_value
 	
-	# Step 3: 勾选的 buff → ExtraBotChange（zzztoj AI 参数覆盖：Param 字段名 → 值）
+	# Step 2: 勾选的 buff → ExtraBotChange（zzztoj AI 参数覆盖：Param 字段名 → 值）
 	# 多个 buff 影响同一参数时后者覆盖前者
 	var extra_bot: Dictionary = {}
 	for tb in toggle_boxes:
@@ -406,7 +357,7 @@ static func _is_numeric_value(v) -> bool:
 	return typeof(v) == TYPE_INT or typeof(v) == TYPE_FLOAT
 
 
-## 生成指定 box 的显示文本（仅描述，不含倍率数据——倍率数据由 _update_summary_label 合并显示）
+## 生成指定 box 的显示文本（只有介绍文本，不含任何参数/倍率数据）
 func _get_enhanced_label_text(box_id: String) -> String:
 	var text: String = _display_text_map.get(box_id, "")
 	if text.is_empty():
@@ -420,53 +371,6 @@ func _update_all_labels() -> void:
 		var label: Label = _label_by_id[box_id] as Label
 		if label:
 			label.text = _get_enhanced_label_text(box_id)
-
-
-## 更新合并效果汇总 Label（显示所有唯一 key 的累加倍率，去重合并）
-## 多个选框影响同一 key 时只显示一行，避免重复
-func _update_summary_label() -> void:
-	var accumulated: Dictionary = _calculate_accumulated_multipliers()
-	
-	# 没有任何选框被勾选 → 隐藏汇总
-	if accumulated.is_empty():
-		if _summary_label:
-			_summary_label.hide()
-		return
-	
-	var parts: PackedStringArray = []
-	for key: String in accumulated:
-		var mult: float = accumulated[key]
-		if key == "total_apm_buff_mult":
-			# 显示 APM 总倍率：显示原始 total_apm 和 buffed 后的值
-			var base_apm: float = tower_init_data.get("total_apm", 70.0)
-			var buffed_apm: float = base_apm * mult
-			var percent_change: float = (mult - 1.0) * 100.0
-			var sign_str: String = "+" if percent_change >= 0.0 else ""
-			parts.append("APM总量: %.1f → %.1f (%s%.0f%%)" % [base_apm, buffed_apm, sign_str, percent_change])
-	
-	# 仅当有重复 key 时才显示"合并效果"标题；只有一个 key 时直接显示
-	var has_duplicate: bool = false
-	if parts.size() > 1:
-		# 检查是否有一个 key 被多个选框影响（即 accumulated 中有不同的来源）
-		# 简单判断：如果 parts 数量 < 已选框数量，说明有重复
-		var checked_count: int = 0
-		for tb in toggle_boxes:
-			if tb and tb.is_checked_state():
-				checked_count += 1
-		if checked_count > accumulated.size():
-			has_duplicate = true
-	
-	if not _summary_label:
-		_summary_label = Label.new()
-		_summary_label.add_theme_font_size_override("font_size", max(12, int(18 * 1.0)))
-		_summary_label.add_theme_color_override("font_color", Color(0.8, 0.8, 1.0, 1))
-		buff_list.add_child(_summary_label)
-	
-	if has_duplicate:
-		_summary_label.text = "━━ 合并效果 ━━\n" + "\n".join(parts)
-	else:
-		_summary_label.text = "\n".join(parts)
-	_summary_label.show()
 
 
 # ========== 挑战组合 ==========
@@ -577,7 +481,7 @@ func _update_combination_label() -> void:
 	else:
 		_combination_label.remove_theme_color_override("font_color")
 	_combination_label.show()
-	# 确保显示在buff列表最后（位于汇总标签之后）
+	# 确保显示在buff列表最后
 	buff_list.move_child(_combination_label, buff_list.get_child_count() - 1)
 
 
@@ -596,10 +500,8 @@ func _on_toggle_box_toggled(box_id: String, is_checked: bool, _value: Variant) -
 	# 添加/移除后重新排序，确保按 toggle_boxes 顺序从上到下排列
 	_refresh_label_order()
 	
-	# 刷新所有标签显示（因为累积倍率可能变化）
+	# 刷新所有标签显示
 	_update_all_labels()
-	# 更新合并汇总（去重显示）
-	_update_summary_label()
 	# 更新挑战组合显示
 	_update_combination_label()
 

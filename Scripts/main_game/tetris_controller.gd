@@ -22,6 +22,7 @@ var current_color: Color = Color.WHITE  # 当前方块颜色
 var current_position: Vector2i = Vector2i.ZERO  # 当前方块位置（格子坐标）
 var current_piece_type: String = "I"  # 当前方块类型（用于踢墙表）
 var current_original_shape: Array = []  # 当前方块的原始形状（用于Hold）
+var last_locked_cells: Array = []   # 最近一次落块占据的版面格子（Vector2i）；供 Spike 数字定位在落块处
 
 # 暂存系统
 var hold_piece: Array = []         # 暂存的方块矩阵
@@ -95,12 +96,26 @@ var pps_value: float = 0.0          # 每秒方块数
 var total_attacks: int = 0          # 总攻击数（造成的伤害总量）
 var apm_value: float = 0.0          # 每分钟攻击数
 
-# RPM — 基于最近1分钟滚动窗口的接收攻击数
+## 全局指标（整局累计平均）—— 游戏内左侧 PPS / APM 文本显示的就是上面这两个值，
+## 口径是「累计总量 ÷ 游戏时长」，会随整局时间缓慢平滑，不要改成窗口值：
+##   pps_value = total_pieces / game_time
+##   apm_value = total_attacks / game_time × 60
+
+## 短期指标（最近 60s 滚动窗口）—— 与上面的全局 pps/apm 相互独立，只给 RPM 行与左侧速条用：
+##   rpm_value        每分钟【接收】攻击数（RPM 行）
+##   ppm_value        每分钟落块数（速条：蓝色）
+##   apm_window_value 每分钟【打出】攻击数（速条：橙色）
 var rpm_value: float = 0.0          # 每分钟接收攻击数（仅最近1分钟）
+var ppm_value: float = 0.0          # 每分钟落块数（仅最近1分钟）
+var apm_window_value: float = 0.0   # 每分钟打出攻击数（仅最近1分钟）
 
 ## 存储 {time: 游戏时间秒数, damage: 伤害量} 事件，用于滑动窗口统计最近60秒的 RPM
 var _rpm_events: Array[Dictionary] = []
-const RPM_WINDOW_SECONDS: float = 60.0  # 滚动窗口大小（秒）
+## 落块事件 {time, count}，用于 PPM 滚动窗口
+var _ppm_events: Array[Dictionary] = []
+## 打出攻击事件 {time, damage}，用于短期 APM 滚动窗口
+var _apm_events: Array[Dictionary] = []
+const RPM_WINDOW_SECONDS: float = 60.0  # 滚动窗口大小（秒），RPM / PPM / 短期 APM 共用
 
 # 上次更新统计的时间
 var last_stats_update_time: float = 0.0
@@ -135,13 +150,47 @@ var bot_mode: bool = false
 # 在 tetris_controller.gd 的 Inspector 中调整（@export）。
 @export var bot_target_pps: float = 3.0
 
+# ---------------------------------------------------------------------------
+# bot 动态变速（可选）：以 bot_target_pps 为基准，按「版面高度 / 缓冲垃圾 / 本手是否消行」调整
+#   ⚠ 总开关 bot_dynamic_pps = false 时，下面这些参数全部不生效，
+#     bot 始终使用固定的 bot_target_pps（节奏与旧版一致）。
+#   高度定义：版面上没有任何方块 = 0 行（只统计已锁定方块，不含当前活动方块）
+#     高度 = bot_pps_height_ref（默认 5）时就是基础 pps（不增不减）
+#     每高 1 行 → +bot_pps_height_step（默认 0.05）；每低 1 行 → −0.05
+#   缓冲垃圾加成：只要有垃圾处于缓冲，且「版面高度 + 缓冲垃圾行数」> bot_pps_garbage_threshold
+#     （默认 10），则每多出 1 高 → +bot_pps_garbage_step（默认 0.1）
+#   堆叠侧（最后乘）：本手决策不消行 → ×bot_pps_noclear_mul（默认 1.1）
+#                     本手决策消行   → ×bot_pps_clear_mul（默认 0.8）
+#   下限 bot_pps_min，避免出现 0 或负速度（bot_target_pps <= 0 仍表示不限制）
+# ---------------------------------------------------------------------------
+## 动态变速总开关：true = 按高度/缓冲垃圾/消行调整 pps；false = 恒定使用 bot_target_pps
+@export var bot_dynamic_pps: bool = true
+## 每偏离参考高度 1 行调整的 pps
+@export var bot_pps_height_step: float = 0.05
+## 高度参考行数：等于它时使用基础 pps
+@export var bot_pps_height_ref: int = 5
+## 「版面高度 + 缓冲垃圾行数」超过该值后按垃圾加成提速
+@export var bot_pps_garbage_threshold: int = 10
+## 垃圾加成：超出阈值的每 1 高增加的 pps
+@export var bot_pps_garbage_step: float = 0.05
+## 本手不消行（堆叠）时 pps 的乘数
+@export var bot_pps_noclear_mul: float = 1.1
+## 本手消行时 pps 的乘数
+@export var bot_pps_clear_mul: float = 0.7
+## 动态 pps 下限
+@export var bot_pps_min: float = 0.1
+
 # bot 每步“原生动作”的最小间隔（秒）。越小执行越快，但过小可能因物理/程序竞争出问题。
 # 在 tetris_controller.gd 的 Inspector 中调整（@export）。
 @export var bot_native_action_interval: float = 0.005
 
-# 是否打印 bot 调试日志（例如 ColdClear 决策路径、启用提示）。
+# bot 调试日志开关（默认关闭，避免刷屏）。
+# 打开后会打印：[BotSpawn] 出生位置、[BotPlan] 决策耗时/决策落点、[BotStep] 每步动作、
+# [BotLock] 实际落点与决策落点对照、[BotLoop] 一次性参数、[BotIdle] 无方块空转，
+# 以及 zzz worker 的启动日志。
+# ⚠ 排查「bot 落点/节奏不对」时把它打开即可，正常游玩建议保持关闭。
 # 在 tetris_controller.gd 的 Inspector 中调整（@export）。
-@export var bot_debug_log: bool = true
+@export var bot_debug_log: bool = false
 
 # --- 以下为 bot 内部状态（运行期维护，勿手改） ---
 var _zzz_bridge: ZzzBridge = null
@@ -150,6 +199,23 @@ var _bot_tracking_piece_serial: int = -1
 var _bot_tracking_board_version: int = 0
 var _bot_next_action_time: float = 0.0
 var _bot_piece_cooldown: float = 0.0
+# 上一块锁定时刻（ms）。用于把「每块最小间隔」按**本手自己的 pps** 算在本手身上：
+# 否则间隔是在 lock 时用「刚锁定那一手」的 pps armed 的，减速会落到下一块
+# （实测表现就是"消行之后下一块才卡一下"）。
+var _bot_last_lock_ms: float = 0.0
+# 决策参数签名：旋转系统 / 垃圾上限 / BTB / PC / NoSpin / hold / 180 等。
+# 关卡与 buff 可能在这些字段生效前 bot 就已经发出了第一份请求（实测：RotateSystem_3 关卡里
+# 第一次 CFG 是 kick=0(ASC)，第二次才是 kick=3(NONE)）——那样这份计划是按旧参数搜出来的，
+# 里面可能含游戏做不出的踢墙。这里检测到签名变化就把旧计划作废并重算。
+var _bot_cfg_signature: String = ""
+var _bot_cfg_stale: bool = false
+# 动态 PPS 用：本手决策是否消行（由计划落点预测），以及已按哪个方块序号算过
+var _bot_pps_plan_clears: bool = false
+var _bot_pps_plan_serial: int = -1
+# 版面高度缓存（随「方块序号 + board_version」失效）
+var _bot_height_cache: int = -1
+var _bot_height_cache_ver: int = -1
+var _bot_height_cache_serial: int = -1
 
 signal game_started()
 signal game_ended()
@@ -161,8 +227,9 @@ signal game_ended()
 ##   ASC = 0（默认，历史行为）：单张 21 组踢墙表对全部方块/全部转换生效，
 ##          逆时针由该表 X 取反镜像得到，180° 复用同一张表。
 ##   SRS = 1（标准 SRS）：JLSTZ 与 I 两套踢墙表，按「旋转前状态 → 旋转后状态」成对选取，
-##          O 无踢墙（仅 (0,0)）；SRS 规范只定义 90° 旋转，180° 无官方踢墙表，
-##          因此 SRS 模式下 180° 仍沿用 ASC 候选表（见 get_kick_offsets_for）。
+##          O 无踢墙（仅 (0,0)）；SRS 规范只定义 8 组 90° 转换，**180° 无官方踢墙表**，
+##          本工程的 180° 采用自定义扩展 SRS_180_KICKS（原地 + 周围 8 格，
+##          最多让开 1 格，含斜向；不再像以前借用 ASC 的 21 组候选那样一次跳 2 格穿墙）。
 ##   ARS = 2（Arika Rotation System，TGM1/TGM2 基准）：
 ##          踢墙只测三个位置，顺序为「默认位置 → 向右 1 格 → 向左 1 格」（优先向右，
 ##          俗称「三原的阴谋」）；**基础版 ARS 中 I 没有踢墙**，O 亦无；
@@ -171,11 +238,14 @@ signal game_ended()
 ##          ⚠ 已知偏差：本游戏方块几何/入场朝向是 SRS 风格（矩阵旋转），
 ##          未实现 ARS 的「T/L/J 最长边朝上入场」「S/Z 竖向居中」「I 旋转中心偏右一格」
 ##          以及 J/L/T「居中阻挡」判定，仅实现了 ARS 的踢墙候选与顺序。
-enum RotationSystemType { ASC = 0, SRS = 1, ARS = 2 }
+##   NONE = 3（无旋转系统，buff「旋转系统III」）：旋转本身正常，但没有任何踢墙——
+##          只有「原地旋转」（偏移 (0,0)）成功时旋转才生效，任何需要被踢开一格才能
+##          完成的旋转都会失败（方块朝向保持不变）。
+enum RotationSystemType { ASC = 0, SRS = 1, ARS = 2, NONE = 3 }
 
 ## 当前使用的旋转系统。可在 Inspector 里直接切换，也可由关卡/Buff 的
-## extra_data_dict["rotation_system"]（0/1/2 或 "ASC"/"SRS"/"ARS"）覆盖。
-@export_enum("ASC", "SRS", "ARS") var rotation_system: int = RotationSystemType.ASC
+## extra_data_dict["rotation_system"]（0/1/2/3 或 "ASC"/"SRS"/"ARS"/"NONE"）覆盖。
+@export_enum("ASC", "SRS", "ARS", "NONE") var rotation_system: int = RotationSystemType.ASC
 
 ## 当前方块的旋转状态索引：0=初始(North) 1=顺时针90°(East) 2=180°(South) 3=逆时针90°(West)。
 ## 由 spawn / hold / 每次旋转成功时维护，用于 SRS 的 from→to 踢墙表选择。
@@ -230,6 +300,20 @@ const SRS_I_FLAT: Array = [
 ## SRS 表缓存（from*4+to → [[dx,dy],...]），避免每次旋转都重建数组
 var _srs_kick_cache: Dictionary = {}
 
+## SRS 模式的 180° 踢墙（SRS 规范只定义 90°，180 属扩展，本实现自定）：
+##   只测试 9 个位置：原地 + 周围 8 格各让开 1 格（含斜向），一律只让开 1 格。
+##   顺序：原地 → 上 → 下 → 左 → 右 → 左上 → 右下 → 右上 → 左下（y 轴向下，(0,-1) 即向上）。
+##   为什么必须带斜向：S/Z 做 180° 时形状在包围盒内会平移 (1,1)，想在原地「视觉不变」地转过去
+##   就得用 (-1,-1) 这类斜向让位；只给上下左右 4 个候选时，贴堆叠/贴墙处会整手 180° 失败，
+##   于是旋转态与 bot 决策不一致（实测 SRS 下 2 次 180° 全部失败）。
+##   SRS 自身 90° 表里也有 (±1,±1) 斜向项，故斜向让位与 SRS 风格一致。
+##   相比原先借用 ASC 的 21 组候选（可跳 2 格、可穿墙），这里仍严格限制为「最多让开 1 格」。
+##   J L S T Z 与 I 共用本表；O 的 180 是几何空操作，只留原地。
+const SRS_180_KICKS: Array = [
+	[0, 0], [0, -1], [0, 1], [-1, 0], [1, 0],
+	[-1, -1], [1, 1], [1, -1], [-1, 1],
+]
+
 # ---------------------------------------------------------------------------------
 # ARS（Arika Rotation System，TGM1/TGM2 基准）踢墙表
 #   ARS 只测试三个位置，顺序固定为「默认 → 右 1 → 左 1」，优先向右踢（「三原的阴谋」）。
@@ -248,11 +332,16 @@ func _calc_rotation_index(from_index: int, direction: int) -> int:
 	return ((from_index + step) % 4 + 4) % 4
 
 ## 取本次旋转使用的踢墙候选表：
-##   ASC 模式：返回 ASC 单表；逆时针由调用方按 X 取反镜像。
+##   ASC 模式：返回 ASC 单表（含 180）；逆时针由调用方按 X 取反镜像。
 ##   SRS 模式：按方块类型（JLSTZ / I / O）与 from→to 状态对选取 SRS 表；
-##             180° 无官方表，沿用 ASC 候选。
+##             180° 规范未定义，使用 SRS_180_KICKS（原地 + 周围 8 格，最多让开 1 格）。
 ##   ARS 模式：JLSTZ = 默认/右/左；I、O = 无踢墙；180° = 只允许原地旋转。
+##   NONE 模式（无旋转系统）：旋转照常进行，但只有原地候选——不踢墙。
 func get_kick_offsets_for(piece_type: String, from_index: int, to_index: int, direction: int) -> Array:
+	# 无旋转系统：不做任何踢墙，只允许原地旋转（新朝向在当前位置放得下才成功）
+	if rotation_system == RotationSystemType.NONE:
+		return KICK_NONE
+
 	if rotation_system == RotationSystemType.ARS:
 		if direction == 2:
 			return KICK_NONE                      # ARS 没有 180°：只允许原地转
@@ -260,9 +349,13 @@ func get_kick_offsets_for(piece_type: String, from_index: int, to_index: int, di
 			return KICK_NONE                      # 基础版 ARS：I 不踢墙
 		return ARS_KICK_ORDER
 
-	# 180° 无 SRS 官方踢墙表：统一沿用 ASC 候选（保证该键位手感一致）
-	if rotation_system != RotationSystemType.SRS or direction == 2:
+	# ASC / 其它模式：单表通吃（180 也用同一张表，保持历史手感）
+	if rotation_system != RotationSystemType.SRS:
 		return get_kick_table()
+
+	# SRS 的 180°：规范无官方表，用本工程的 5 候选扩展（最多让开一格）
+	if direction == 2:
+		return KICK_NONE if piece_type == "O" else SRS_180_KICKS
 
 	if piece_type == "O":
 		return KICK_NONE
@@ -286,18 +379,19 @@ func get_kick_offsets_for(piece_type: String, from_index: int, to_index: int, di
 	return pairs
 
 ## 切换旋转系统（供关卡配置/调试调用）。
-## 接受 0/1/2 或 "ASC"/"SRS"/"ARS"（大小写不敏感）。非法值保持原样不变。
+## 接受 0/1/2/3 或 "ASC"/"SRS"/"ARS"/"NONE"（大小写不敏感）。非法值保持原样不变。
 func set_rotation_system(system) -> void:
 	if system is String or system is StringName:
 		match str(system).to_upper():
 			"ASC": rotation_system = RotationSystemType.ASC
 			"SRS": rotation_system = RotationSystemType.SRS
 			"ARS": rotation_system = RotationSystemType.ARS
-			_: push_warning("[旋转系统] 未知名称 \"%s\"，忽略（可用 ASC / SRS / ARS）" % str(system))
+			"NONE": rotation_system = RotationSystemType.NONE
+			_: push_warning("[旋转系统] 未知名称 \"%s\"，忽略（可用 ASC / SRS / ARS / NONE）" % str(system))
 		return
 	var value: int = int(system)
-	if value < RotationSystemType.ASC or value > RotationSystemType.ARS:
-		push_warning("[旋转系统] 未知编号 %d，忽略（0=ASC / 1=SRS / 2=ARS）" % value)
+	if value < RotationSystemType.ASC or value > RotationSystemType.NONE:
+		push_warning("[旋转系统] 未知编号 %d，忽略（0=ASC / 1=SRS / 2=ARS / 3=NONE）" % value)
 		return
 	rotation_system = value
 
@@ -306,6 +400,7 @@ func get_rotation_system_name() -> String:
 	match rotation_system:
 		RotationSystemType.SRS: return "SRS"
 		RotationSystemType.ARS: return "ARS"
+		RotationSystemType.NONE: return "NONE"
 		_: return "ASC"
 
 func _ready():
@@ -559,11 +654,15 @@ func _init_stats():
 	pps_value = 0.0
 	apm_value = 0.0
 	rpm_value = 0.0
+	ppm_value = 0.0
+	apm_window_value = 0.0
 	last_stats_update_time = 0.0
 	# 记录统计基准时间戳（game_time 由真实经过时间累加而来）
 	_last_stats_ticks = Time.get_ticks_msec()
-	# 重置 RPM 滚动窗口
+	# 重置滚动窗口
 	_rpm_events.clear()
+	_ppm_events.clear()
+	_apm_events.clear()
 
 ## 更新统计信息（每0.1秒调用）
 func _update_stats():
@@ -584,22 +683,29 @@ func _update_stats():
 	if game_time > 0:
 		apm_value = (total_attacks / game_time) * 60.0
 	
-	# 计算RPM（滚动最近1分钟窗口）
-	_prune_rpm_events()
-	rpm_value = _compute_rpm_from_window()
+	# 计算RPM / PPM / 短期APM（同一个滚动最近1分钟窗口）
+	_prune_window_events(_rpm_events)
+	_prune_window_events(_ppm_events)
+	_prune_window_events(_apm_events)
+	rpm_value = _window_rate(_rpm_events, "damage")
+	ppm_value = _window_rate(_ppm_events, "count")
+	apm_window_value = _window_rate(_apm_events, "damage")
 	
 	# 更新显示
 	if board_drawer:
 		board_drawer.update_stats(pps_value, apm_value, rpm_value)
+		board_drawer.update_window_stats(ppm_value, apm_window_value)
 
-## 记录放置方块（PPS统计）
+## 记录放置方块（PPS统计 + PPM 滚动窗口）
 func _record_piece_placed():
 	total_pieces += 1
+	_ppm_events.append({"time": game_time, "count": 1})
 
-## 记录造成攻击（APM统计）
+## 记录造成攻击（APM统计 + APM 滚动窗口）
 func _record_attack_damage(damage: int):
 	if damage > 0:
 		total_attacks += damage
+		_apm_events.append({"time": game_time, "damage": damage})
 
 ## 记录接收攻击（RPM统计 — 基于最近1分钟滚动窗口）
 func _record_received_damage(damage: int):
@@ -607,23 +713,22 @@ func _record_received_damage(damage: int):
 		# 向滚动窗口添加事件（带当前游戏时间戳）
 		_rpm_events.append({"time": game_time, "damage": damage})
 
-# ========== RPM 滚动窗口辅助 ==========
+# ========== 短期（滚动 60s 窗口）统计辅助 ==========
+# RPM（接收攻击）/ PPM（落块）/ APM（打出攻击）三者同口径：
+# 「窗口内事件求和 ÷ 窗口跨度 × 60」，跨度取 min(60, 游戏时长)
 
-## 清理超出窗口的过期事件
-func _prune_rpm_events() -> void:
+## 清理窗口中过期的早期事件（原地修改传入的数组）
+func _prune_window_events(events: Array) -> void:
 	var cutoff: float = game_time - RPM_WINDOW_SECONDS
-	var i: int = 0
-	while i < _rpm_events.size():
-		if _rpm_events[i]["time"] < cutoff:
-			i += 1
-		else:
-			break
-	if i > 0:
-		_rpm_events = _rpm_events.slice(i)
+	var drop: int = 0
+	while drop < events.size() and float(events[drop]["time"]) < cutoff:
+		drop += 1
+	for _i in range(drop):
+		events.pop_front()
 
-## 从滚动窗口计算 RPM（最近 RPM_WINDOW_SECONDS 秒内的每分钟接收攻击数）
-func _compute_rpm_from_window() -> float:
-	if _rpm_events.is_empty():
+## 窗口内事件按 key 求和后折算成每分钟
+func _window_rate(events: Array, key: String) -> float:
+	if events.is_empty():
 		return 0.0
 	
 	# 窗口内的实际时间跨度（取窗口大小与游戏时间中的较小值）
@@ -631,9 +736,9 @@ func _compute_rpm_from_window() -> float:
 	if window_span <= 0.0:
 		return 0.0
 	
-	var total: int = 0
-	for event: Dictionary in _rpm_events:
-		total += event["damage"]
+	var total: float = 0.0
+	for event: Dictionary in events:
+		total += float(event[key])
 	
 	return (total / window_span) * 60.0
 
@@ -653,20 +758,53 @@ func reset_stats():
 	_init_stats()
 	if board_drawer:
 		board_drawer.update_stats(pps_value, apm_value, rpm_value)
+		board_drawer.update_window_stats(ppm_value, apm_window_value)
+
+## 计算可用的出块 Y。
+## allow_up_shift = true（clutch / 暂存换块）：出生点被占时向上寻找第一个不重叠位置。
+## 返回可用的 y；返回 -1 表示从 base_y 一路到版面顶部（y = 0）都放不下 → 完全致死。
+## ⚠ 一律用 _check_collision_pure() 做纯查询：绝不能走 _check_collision() 的默认参数
+##   （ignore_current_piece=true 会先「清空候选位置」再检测，把那里的版面方块擦掉，
+##   检测反而变成空位 → 方块直接覆盖原有版面出块）。
+func _resolve_spawn_y(spawn_x: int, shape: Array, base_y: int, allow_up_shift: bool) -> int:
+	if not _check_collision_pure(Vector2i(spawn_x, base_y), shape):
+		return base_y
+	if not allow_up_shift:
+		return -1
+	var test_y: int = base_y
+	while test_y > 0 and _check_collision_pure(Vector2i(spawn_x, test_y), shape):
+		test_y -= 1
+	if _check_collision_pure(Vector2i(spawn_x, test_y), shape):
+		return -1
+	return test_y
 
 ## 生成新方块（从Bag中获取）
-func spawn_new_piece():
+## clutch = true（本次出块紧跟在「本次锁定消掉了行」之后）：
+##   出生点被占时不直接判死，而是把出块位置向上移，直到不重叠为止再出块；
+##   只有从出生点一路到版面顶部（y = 0）都放不下时才判死。
+##   —— 即 clutch 机制：玩家做出了消行行为，不到完全致死高度就不判死亡。
+## clutch = false（默认，含开局首块、非消行锁定后的出块）：保持原行为，出生点被占即判死。
+func spawn_new_piece(clutch: bool = false):
 	# 从Bag控制器获取下一个方块
 	var piece_data = bag_controller.get_next_piece()
 	var spawn_x = int((board_drawer.grid_width - piece_data["shape"][0].size()) / 2)
 	# 生成Y坐标：从下往上数第22行
 	var spawn_y = max(0, board_drawer.grid_height + board_drawer.above_visible_rows - 22)
 	
-	# 检查生成时是否碰撞（游戏结束判定）
-	if _check_collision(Vector2i(spawn_x, spawn_y), piece_data["shape"], false):
-		push_error("游戏结束！无法生成新方块")
+	# 出块位置（clutch 时允许向上寻找空位）；放不下才是完全致死
+	var resolved_y: int = _resolve_spawn_y(spawn_x, piece_data["shape"], spawn_y, clutch)
+	if resolved_y < 0:
+		# 这是正常的游戏结束情形（方块堆到顶），不是程序错误 → 用 print 而不是 push_error，
+		# 避免在控制台/编辑器的 Errors 面板里刷红字干扰排查真正的问题。
+		if clutch:
+			print("[Spawn] 游戏结束：无法生成新方块（已上移至版面顶部仍重叠）")
+		else:
+			print("[Spawn] 游戏结束：无法生成新方块（出生点重叠）")
 		_game_over("方块堆积到顶部")
 		return false
+	if resolved_y != spawn_y:
+		print("[ClutchSpawn] 出块位置重叠 → 上移至 y=", resolved_y, "（原出生点 y=", spawn_y, "）")
+		spawn_y = resolved_y
 	
 	current_piece = piece_data["shape"]
 	current_color = piece_data["color"]
@@ -703,6 +841,8 @@ func spawn_new_piece():
 	return true
 
 ## 生成新方块但不重置hold权限（用于hold交换后的生成）
+## hold 时也允许向上寻找出块位置：clutch 出块后出生点常常被占（那正是 clutch 触发的原因），
+## 若这里按老规则直接判死/卡住，玩家一按暂存就死，clutch 机制等于白给。
 func spawn_new_piece_keep_hold():
 	# 从Bag控制器获取下一个方块
 	var piece_data = bag_controller.get_next_piece()
@@ -710,11 +850,14 @@ func spawn_new_piece_keep_hold():
 	# 生成Y坐标：从下往上数第22行
 	var spawn_y = max(0, board_drawer.grid_height + board_drawer.above_visible_rows - 22)
 	
-	# 检查生成时是否碰撞（游戏结束判定）
-	if _check_collision(Vector2i(spawn_x, spawn_y), piece_data["shape"], false):
-		push_error("游戏结束！无法生成新方块")
+	# 出块位置：出生点被占则向上寻找（最多到版面顶部 y = 0）
+	var resolved_y: int = _resolve_spawn_y(spawn_x, piece_data["shape"], spawn_y, true)
+	if resolved_y < 0:
+		# 正常游戏结束情形，用 print 而不是 push_error（避免误导性的红字报错）
+		print("[Spawn] 游戏结束：无法生成新方块（已上移至版面顶部仍重叠）")
 		_game_over("方块堆积到顶部")
 		return false
+	spawn_y = resolved_y
 	
 	current_piece = piece_data["shape"]
 	current_color = piece_data["color"]
@@ -964,11 +1107,17 @@ func _lock_piece():
 		return
 	# PPS 兜底：任何锁定（不止 bot 的 hard_drop）都要保证「每块最小间隔」生效，
 	# 否则重力/锁延造成的锁定会让 PPS 超过 bot_target_pps。
+	# 注意：这里 armed 的间隔用的是「刚锁定这一手」的 pps，只作为兜底；
+	# 下一手自己的计划到手后会用「下一手自己的 pps」按 _bot_last_lock_ms 重算（见 _process_bot_control），
+	# 这样减速才归属到会消行的那一手，而不是被推迟到它后面那块。
 	if bot_mode:
 		_bot_piece_cooldown = max(_bot_piece_cooldown, _get_bot_piece_interval())
+		_bot_last_lock_ms = float(Time.get_ticks_msec())
 	# 锁定瞬间刷新落块渐隐时间戳（隐形模式下按该时间戳做淡出）。
 	# 碰撞检测已改为无副作用的纯查询，不再顺带刷新，故在此显式刷新一次。
 	_draw_current_piece()
+	# 记录本次落块占据的版面格子（消行时的 Spike 数字要显示在落块位置；current_piece 下面就会被清空）
+	last_locked_cells = _get_piece_cells(current_piece, current_position)
 	# 逻辑上清除当前方块（保留 board_data 中已锁定的格子）
 	current_piece = []
 	# 触发生成延迟；为 0 时直接处理消行
@@ -1025,9 +1174,10 @@ func _check_and_clear_lines() -> int:
 			# 如果有伤害且垃圾槽不为空，执行抵消
 			if damage > 0 and garbage_line_controller and garbage_line_controller.get_enter_queue_size() > 0:
 				var offset_count: int = garbage_line_controller.offset_garbage(damage)
-				# 抵消的部分作为奖励也输入给塔
+				# 抵消的部分作为奖励也输入给塔；is_defence=true 让飘字用红色，
+				# 与普通攻击奖励（绿色）区分：红色=抵消垃圾行得到的防御收益
 				if offset_count > 0 and tower_controller:
-					tower_controller.attack_increase_tower(offset_count)
+					tower_controller.attack_increase_tower(offset_count, true)
 		
 		return cleared
 	return 0
@@ -1054,6 +1204,8 @@ func rotate_180():
 	_rotate_piece(2)
 
 ## 旋转方块核心逻辑（返回是否旋转成功；失败时方块状态不变）
+## 无旋转系统（NONE）：旋转照常判定，但请踢墙表只给原地候选（见 get_kick_offsets_for），
+## 因此需要被踢开才能放下的旋转会失败。
 func _rotate_piece(direction: int) -> bool:
 	if current_piece.is_empty():
 		return false  # 手上无方块（延迟期间）：不旋转
@@ -1175,12 +1327,13 @@ func hold_current_piece():
 		spawn_new_piece_keep_hold()
 	else:
 		# 暂存区有方块时，进行交换
-		# 先保存当前方块的完整信息
+		# 先保存当前方块的完整信息（位置也要存：失败恢复时要放回原处，否则方块会瞬移并压住版面）
 		var temp_piece = current_piece
 		var temp_color = current_color
 		var temp_type = current_piece_type
 		var temp_original = current_original_shape
 		var temp_rotation_index: int = current_rotation_index
+		var temp_position: Vector2i = current_position
 		
 		# 从暂存区取出方块
 		current_piece = bag_controller.get_original_shape(hold_piece_type)
@@ -1198,25 +1351,30 @@ func hold_current_piece():
 		# 更新Hold显示
 		board_drawer.set_hold_piece(hold_piece, hold_color)
 		
-		# 重置位置（从下往上数第22行）
+		# 出块位置（从下往上数第22行）；出生点被占时与 clutch 一样向上寻找空位。
+		# ⚠ 必须用 _resolve_spawn_y()/_check_collision_pure()：
+		#   旧写法 _check_collision(current_position) 默认 ignore_current_piece=true，
+		#   会先把候选位置清空再检测 → 把那里的版面方块擦掉且检测不出碰撞，
+		#   接着 _draw_current_piece() 就把方块画上去 → 「直接覆盖原有版面出块」。
 		var spawn_x = int((board_drawer.grid_width - current_piece[0].size()) / 2)
 		var spawn_y = max(0, board_drawer.grid_height + board_drawer.above_visible_rows - 22)
-		current_position = Vector2i(spawn_x, spawn_y)
-		
-		# 检查生成时是否碰撞（游戏结束判定）
-		if _check_collision(current_position):
-			push_error("游戏结束！无法生成方块")
-			# 如果交换后发生碰撞，恢复原状
+		var resolved_y: int = _resolve_spawn_y(spawn_x, current_piece, spawn_y, true)
+		if resolved_y < 0:
+			# 连版面顶部都放不下：本次暂存交换作废，整体恢复原状（含位置）
+			# 属于正常可发生的情形（版面已满），用 print 而不是 push_error
+			print("[Hold] 暂存交换失败：版面已满，无法生成方块（已恢复原状）")
 			current_piece = temp_piece
 			current_color = temp_color
 			current_piece_type = temp_type
 			current_original_shape = temp_original
 			current_rotation_index = temp_rotation_index
+			current_position = temp_position
 			hold_piece = bag_controller.get_original_shape(hold_piece_type)
 			hold_color = temp_color  # 恢复hold颜色
 			board_drawer.set_hold_piece(hold_piece, hold_color)
 			_draw_current_piece()
 			return false
+		current_position = Vector2i(spawn_x, resolved_y)
 		
 		# 绘制方块到版面
 		_draw_current_piece()
@@ -1320,6 +1478,7 @@ func hard_drop():
 			tgt_txt = "%s(%d,%d) rot=%d" % [tgt["piece"], tgt["x"], tgt["y"], tgt["rot"]]
 		print("[BotLock] piece=", current_piece_type, " 实际落点=(", minx, ",", maxy, ") rot=",
 			current_rotation_index, " 上块间隔=", Time.get_ticks_msec() - _bot_t_lock_ms, "ms",
+			" 本手消行=", _bot_pps_plan_clears, " pps=", _bot_current_pps(),
 			" / 决策落点=", tgt_txt)
 		_bot_t_lock_ms = Time.get_ticks_msec()
 	
@@ -1417,6 +1576,8 @@ func _ensure_zzz_bridge() -> void:
 			push_error("[ZzzBridge] 无法加载 " + ZZZ_BRIDGE_SCRIPT)
 		return
 	_zzz_bridge = script.new()
+	# 桥的「启动/信息」日志跟随本节点的 bot_debug_log（默认关闭，避免刷屏）
+	_zzz_bridge.verbose = bot_debug_log
 	add_child(_zzz_bridge)
 	# 把已收集的参数覆盖补发给新桥（buff 可能在本节点之前就已处理）
 	if not bot_param_overrides.is_empty():
@@ -1438,7 +1599,10 @@ func _process_bot_control(delta: float) -> void:
 	if bot_debug_log and not _bot_loop_logged:
 		_bot_loop_logged = true
 		print("[BotLoop] bot_mode=", bot_mode, " native=", _zzz_bridge.using_native_cc(),
-			" pps=", bot_target_pps, " 每块间隔=", _get_bot_piece_interval(),
+			" 变速=", bot_dynamic_pps, " pps=", bot_target_pps, "(基础) 高度=", _bot_board_height(),
+			" 缓冲垃圾=", _bot_buffered_garbage_rows(),
+			" 当前pps=", _bot_current_pps(),
+			" 每块间隔=", _get_bot_piece_interval(),
 			" 每步间隔=", _get_bot_action_interval(), " 原生每步间隔=", bot_native_action_interval)
 	if current_piece.is_empty():
 		# 无活动方块时 bot 不会请求决策：把这种情况明确打出来（否则表现为「已启动但毫无反应」）
@@ -1486,6 +1650,27 @@ func _process_bot_control(delta: float) -> void:
 		return
 	_bot_waiting_time = 0.0
 
+	# 决策参数签名变化（旋转系统 / 垃圾上限 / BTB / PC / NoSpin / hold / 180…）：
+	# 关卡或 buff 的字段可能在 bot 已发出第一份请求之后才生效，那份计划是按旧参数搜的，
+	# 里面可能含游戏做不出的踢墙（实测 RotateSystem_3 关卡：首次 CFG kick=0，随后才是 kick=3）。
+	# 检测到变化就作废旧计划，并对**当前方块**重新请求（REQ 带的是当前方块实际格子与朝向，重算安全）。
+	var cfg_sig: String = _bot_cfg_signature_now()
+	if cfg_sig != _bot_cfg_signature:
+		var is_first: bool = _bot_cfg_signature.is_empty()
+		_bot_cfg_signature = cfg_sig
+		if not is_first:
+			_bot_cfg_stale = true
+			_zzz_bridge.clear_plan()
+	if _bot_cfg_stale:
+		# 若还有在途决策，等它回来后再重算（此时不能并发发第二条 REQ，否则回复会错位）
+		if not _zzz_bridge.is_waiting_decision():
+			_bot_cfg_stale = false
+			_zzz_bridge.clear_plan()
+			if _zzz_bridge.using_native_cc():
+				_bot_t_req_ms = Time.get_ticks_msec()
+				_zzz_bridge.request_plan(self)
+				return
+
 	# 无可用原生计划（原生不可用/决策失败/计划已消费）时，直接硬降锁定当前块
 	if not _zzz_bridge.using_native_cc() or not _zzz_bridge.has_plan():
 		if _bot_piece_cooldown > 0.0:
@@ -1495,13 +1680,26 @@ func _process_bot_control(delta: float) -> void:
 		_bot_piece_cooldown = _get_bot_piece_interval()
 		return
 
-	if bot_debug_log and _bot_plan_log_budget > 0:
-		_bot_plan_log_budget -= 1
-		var tgt: Dictionary = _zzz_bridge.get_plan_target()
-		print("[BotPlan] piece=", _bot_piece_serial, " steps=", _zzz_bridge.remaining_movements(),
-			" hold=", _zzz_bridge.plan_wants_hold(),
-			" 决策耗时=", Time.get_ticks_msec() - _bot_t_req_ms, "ms",
-			" 决策落点=", ("%s(%d,%d) rot=%d" % [tgt["piece"], tgt["x"], tgt["y"], tgt["rot"]]) if tgt["valid"] else "?")
+	# 新计划到手：按落点预测本手是否消行（动态 PPS 的乘数用），每块只算一次
+	if _bot_pps_plan_serial != _bot_piece_serial:
+		_bot_pps_plan_serial = _bot_piece_serial
+		_bot_pps_plan_clears = _plan_target_will_clear(_zzz_bridge.get_plan_target())
+		# 节奏归属：用**本手自己的 pps** 重算本手剩余的最小间隔（自上一块锁定起算）。
+		# 这样「会消行的这一手」当场就慢下来，而不是等它锁定后才把间隔加到下一块身上。
+		# 因为以 _bot_last_lock_ms 为基准，锁定时刻不会早于「上一块锁定 + 本手间隔」，速率仍受控。
+		var elapsed: float = maxf(0.0, (float(Time.get_ticks_msec()) - _bot_last_lock_ms) / 1000.0)
+		_bot_piece_cooldown = maxf(0.0, _get_bot_piece_interval() - elapsed)
+		# [BotPlan] 每块只打印一次（放在这里 = 计划到手的第一时间，steps 是完整步数）。
+		# 原来放在每步动作前打印，一份计划要打 N 行，只能靠 _bot_plan_log_budget 限流 12 行，
+		# 结果一局后半段的决策完全没有日志 —— 排查「某手选点奇怪」时看不到现场。
+		if bot_debug_log:
+			var tgt: Dictionary = _zzz_bridge.get_plan_target()
+			print("[BotPlan] piece=", _bot_piece_serial, " steps=", _zzz_bridge.remaining_movements(),
+				" hold=", _zzz_bridge.plan_wants_hold(),
+				" 决策耗时=", Time.get_ticks_msec() - _bot_t_req_ms, "ms",
+				" 高度=", _bot_board_height(), " 缓冲垃圾=", _bot_buffered_garbage_rows(),
+				" 本手消行=", _bot_pps_plan_clears, " pps=", _bot_current_pps(),
+				" 决策落点=", ("%s(%d,%d) rot=%d" % [tgt["piece"], tgt["x"], tgt["y"], tgt["rot"]]) if tgt["valid"] else "?")
 
 	# 执行计划中的下一个动作
 	var decided_action: BotAction = _zzz_bridge.next_plan_action()
@@ -1566,12 +1764,145 @@ func _get_bot_action_interval() -> float:
 	if bot_target_pps <= 0.0:
 		return 0.0
 	# 目标为每秒可完成的方块数，简单换算为每步动作节奏上限
-	return 1.0 / max(bot_target_pps * 4.0, 0.001)
+	return 1.0 / max(_bot_current_pps() * 4.0, 0.001)
 
 func _get_bot_piece_interval() -> float:
 	if bot_target_pps <= 0.0:
 		return 0.0
-	return 1.0 / max(bot_target_pps, 0.001)
+	return 1.0 / max(_bot_current_pps(), 0.001)
+
+# ---------------------------------------------------------------------------
+# 动态 PPS
+# ---------------------------------------------------------------------------
+## 当前版面高度（行）：空版面 = 0；只统计已锁定方块，排除当前活动方块。
+## 缓存键 = （当前方块序号, board_version）：方块序号在每个新块（含锁定/消行后）递增，
+## 而 board_version 只在垃圾抬升时递增 —— 两者一起覆盖「堆叠发生变化」的所有时机；
+## 活动方块自身的移动/旋转不改变堆叠高度，无需失效。
+func _bot_board_height() -> int:
+	var ver: int = int(garbage_line_controller.board_version) if garbage_line_controller != null else 0
+	if _bot_height_cache >= 0 and _bot_height_cache_ver == ver and _bot_height_cache_serial == _bot_piece_serial:
+		return _bot_height_cache
+	var play_h: int = int(board_drawer.get_playable_height())
+	var self_cells := {}
+	if not current_piece.is_empty():
+		for c in _get_piece_cells(current_piece, current_position):
+			self_cells[c] = true
+	var height := 0
+	for y in range(play_h):
+		for x in range(int(board_drawer.grid_width)):
+			if self_cells.has(Vector2i(x, y)):
+				continue
+			if board_drawer.get_cell_color(x, y) != null:
+				height = play_h - y          # 行 89 → 高度 1，空版面 → 0
+				break
+		if height > 0:
+			break
+	_bot_height_cache = height
+	_bot_height_cache_ver = ver
+	_bot_height_cache_serial = _bot_piece_serial
+	return height
+
+## 缓冲中的垃圾行数（动态 PPS 用）；没有垃圾控制器时为 0
+func _bot_buffered_garbage_rows() -> int:
+	if garbage_line_controller == null:
+		return 0
+	return int(garbage_line_controller.get_buffered_garbage_rows())
+
+## 影响 worker 决策的参数签名（与 zzz_bridge._build_cfg 下发的字段一一对应）。
+## 只要这份签名变了，之前算出的计划就必须作废：踢墙表/伤害模型/Spin 规则都可能已经不同。
+## 注意：allow_hold / allow_180 / think_budget 是**桥**的 @export（CFG 用它们拼字段），
+## 控制器本身只有 no_hold，别在这里直接写 allow_hold / allow_180。
+func _bot_cfg_signature_now() -> String:
+	var gcap := 0
+	if garbage_line_controller != null:
+		gcap = int(garbage_line_controller.garbage_cap)
+	var btb := 0
+	var pc := 0
+	var nospin := 0
+	var nospin_rows := 0
+	if clear_line_controller != null:
+		btb = int(clear_line_controller.btb_system_use)
+		pc = int(clear_line_controller.pc_damage)
+		nospin = int(clear_line_controller.no_spin)
+		nospin_rows = int(clear_line_controller.no_spin4_solid_rows)
+	var hold_flag := 1
+	var allow180_flag := 1
+	var think := 0
+	if _zzz_bridge != null:
+		hold_flag = 1 if (_zzz_bridge.allow_hold and not no_hold) else 0
+		allow180_flag = 1 if _zzz_bridge.allow_180 else 0
+		think = int(_zzz_bridge.think_budget)
+	return "%d|%d|%d|%d|%d|%d|%d|%d|%d" % [
+		int(rotation_system), gcap, btb, pc, nospin, nospin_rows,
+		hold_flag, allow180_flag, think,
+	]
+
+## 当前生效的 bot PPS
+##   = （基础 pps + 高度偏移 + 缓冲垃圾加成） × 堆叠侧乘数，且不低于 bot_pps_min
+##   bot_dynamic_pps = false 时不做任何变速，直接返回基础 bot_target_pps。
+func _bot_current_pps() -> float:
+	if not bot_dynamic_pps:
+		return bot_target_pps
+	var h: int = _bot_board_height()
+	var pps: float = bot_target_pps + float(h - bot_pps_height_ref) * bot_pps_height_step
+	# 缓冲垃圾加成：有垃圾处于缓冲，且「版面高度 + 缓冲垃圾高度」超过阈值时，每多 1 高 +0.1
+	var buf: int = _bot_buffered_garbage_rows()
+	if buf > 0 and h + buf > bot_pps_garbage_threshold:
+		pps += float(h + buf - bot_pps_garbage_threshold) * bot_pps_garbage_step
+	# 堆叠侧：不消行（继续堆叠）加速赶节奏，消行则降速稳一手
+	pps *= bot_pps_noclear_mul if not _bot_pps_plan_clears else bot_pps_clear_mul
+	return maxf(pps, bot_pps_min)
+
+## 判断「按给定落点落块后是否会消行」。
+## 落点口径与 worker 返回一致：x = 最左格，y = 最低格，rot = 出生态起顺时针次数。
+func _plan_target_will_clear(tgt: Dictionary) -> bool:
+	if tgt.is_empty() or not tgt.get("valid", false):
+		return false
+	var ptype: String = str(tgt.get("piece", ""))
+	if ptype.is_empty() or bag_controller == null:
+		return false
+	var m: Array = bag_controller.get_original_shape(ptype)
+	if m.is_empty():
+		return false
+	for _i in range(int(tgt.get("rot", 0)) % 4):
+		m = _get_rotated_matrix(m, 1)
+	# 取占位格并平移到目标落点（最左格 = x，最低格 = y）
+	var cells: Array = []
+	var minx := 99
+	var maxy := -99
+	for yy in range(m.size()):
+		for xx in range(m[yy].size()):
+			if m[yy][xx] == 1:
+				cells.append(Vector2i(xx, yy))
+				minx = mini(minx, xx)
+				maxy = maxi(maxy, yy)
+	if cells.is_empty():
+		return false
+	var dx: int = int(tgt.get("x", 0)) - minx
+	var dy: int = int(tgt.get("y", 0)) - maxy
+	var placed := {}
+	var rows := {}
+	for c in cells:
+		var p := Vector2i(c.x + dx, c.y + dy)
+		placed[p] = true
+		rows[p.y] = true
+	# 当前活动方块所在格视为空（与 _check_perfect_clear 的口径一致）
+	var self_cells := {}
+	if not current_piece.is_empty():
+		for c in _get_piece_cells(current_piece, current_position):
+			self_cells[c] = true
+	for ry in rows.keys():
+		var full := true
+		for x in range(int(board_drawer.grid_width)):
+			var p := Vector2i(x, ry)
+			if placed.has(p) or self_cells.has(p):
+				continue
+			if board_drawer.get_cell_color(x, ry) == null:
+				full = false
+				break
+		if full:
+			return true
+	return false
 
 ## 处理键盘输入
 func _process_input():

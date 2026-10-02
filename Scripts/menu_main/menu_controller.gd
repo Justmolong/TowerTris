@@ -2,7 +2,9 @@ extends Node
 class_name MenuController
 
 ## 主菜单控制器
-## 负责主菜单的按钮交互和场景切换，支持 UI 缩放适配
+## 负责主菜单的按钮交互和场景切换
+## 注：界面自适应（居中 + 随窗口尺寸重排）由场景中的
+## Panel(全屏锚点) → CenterContainer → VBoxContainer 完成，脚本无需参与布局
 
 # 节点引用
 @export var start_button: Button
@@ -19,30 +21,9 @@ class_name MenuController
 # var _file_dialog: FileDialog = null
 # var _is_dialog_open: bool = false
 
-# UI 缩放（已禁用 UIScaler，固定为 1.0）
-var _panel: Panel = null
-
 func _ready():
-	_panel = get_node_or_null("../Panel") as Panel
 	_connect_signals()
 	GlobalData.reset_stats()
-	
-	# 连接 UI 缩放更新（UIScaler 已移除，固定 scale=1.0）
-	_apply_ui_scale()
-
-## 将 Panel 及其中的菜单内容居中到屏幕中央
-func _apply_ui_scale(_new_scale: float = -1.0) -> void:
-	if not _panel:
-		return
-	
-	# 内容在 Panel 中的大致中心偏移（基于子节点布局计算）
-	var content_center: Vector2 = Vector2(484.5, 176.0)
-	# 面板尺寸应至少覆盖内容区域
-	_panel.size = Vector2(600, 450)
-	# 将内容中心对齐到视口中心
-	var vp: Vector2 = get_tree().root.size
-	_panel.position = vp / 2.0 - content_center
-
 
 func _connect_signals():
 	if start_button:

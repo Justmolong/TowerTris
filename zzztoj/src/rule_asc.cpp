@@ -13,7 +13,7 @@ using namespace m_tetris_rule_tools;
 // ============================================================================================
 namespace rule_asc
 {
-    int g_kick_mode = 0;   // 0=ASC（默认） 1=SRS 2=ARS
+    int g_kick_mode = 0;   // 0=ASC（默认） 1=SRS 2=ARS 3=NONE（无旋转系统）
 
     static TetrisWallKickOpertion const &asc_cw()
     {
@@ -69,10 +69,35 @@ namespace rule_asc
         return op;
     }
 
-    // 无踢墙：只允许原地旋转（基础版 ARS 的 I、以及 ARS 的 180°）
+    // 无踢墙：只允许原地旋转（基础版 ARS 的 I、以及 ARS 的 180°）；
+    // NONE 模式（无旋转系统）也用它：旋转模板保持正常，只把踢墙表清空。
     static TetrisWallKickOpertion const &no_kick()
     {
         static TetrisWallKickOpertion const op = {0, {}};
+        return op;
+    }
+
+    // ----------------------------------------------------------------------------------------
+    // SRS 的 180° 踢墙（与游戏侧 SRS_180_KICKS 逐项对齐）
+    //   SRS 规范只定义 8 组 90° 转换，180 属扩展；游戏侧顺序为
+    //   「原地 → 上 → 下 → 左 → 右 → 左上 → 右下 → 右上 → 左下」（最多让开 1 格，含斜向）。
+    //   本表是其后 8 项（首项 (0,0) 由引擎隐式先试），dy 取反成 zzz 的 y 向上：
+    //     游戏 (0,-1)=上 → zzz (0,+1)；游戏 (0,+1)=下 → zzz (0,-1)；
+    //     游戏 (-1,-1)=左上 → zzz (-1,+1)；游戏 (1,1)=右下 → zzz (1,-1)；
+    //     游戏 (1,-1)=右上 → zzz (1,+1)；游戏 (-1,1)=左下 → zzz (-1,-1)。
+    //   斜向项是必需的：S/Z 做 180° 时形状在包围盒内平移 (1,1)，只有 (-1,-1) 这类让位
+    //   才能在原地转过去；否则贴堆叠时游戏会整手 180° 失败 → 旋转态与 bot 决策不一致。
+    // ----------------------------------------------------------------------------------------
+    static TetrisWallKickOpertion const &srs_180()
+    {
+        static TetrisWallKickOpertion const op =
+        {
+            8,
+            {
+                {0, 1}, {0, -1}, {-1, 0}, {1, 0},
+                {-1, 1}, {1, -1}, {1, 1}, {-1, -1},
+            }
+        };
         return op;
     }
 
@@ -111,7 +136,17 @@ namespace rule_asc
                 // O 旋转是几何空操作，且本游戏 O 不判 spin：保持 SRS 的空表/空转向
                 continue;
             }
-            if (g_kick_mode == 2)
+            if (g_kick_mode == 3)
+            {
+                // NONE（无旋转系统）：旋转模板保持 SRS 默认（旋转本身正常），
+                // 只把三种踢墙表清空 → 只有原地旋转能成功。
+                // 与游戏侧 RotationSystemType.NONE（get_kick_offsets_for 只返回 (0,0)）一致，
+                // 否则 bot 会规划出游戏执行不了的踢墙旋转。
+                kv.second.wall_kick_clockwise = no_kick();
+                kv.second.wall_kick_counterclockwise = no_kick();
+                kv.second.wall_kick_opposite = no_kick();
+            }
+            else if (g_kick_mode == 2)
             {
                 // ARS：JLSTZ 三位置；基础版 ARS 中 I 没有踢墙；180° 无踢墙（只能原地转）
                 bool is_i = (kv.first.first == 'I');
@@ -122,9 +157,11 @@ namespace rule_asc
             }
             else if (g_kick_mode == 1)
             {
-                // 标准 SRS：CW/CCW 保留 rule_srs 的表；180° 与游戏 SRS 分支一致沿用 ASC 表
+                // 标准 SRS：CW/CCW 保留 rule_srs 的表；
+                // 180° 用与游戏 SRS_180_KICKS 一致的自定义扩展表（原地 + 上下左右各 1 格），
+                // 不再是以前借用 ASC 的 21 组候选（那样 bot 会规划出游戏侧根本做不到的 2 格跳）。
                 kv.second.rotate_opposite = opposite_template(kv.first.second);
-                kv.second.wall_kick_opposite = asc_opposite();
+                kv.second.wall_kick_opposite = srs_180();
             }
             else
             {

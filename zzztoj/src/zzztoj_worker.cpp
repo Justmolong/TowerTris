@@ -8,7 +8,10 @@
 // 协议（stdin 一行一条命令，stdout 一行一条回复）：
 //   PING                                            -> OK
 //   CFG <think> <gcap> <mult> <lockout> <hold> <a180> <amini> <aspin> <tspin> <immobileT>
-//                                                   -> OK
+//       [<rotMode> [<btbSystem> [<pcDamage>]]]     -> OK
+//       第 12 个字段 rotMode：0=ASC 1=SRS 2=ARS 3=NONE（无旋转系统）
+//       第 13 个字段 btbSystem：1=surge break 系统 / 2=累加奖励系统（对应游戏 btb_system_use）
+//       第 14 个字段 pcDamage：PC 附加伤害（对应游戏 pc_damage）
 //   REQ <40 行位掩码(底行在前,十进制)> <active> <hold|-> <canHoldNow> <next串> <b2b> <combo>
 //       <预告垃圾合计> <格数> <x1> <y1> ...               -> OK <path> | ERR
 //   QUIT                                            -> 退出
@@ -44,12 +47,18 @@ using namespace m_tetris;
 static m_tetris::TetrisEngine<rule_asc::TetrisRule, ai_zzz::IO, search_amini::Search> g_ai;
 static bool g_prepared = false;
 static int g_prepared_kick_mode = -1;
-// 踢墙模式（与游戏 RotationSystemType 对应）：0=ASC 1=SRS 2=ARS，由 CFG 第 11 个字段下发
+// 踢墙模式（与游戏 RotationSystemType 对应）：0=ASC 1=SRS 2=ARS 3=NONE（无旋转系统），由 CFG 第 11 个字段下发
 static int g_kick_mode = 0;
 // 最近一次 CFG 参数（reprepare 后需要重新应用）
 static int g_last_think = 100, g_last_gcap = 8, g_last_mult = 1;
 static bool g_last_lockout = false, g_last_can_hold = true, g_last_allow180 = true;
 static bool g_last_amini = true, g_last_aspin = false, g_last_tspin = true, g_last_immobile_t = true;
+// 游戏的 Spin 规则模式（TetrisClearLine.no_spin）：0=正常 1=只判T 2=全降级Mini 3=不判 4=判但Spin必死
+static int g_no_spin = 0;
+// no_spin==4 时游戏每次触发 Spin 上涨的实心行数（用于换算惩罚力度）
+static int g_no_spin4_rows = 20;
+// BTB 加成系统（1=surge break / 2=累加奖励）与 PC 伤害：与游戏侧 btb_system_use / pc_damage 对应
+static int g_last_btb_system = 1, g_last_pc_damage = 6;
 
 // 本游戏可玩区域：10 宽 × 90 行(y 向下)，底行 y = 89
 static const int GAME_W = 10;
@@ -166,7 +175,8 @@ static TetrisNode const *find_node(char piece, std::vector<std::pair<int, int>> 
 // 注意：上游 io_dll 把该字段当作等级并用 pow 换算 think_limit（等级 100 会变成几乎无限的耗时），
 // 本工程按协议注释直接当毫秒用，并做上限保护。
 static void apply_config(int think, int gcap, int mult, bool lockout, bool can_hold,
-                         bool allow180, bool amini, bool aspin, bool tspin, bool immobile_t)
+                         bool allow180, bool amini, bool aspin, bool tspin, bool immobile_t,
+                         int btb_system, int pc_damage)
 {
     g_think = think > 2000 ? 2000 : (think < 1 ? 1 : think);
     search_amini::Search::Config *sc = g_ai.search_config();
@@ -181,13 +191,24 @@ static void apply_config(int think, int gcap, int mult, bool lockout, bool can_h
     sc->is_aspin = aspin;
     sc->is_tspin = tspin;
     sc->allow_immobile_t = immobile_t;
+    // NoSpin 模式对齐：no_spin==2（所有 Spin 降级为 Mini）时，引擎判出的全旋也标成 Mini
+    sc->spin_force_mini = (g_no_spin == 2);
 
     ai_zzz::IO::Config *ac = g_ai.ai_config();
     ac->is_margin = false;
     ac->season_2 = immobile_t;   // 与 io_dll 一致：season_2 对应「不可移动即 T-Spin」档
+    ac->btb_system = btb_system; // BTB 加成模型（与游戏 btb_system_use 一致，不再借用 season_2）
+    ac->pc_damage = pc_damage;   // PC 附加伤害（与游戏 pc_damage 一致）
     ac->lockout = lockout;
     ac->multiplier = mult;
     ac->garbage_cap = gcap;
+    // NoSpin 模式对齐：
+    //   no_spin==2 → T-Spin 也按 Mini 上报（与游戏的 "Mini T-Spin" 及 mini 伤害表一致）
+    //   no_spin==4 → 任何 Spin（含 Spin0）都是必死，用极大权重惩罚让 bot 绝不选择 Spin
+    ac->spin_force_mini = (g_no_spin == 2);
+    ac->spin_death_penalty = (g_no_spin == 4)
+        ? (g_no_spin4_rows > 0 ? g_no_spin4_rows * 5000.0 : 100000.0)
+        : 0.0;
 
     // 权重：直接采用 zzztoj 自带 io-DLL 的调参（src/io_dll.cpp 里的 init_21 候选，25 项按 Param 字段顺序）
     ai_zzz::IO::Param &pp = ac->param;
@@ -217,6 +238,51 @@ static void apply_config(int think, int gcap, int mult, bool lockout, bool can_h
     pp.combo = 30.511480066561280;
     pp.ratio = 1.585887060974325;
 
+    // ============================================================================
+    // NoSpin 模式下的 Spin 权重对齐
+    // io-DLL 的默认权重建立在「Spin 有额外攻击与分数」之上；游戏换了 Spin 规则后必须跟着改，
+    // 否则 bot 依旧会为 Spin 布局（T 槽、留 T、路径以旋转收尾），即「开了 NoSpin 还在找 Spin」。
+    // Spin 的价值链：模式2 低分（=普通消行） → 模式3 没分 → 模式4 判死。
+    //   模式2（无天赋II，全部降级 Mini）：游戏 _calculate_damage 对 Mini 用**基础伤害表**，
+    //        即「Spin 与同消行数的普通消行等价」→ spin 权重对齐到对应 clear 权重，T 槽价值清零。
+    //   模式3（无天赋III，完全不判 Spin）：Spin 没有任何收益 → spin 权重与 T 槽/留 T 权重归零，
+    //        并关闭「路径以旋转收尾」偏好（last_rotate=false），不再为 Spin 而转。
+    //   模式4（无天赋IV，判但必死）：收益同样为 0，另由 spin_death_penalty 施加极大惩罚；
+    //        但**保留** last_rotate 与判定开关，让引擎能认出 Spin 从而主动躲开（关掉反而会踩雷）。
+    // ============================================================================
+    if (g_no_spin == 2)
+    {
+        pp.tspin_mini = pp.clear_1;
+        pp.tspin_1 = pp.clear_1;
+        pp.tspin_2 = pp.clear_2;
+        pp.tspin_3 = pp.clear_3;
+        pp.t2_slot = 0;
+        pp.t3_slot = 0;
+        sc->last_rotate = true;
+    }
+    else if (g_no_spin == 3)
+    {
+        pp.tspin_mini = 0;
+        pp.tspin_1 = 0;
+        pp.tspin_2 = 0;
+        pp.tspin_3 = 0;
+        pp.t2_slot = 0;
+        pp.t3_slot = 0;
+        pp.hold_t = 0;          // 留 T 的主要意义就是做 Spin
+        sc->last_rotate = false;
+    }
+    else if (g_no_spin == 4)
+    {
+        pp.tspin_mini = 0;
+        pp.tspin_1 = 0;
+        pp.tspin_2 = 0;
+        pp.tspin_3 = 0;
+        pp.t2_slot = 0;
+        pp.t3_slot = 0;
+        pp.hold_t = 0;
+        sc->last_rotate = true; // 保留旋转收尾判定，让 Spin 能被认出来并吃惩罚
+    }
+
     // 引擎等级固定为 io-DLL 默认 8：本工程只把 CFG 首字段当搜索时间预算，不用它当等级
     // （上游用 pow(100^(1/8), level) 换算，等级被填成 100 时会变成几乎无限耗时）。
     const int level = 8;
@@ -236,10 +302,30 @@ static void apply_config(int think, int gcap, int mult, bool lockout, bool can_h
     g_last_aspin = aspin;
     g_last_tspin = tspin;
     g_last_immobile_t = immobile_t;
+    g_last_btb_system = btb_system;
+    g_last_pc_damage = pc_damage;
     if (g_last_level_applied != level)
     {
         g_last_level_applied = level;
         g_ai.update();
+    }
+
+    // 诊断：仅在环境变量 ZZZ_LOG_PARAMS=1 时，把本次 CFG 生效后的关键决策参数打到 stderr。
+    // 桥会把 worker 的 stderr 转成 push_warning，因此游戏日志里能直接看到
+    // 「参数在什么时候、被哪次 CFG 改成了什么」——用于排查参数异常变化。
+    if (std::getenv("ZZZ_LOG_PARAMS") != nullptr)
+    {
+        std::fprintf(stderr,
+            "[params] think=%d gcap=%d mult=%d kick=%d no_spin=%d force_mini=%d death=%.0f "
+            "amini=%d aspin=%d tspin=%d immobile=%d last_rotate=%d btb=%d pc=%d | "
+            "tspin_mini=%.3f t_1=%.3f t_2=%.3f t_3=%.3f t2=%.3f t3=%.3f hold_t=%.3f hold_i=%.3f "
+            "clear1=%.3f clear2=%.3f clear3=%.3f clear4=%.3f b2b=%.3f attack=%.3f ratio=%.3f\n",
+            g_think, gcap, mult, g_kick_mode, g_no_spin, (int)ac->spin_force_mini, ac->spin_death_penalty,
+            (int)sc->is_amini, (int)sc->is_aspin, (int)sc->is_tspin, (int)sc->allow_immobile_t,
+            (int)sc->last_rotate, btb_system, pc_damage,
+            pp.tspin_mini, pp.tspin_1, pp.tspin_2, pp.tspin_3, pp.t2_slot, pp.t3_slot, pp.hold_t, pp.hold_i,
+            pp.clear_1, pp.clear_2, pp.clear_3, pp.clear_4, pp.b2b, pp.attack, pp.ratio);
+        std::fflush(stderr);
     }
 }
 
@@ -256,7 +342,8 @@ static bool prepare_ai()
         ok = g_ai.reprepare(GAME_W, 40);
         if (ok)
             apply_config(g_last_think, g_last_gcap, g_last_mult, g_last_lockout, g_last_can_hold,
-                         g_last_allow180, g_last_amini, g_last_aspin, g_last_tspin, g_last_immobile_t);
+                         g_last_allow180, g_last_amini, g_last_aspin, g_last_tspin, g_last_immobile_t,
+                         g_last_btb_system, g_last_pc_damage);
     }
     else if (!g_ai.prepare(GAME_W, 40))
     {
@@ -266,7 +353,7 @@ static bool prepare_ai()
         return false;
     g_ai.memory_limit(512ull << 20);
     if (!g_prepared)
-        apply_config(100, 8, 1, false, true, true, true, false, true, true);
+        apply_config(100, 8, 1, false, true, true, true, false, true, true, g_last_btb_system, g_last_pc_damage);
     g_prepared = true;
     g_prepared_kick_mode = g_kick_mode;
     return true;
@@ -489,6 +576,64 @@ int main(int argc, char **argv)
 {
     ege::mtsrand((unsigned int)std::time(nullptr));
 
+    // Diagnostic: dump the baked rotation rule per kick mode.
+    //   ops   = number of (piece, rotation) entries in the rule table
+    //   kicks = total number of wall-kick offsets across those entries (0 => no kicks)
+    //   rcw   = clockwise rotate template of the T piece (must stay non-null in mode 3:
+    //           "no rotation system" still rotates, it just cannot kick)
+    // Usage: zzztoj_worker.exe kickcount
+    if (argc > 1 && std::strcmp(argv[1], "kickcount") == 0)
+    {
+        for (int mode = 0; mode <= 3; ++mode)
+        {
+            rule_asc::g_kick_mode = mode;
+            auto ops = rule_asc::TetrisRule::get_opertion();
+            size_t kicks = 0;
+            void *rcw = nullptr;
+            for (auto &kv : ops)
+            {
+                kicks += kv.second.wall_kick_clockwise.length;
+                kicks += kv.second.wall_kick_counterclockwise.length;
+                kicks += kv.second.wall_kick_opposite.length;
+                if (kv.first.first == 'T' && kv.first.second == 1)
+                    rcw = (void *)kv.second.rotate_clockwise;
+            }
+            std::printf("mode %d: ops=%d kicks=%d rotate_clockwise(T,r1)=%s\n",
+                        mode, (int)ops.size(), (int)kicks, rcw != nullptr ? "set" : "NULL");
+        }
+        return 0;
+    }
+
+    // Diagnostic: dump the baked kick tables per (piece, rotation) so they can be compared
+    // 1:1 with the game's get_kick_offsets_for(). Offsets are in zzz's frame (y upwards);
+    // the game's tables are y-down, so the game's dy = -(dy here).
+    // Usage: zzztoj_worker.exe kickdump <kick_mode 0..3>
+    if (argc > 1 && std::strcmp(argv[1], "kickdump") == 0)
+    {
+        rule_asc::g_kick_mode = (argc > 2) ? std::atoi(argv[2]) : 0;
+        auto ops = rule_asc::TetrisRule::get_opertion();
+        std::printf("KICKS mode=%d\n", rule_asc::g_kick_mode);
+        for (auto &kv : ops)
+        {
+            char const *kind[3] = {"cw", "ccw", "opp"};
+            m_tetris::TetrisWallKickOpertion const *lst[3] =
+            {
+                &kv.second.wall_kick_clockwise,
+                &kv.second.wall_kick_counterclockwise,
+                &kv.second.wall_kick_opposite,
+            };
+            std::printf("K %c %d", kv.first.first, (int)kv.first.second);
+            for (int i = 0; i < 3; ++i)
+            {
+                std::printf(" %s %u", kind[i], lst[i]->length);
+                for (uint32_t k = 0; k < lst[i]->length && k < 24; ++k)
+                    std::printf(" %d,%d", (int)lst[i]->data[k].x, (int)lst[i]->data[k].y);
+            }
+            std::printf("\n");
+        }
+        return 0;
+    }
+
     if (argc > 1 && std::strcmp(argv[1], "selftest") == 0)
     {
         // 自检：40 行空板 + 底行留一个洞的“地面”，把 T 块放在板中央上方
@@ -620,14 +765,64 @@ int main(int argc, char **argv)
         }
         else if (tok[0] == "CFG" && tok.size() >= 11)
         {
-            apply_config(std::atoi(tok[1].c_str()), std::atoi(tok[2].c_str()), std::atoi(tok[3].c_str()),
-                         tok[4] == "1", tok[5] == "1", tok[6] == "1", tok[7] == "1",
-                         tok[8] == "1", tok[9] == "1", tok[10] == "1");
-            // 可选第 11 个字段：踢墙/旋转系统（0=ASC 1=SRS 2=ARS）。
+            // 可选第 13/14 个字段：BTB 加成系统（1=surge break / 2=累加奖励）与 PC 伤害。
+            // 缺省时沿用当前值：只发 11 个字段的老调用方不会把它们重置。
+            const int btb_system = (tok.size() >= 13) ? std::atoi(tok[12].c_str()) : g_last_btb_system;
+            const int pc_damage = (tok.size() >= 14) ? std::atoi(tok[13].c_str()) : g_last_pc_damage;
+            // 可选第 11 个字段：踢墙/旋转系统（0=ASC 1=SRS 2=ARS 3=NONE 无旋转系统）。
             // 变更会在下一次 REQ 的 prepare_ai() 里触发 context 重建（踢墙表在 prepare 时烘焙）。
             if (tok.size() >= 12)
                 g_kick_mode = std::atoi(tok[11].c_str());
+            // 可选追加的两个字段：游戏的 no_spin 模式与 no_spin4 的实心行惩罚量。
+            // 缺省时沿用当前值（老调用方只发到 BTB/PC 字段也不会被重置）。
+            //   no_spin==2 → 引擎把所有 Spin 降级为 Mini（与游戏类型/伤害表一致）
+            //   no_spin==4 → 任何 Spin（含 Spin0）都是必死，用极大权重惩罚让 bot 绝不走 Spin
+            g_no_spin = (tok.size() >= 15) ? std::atoi(tok[14].c_str()) : g_no_spin;
+            g_no_spin4_rows = (tok.size() >= 16) ? std::atoi(tok[15].c_str()) : g_no_spin4_rows;
+            apply_config(std::atoi(tok[1].c_str()), std::atoi(tok[2].c_str()), std::atoi(tok[3].c_str()),
+                         tok[4] == "1", tok[5] == "1", tok[6] == "1", tok[7] == "1",
+                         tok[8] == "1", tok[9] == "1", tok[10] == "1",
+                         btb_system, pc_damage);
             std::printf("OK\n");
+        }
+        else if (tok[0] == "WEIGHTS")
+        {
+            // 诊断：打印当前生效的 Spin 相关配置与权重（单行，保持一命令一回复的协议）
+            // 用法：先发 CFG 设置 no_spin 模式，再发 WEIGHTS。
+            if (!prepare_ai())
+            {
+                std::printf("ERR\n");
+            }
+            else
+            {
+                search_amini::Search::Config *wsc = g_ai.search_config();
+                ai_zzz::IO::Config *wac = g_ai.ai_config();
+                ai_zzz::IO::Param const &wp = wac->param;
+                std::printf("WEIGHTS no_spin=%d kick=%d amini=%d aspin=%d tspin=%d immobile=%d last_rotate=%d "
+                            "force_mini=%d death_penalty=%.0f spin0_penalized=%d tspin_mini=%.3f tspin_1=%.3f tspin_2=%.3f tspin_3=%.3f "
+                            "t2_slot=%.3f t3_slot=%.3f hold_t=%.3f hold_i=%.3f clear_1=%.3f clear_2=%.3f clear_3=%.3f clear_4=%.3f\n",
+                            g_no_spin, g_kick_mode, (int)wsc->is_amini, (int)wsc->is_aspin, (int)wsc->is_tspin,
+                            (int)wsc->allow_immobile_t, (int)wsc->last_rotate, (int)wac->spin_force_mini,
+                            wac->spin_death_penalty, ai_zzz::spin0_penalty_count(),
+                            wp.tspin_mini, wp.tspin_1, wp.tspin_2, wp.tspin_3, wp.t2_slot, wp.t3_slot,
+                            wp.hold_t, wp.hold_i, wp.clear_1, wp.clear_2, wp.clear_3, wp.clear_4);
+                // 180° 踢墙候选：按当前踢墙模式重新生成一份，核对 bot 的 180 表与游戏是否一致
+                {
+                    std::map<std::pair<char, uint8_t>, m_tetris::TetrisOpertion> rm = rule_asc::TetrisRule::get_opertion();
+                    m_tetris::TetrisWallKickOpertion const &oT = rm[std::make_pair('T', (uint8_t)0)].wall_kick_opposite;
+                    m_tetris::TetrisWallKickOpertion const &oI = rm[std::make_pair('I', (uint8_t)0)].wall_kick_opposite;
+                    std::string ops;
+                    for (uint32_t k = 0; k < oT.length && k < 8; ++k)
+                    {
+                        ops += " (";
+                        ops += std::to_string((int)oT.data[k].x);
+                        ops += ",";
+                        ops += std::to_string((int)oT.data[k].y);
+                        ops += ")";
+                    }
+                    std::printf("OPP180 T_len=%u I_len=%u T%s\n", oT.length, oI.length, ops.c_str());
+                }
+            }
         }
         else if (tok[0] == "REQ")
         {
