@@ -34,8 +34,6 @@ const NEXT_MAX := 14
 @export var reply_timeout_ms: int = 2000
 ## 打印每次 REQ 的收发内容（排查「已启动但无决策」时打开）
 @export var log_protocol: bool = false
-## 启动/常规信息日志（默认关闭，避免刷屏；由 tetris_controller.bot_debug_log 同步过来）
-@export var verbose: bool = false
 
 var _stdio: FileAccess = null
 var _stderr: FileAccess = null
@@ -109,8 +107,7 @@ func start() -> bool:
 	_death_logged = false
 	_should_restart = false
 	_dead_checks = 0
-	if verbose or log_protocol:
-		print("[ZzzBridge] 已启动 zzztoj worker: ", exe, " pid=", _pid)
+	print("[ZzzBridge] 已启动 zzztoj worker: ", exe, " pid=", _pid)
 	_thread = Thread.new()
 	_thread.start(_loop)
 	# 握手（异步；回复由子线程消费，不阻塞主线程）
@@ -457,24 +454,12 @@ func _build_cfg(gc) -> String:
 	var immobile_t := 1
 	var cl = gc.clear_line_controller
 	if cl != null:
-		if cl.no_spin == 3:
-			# 不判定 Spin：bot 也完全不认 spin
+		if cl.no_spin == 2:
+			# NoSpin：不判任何 spin
 			amini = 0
 			aspin = 0
 			tspin = 0
 			immobile_t = 0
-		elif cl.no_spin == 4:
-			# 无天赋IV（正常判定 Spin，但每次触发 Spin 上涨 20 行实心行）：
-			# Spin 判定本身与默认一致，这里显式走默认值，且不受 Allspin 开关影响
-			# （Allspin 会把非 T 卡住也算 full spin，与该 buff 本意不符）。
-			amini = 1
-			aspin = 0
-			tspin = 1
-			immobile_t = 1
-		elif cl.no_spin == 1:
-			# 只判定 T-Spin（不判 Allspin）：关掉全旋，T-Spin 保持正常判定
-			amini = 0
-			aspin = 0
 		elif cl.tetris_allspin == 1:
 			# Allspin：非 T 卡住也算 full spin
 			amini = 0
@@ -487,27 +472,9 @@ func _build_cfg(gc) -> String:
 	# 最后一个字段：游戏当前的旋转系统（0=ASC 1=SRS 2=ARS）。
 	# worker 据此选用对应踢墙表，保证 bot 规划的踢墙与游戏实际执行的一致。
 	var rot_mode := int(gc.rotation_system)
-	# 第 12/13 个字段：BTB 加成系统（1=surge break / 2=累加奖励）与 PC 附加伤害。
-	# 游戏侧是规则的唯一来源，这里原样下发，bot 的伤害模拟才能与实际结算一致。
-	# 参考 TetrisClearLine.btb_system_use / pc_damage；pc_damage 是 @export，buff 可在 Inspector 改。
-	var btb_system := 1
-	var pc_damage := 6
-	if cl != null:
-		btb_system = int(cl.btb_system_use)
-		pc_damage = int(cl.pc_damage)
-	# 末尾两个字段：游戏的 no_spin 模式与 no_spin4 的实心行惩罚量。
-	#   no_spin==2 → worker 把所有 Spin 降级为 Mini（类型与伤害表都要和游戏一致，
-	#                否则 Allspin 重复性惩罚会因「游戏记 Mini、引擎记 T-Spin」而漏判）
-	#   no_spin==4 → worker 用极大权重惩罚任何 Spin（含 Spin0），使 bot 绝不走 Spin（必死）
-	var no_spin_mode := 0
-	var no_spin4_rows := 20
-	if cl != null:
-		no_spin_mode = int(cl.no_spin)
-		no_spin4_rows = int(cl.no_spin4_solid_rows)
-	return "CFG %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d" % [
+	return "CFG %d %d %d %d %d %d %d %d %d %d %d" % [
 		think_budget, gcap, 1, 0, hold_flag,
 		1 if allow_180 else 0, amini, aspin, tspin, immobile_t, rot_mode,
-		btb_system, pc_damage, no_spin_mode, no_spin4_rows,
 	]
 
 

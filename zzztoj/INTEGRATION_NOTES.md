@@ -57,10 +57,7 @@ zzztoj 的模型是“每个旋转状态各有一张 CW/CCW 表”，因此**忠
 1. **不可移动判定为 spin**：上下左右四方向都撞（查询时排除自身格子）→ full spin；
 2. T 块额外 mini：**下 2 角 + 上 1 角**被封堵 → `Mini T-Spin`；
 3. **O 块永不判 spin**；
-4. 模式（`TetrisClearLine.no_spin`，对应 CFG 的 tspin/aspin/amini/immobile_t 位）：
-   `0`=正常判定（含 Allspin）／`1`=只判定 T-Spin（不判 Allspin，本模式关掉 aspin）
-   ／`2`=全部 Spin 降级 mini／`3`=不判定 Spin（tspin/aspin/amini/immobile_t 全关）。
-   Allspin 的开放与否另由 `tetris_allspin` 控制（非 T 块卡住 → full spin）。
+4. 模式：`tetris_allspin`（非 T 块卡住 → full spin）／`NoSpin=1`（全部降级 mini）／`NoSpin=2`（不判 spin）。
 zzztoj 侧对应模块：`search_tspin`（T 的 None/TSpin/TSpinMini）与 `search_amini`（all-mini，非 T 旋转）。
 适配点：让这两个模块的分类函数与本游戏 `_detect_spin_type / _is_piece_stuck / _detect_t_spin_mini` 一致
 （自重叠排除、O 排除、mini 角块规则、allspin 开关），否则 AI 的评估与实际得分不一致。

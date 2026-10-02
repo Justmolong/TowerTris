@@ -502,7 +502,7 @@ namespace search_amini
                         {
                             if (check_immobile(node, snap))
                             {
-                                node_ex.type = (config_->spin_force_mini || config_->is_amini) ? ASpinMini : AllSpin;
+                                node_ex.type = config_->is_amini ? ASpinMini : AllSpin;
                             }
                         }
                         land_point_cache_.push_back(node_ex);
@@ -997,7 +997,7 @@ namespace search_amini
             {
                 if (check_immobile(node_ex, snap))
                 {
-                    node_ex.type = (config_->spin_force_mini || config_->is_amini) ? ASpinMini : AllSpin;
+                    node_ex.type = config_->is_amini ? ASpinMini : AllSpin;
                 }
             }
             land_point_cache_.push_back(node_ex);

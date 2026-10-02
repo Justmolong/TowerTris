@@ -5,7 +5,6 @@
 #include "integer_utils.h"
 #include "ai_zzz.h"
 #include "ai_setting.h"
-#include <cmath>
 #include <cstdint>
 
 using namespace m_tetris;
@@ -53,15 +52,6 @@ namespace
 
 namespace ai_zzz
 {
-    // TowerTris 诊断计数：NoSpin4 下被判为「T 的 Spin0」并施加死亡惩罚的候选次数
-    //（由 worker 的 WEIGHTS 命令读取，用于确认该分支真的在跑）
-    static int g_spin0_penalty_count = 0;
-
-    int spin0_penalty_count()
-    {
-        return g_spin0_penalty_count;
-    }
-
     namespace qq
     {
 
@@ -1872,9 +1862,7 @@ namespace ai_zzz
     {
         if (eval_result.clear > 0 && node.is_check && node.is_last_rotate)
         {
-            // TowerTris：no_spin==2 时游戏把所有 Spin 降级为 Mini（含 T-Spin），
-            // 这里同步降级，保证类型上报与 mini 伤害口径一致。
-            if (node.is_mini_ready || (config_->spin_force_mini && node.is_ready))
+            if (node.is_mini_ready)
             {
                 node.type = ASpinType::TSpinMini;
             }
@@ -1890,16 +1878,8 @@ namespace ai_zzz
                                                          : eval_result.map->roof;
         int curAtk = 0;
         int baseAtk = 0;
-        // no_spin==2（无天赋II）：游戏把全部 Spin 降级为 Mini，并按**基础伤害表**结算
-        //（TetrisClearLine._calculate_damage 的 Mini 分支把 base_damage 置 0、spin_damage 取 base 表），
-        // 即「Spin 与同消行数的普通消行完全等价」。因此本手下 Spin 的攻击也按普通消行算；
-        // 类型仍保留 Mini 上报，供 Allspin 重复性惩罚的类型比较使用。
-        const bool spin_as_clear = config_->spin_force_mini;
 
-        // 本手是否「4消/Spin」：对应游戏 _calculate_damage() 里 BTB 加成的门控（只有 spin 或四消才吃加成）。
-        // Spin0（有旋转、无消行）不续 BTB —— 与游戏 spin0_btb_enabled 默认 false 的规则一致，
-        // 故这里不再拼接 season_2 的 Spin0 分支（season_2 是「不可移动即 T-Spin」的规则开关，与 BTB 无关）。
-        bool is_b2b_move = eval_result.clear == 4 || (eval_result.clear && node.type != ASpinType::None);
+        bool is_b2b_move = eval_result.clear == 4 || (eval_result.clear && node.type != ASpinType::None) || (config_->season_2 && eval_result.count == 0 && result.map_rise == 0);
 
         auto get_attack = [&](const int &base_atk, int &combo, int &b2b)
         {
@@ -1907,46 +1887,36 @@ namespace ai_zzz
             double atk = base_atk;
             int surge_atk = 0;
             // todo: detect garbage line
-            // pre_b2b = 本手之前的连续 BTB 计数，对应游戏侧 _calculate_damage() 里的 btb_count
-            // （游戏用「本手之前」的计数判定加成，故这里必须在 ++b2b 之前取值）。
-            const int pre_b2b = b2b;
             if (is_b2b_move)
             {
                 ++b2b;
             }
             else
             {
-                // surge break 兑现：仅 surge break 系统，且断链前已连续 >= 4 手（与游戏一致：+pre_b2b）
-                if (config_->btb_system == 1 && pre_b2b >= 4)
+                if (config_->season_2 && b2b > 4)
                 {
-                    surge_atk += pre_b2b;
+                    surge_atk += b2b - 1;
                 }
                 b2b = 0;
             }
-            // BTB 加成：只在「本手是 4消/Spin（is_b2b_move）」且「上一手也是 4消/Spin（pre_b2b >= 1）」时生效，
-            // 与游戏 _get_btb_bonus() 的门控一致（普通消行即使链还在也不吃加成）。
-            if (is_b2b_move && pre_b2b >= 1)
+            if (config_->season_2)
             {
-                if (config_->btb_system == 2)
+                if (eval_result.clear && b2b > 1)
                 {
-                    // 累加奖励系统：BTB=1 → 1；BTB>=2 → raw = 1+ln(0.8*BTB+1)，
-                    // a = floor(raw)、b = raw - a，加成 = a+(1+b)/3（游戏侧本手伤害取整）
-                    if (pre_b2b == 1)
-                    {
-                        atk += 1;
-                    }
-                    else
-                    {
-                        const double raw = 1.0 + std::log1p(0.8 * pre_b2b);
-                        const int integral = static_cast<int>(std::floor(raw));
-                        const double frac = raw - integral;
-                        atk += std::floor(integral + (1.0 + frac) / 3.0);
-                    }
+                    ++atk;
                 }
-                else
+            }
+            else
+            {
+                if (b2b > 1)
                 {
-                    // surge break 系统：第 2 手起 +1，pre_b2b >= 4 时 +2
-                    atk += (pre_b2b >= 4) ? 2 : 1;
+                    int b2b_copy = b2b - 1;
+                    double f = log1p(b2b_copy * 0.8);
+                    while (f > 1)
+                    {
+                        --f;
+                    }
+                    atk += (floor(1 + log1p((b2b_copy) * 0.8)) + (b2b_copy == 1 ? 0 : (1 + f) / 3));
                 }
             }
             int combo_copy = combo - 1;
@@ -1972,12 +1942,12 @@ namespace ai_zzz
             }
             break;
         case 1:
-            if (!spin_as_clear && (node.type == ASpinType::ASpinMini || node.type == ASpinType::TSpinMini))
+            if (node.type == ASpinType::ASpinMini || node.type == ASpinType::TSpinMini)
             {
                 result.like += p.tspin_mini;
                 baseAtk = 0;
             }
-            else if (!spin_as_clear && node.type != ASpinType::None)
+            else if (node.type != ASpinType::None)
             {
                 result.like += p.tspin_1;
                 baseAtk = 2;
@@ -1992,17 +1962,15 @@ namespace ai_zzz
             result.attack += curAtk = get_attack(baseAtk, result.combo, result.b2bcnt);
             break;
         case 2:
-            if (!spin_as_clear && (node.type == ASpinType::ASpinMini || node.type == ASpinType::TSpinMini))
+            if (node.type == ASpinType::ASpinMini || node.type == ASpinType::TSpinMini)
             {
                 result.like += p.tspin_mini;
-                baseAtk = 1;   // Mini 走基础伤害表：基础双消 = 1
+                baseAtk = 1;
             }
-            else if (!spin_as_clear && node.type != ASpinType::None)
+            else if (node.type != ASpinType::None)
             {
                 result.like += p.tspin_2;
-                // Spin 双消 = 4：与游戏 spin_damage_table["T-Spin"][2] = 4 一致，
-                // 也与 zzztoj 自带 io_pso.cpp 的 get_attack(4, ...) 一致（此处原来误写为 2）
-                baseAtk = 4;
+                baseAtk = 2;
             }
             else
             {
@@ -2014,12 +1982,12 @@ namespace ai_zzz
             result.attack += curAtk = get_attack(baseAtk, result.combo, result.b2bcnt);
             break;
         case 3:
-            if (!spin_as_clear && (node.type == ASpinType::ASpinMini || node.type == ASpinType::TSpinMini))
+            if (node.type == ASpinType::ASpinMini || node.type == ASpinType::TSpinMini)
             {
                 result.like += p.tspin_mini;
                 baseAtk = 2;
             }
-            else if (!spin_as_clear && node.type != ASpinType::None)
+            else if (node.type != ASpinType::None)
             {
                 result.like += p.tspin_3;
                 baseAtk = 6;
@@ -2037,32 +2005,8 @@ namespace ai_zzz
             result.like += (result.combo + result.b2bcnt) * (1 + result.attack) * p.clear_4;
             break;
         }
-        // TowerTris：NoSpin4 的 Spin0 判定。
-        // 游戏 TetrisClearLine 在两个地方调用 _apply_no_spin4_penalty()：
-        //   (1) clear_count==0 且有 spin_type（即 Spin0，只转不消）
-        //   (2) 消行的 Spin
-        // 而上面的 T-Spin 类型赋值带 eval_result.clear > 0 条件，Spin0 的 node.type 恒为 None，
-        // 只靠 node.type 会漏掉「T 的 Spin0」→ bot 可能选到它，被涨 20 行实心行直接判死。
-        // 非 T 的全旋由 search 的 check_immobile 标记（不受 clear 影响），无需在这里补。
-        // is_ready 由 search 保证「角就位且四向不可移动」（见 search_amini 里 !check_immobile 会清掉 is_ready），
-        // 与游戏「不可移动即 Spin / T 看角」的判定口径一致。
-        const bool t_spin0 = (eval_result.clear == 0 && node.is_check && node.is_last_rotate
-                              && (node.is_ready || node.is_mini_ready));
-        // TowerTris：NoSpin4（无天赋IV）惩罚——触发 Spin（**含 Spin0**）会立刻上涨实心行 = 必死，
-        // 因此对任何被判为 Spin 的候选施加极大权重惩罚。放在 clear 分支之外，
-        // 保证 case 0（只转不消）同样被覆盖。
-        if (config_->spin_death_penalty > 0 && ((int)node.type != 0 || t_spin0))
-        {
-            if (t_spin0)
-                ++g_spin0_penalty_count;
-            result.like -= config_->spin_death_penalty;
-        }
-        // TowerTris：Allspin 重复性惩罚——候选与上一手「消行类型 + 行数」完全一致时，游戏会立刻上涨一行垃圾。
-        // ⚠ 必须把「都不是 Spin」也算作同类型：游戏的判定是字符串相等（非 Spin 类型为 ""），
-        //   NoSpin 模式（尤其 NoSpin3，spin_type 恒为 ""）下只要连续两次消行行数相同就会涨垃圾。
-        //   早先这里多加了 (node.type != 0) 的限制，导致 bot 看不见非 Spin 的重复惩罚，
-        //   于是 Allspin_1 + NoSpin_3 时会一直走重复消行的「惩罚路线」。
-        if (config_->repeat_penalty > 0 && eval_result.clear > 0
+        // TowerTris：Allspin 重复性惩罚——候选与上一手「同类 spin + 同消行数」一致时，游戏会立刻上涨一行垃圾
+        if (config_->repeat_penalty > 0 && eval_result.clear > 0 && (int)node.type != 0
             && (int)node.type == config_->last_spin_type
             && (int)eval_result.clear == config_->last_clear_count)
         {
@@ -2075,7 +2019,7 @@ namespace ai_zzz
             {
                 result.death = 1;
             }
-            result.attack += curAtk += config_->pc_damage;
+            result.attack += curAtk += config_->season_2 ? 5 : 10;
         }
         if (config_->is_margin)
             result.attack += (int)std::floor((((clock() - config_->start_count) / 1000.0) * GARBAGE_INCREASE) * curAtk);

@@ -126,447 +126,367 @@ box_id = "Gravity_1"
 box_size = 32
 default_checked = false
 
-[node name="List4" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=-1294967195]
+[node name="List4" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=1202483152]
 layout_mode = 2
 
-[node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List4" unique_id=-1294967194]
-layout_mode = 2
-text = "旋转系统："
-
-[node name="ConnectorLine" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List4" unique_id=-1294967193]
-layout_mode = 2
-script = ExtResource("3_7sx2r")
-
-[node name="RotateSystem_1" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List4" unique_id=-1294967191]
-layout_mode = 2
-script = ExtResource("2_7sx2r")
-box_id = "RotateSystem_1"
-box_size = 32
-default_checked = false
-
-[node name="Spacer_RS1_RS2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List4" unique_id=-1294967190]
-custom_minimum_size = Vector2(16, 32)
-layout_mode = 2
-
-[node name="RotateSystem_2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List4" unique_id=-1294967189]
-layout_mode = 2
-script = ExtResource("2_7sx2r")
-box_id = "RotateSystem_2"
-box_size = 32
-default_checked = false
-
-[node name="Spacer_RS2_RS3" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List4" unique_id=-1294967188]
-custom_minimum_size = Vector2(16, 32)
-layout_mode = 2
-
-[node name="RotateSystem_3" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List4" unique_id=-1294967187]
-layout_mode = 2
-script = ExtResource("2_7sx2r")
-box_id = "RotateSystem_3"
-box_size = 32
-default_checked = false
-
-[node name="List5" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=1202483152]
-layout_mode = 2
-
-[node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List5" unique_id=534188387]
+[node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List4" unique_id=534188387]
 layout_mode = 2
 text = "垃圾行缓冲："
 
-[node name="ConnectorLine" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List5" unique_id=712380696]
+[node name="ConnectorLine" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List4" unique_id=712380696]
 layout_mode = 2
 script = ExtResource("3_7sx2r")
 
-[node name="SuddenlyDeath_1" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List5" unique_id=1575735377]
+[node name="SuddenlyDeath_1" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List4" unique_id=1575735377]
 layout_mode = 2
 script = ExtResource("2_7sx2r")
 box_id = "SuddenlyDeath_1"
 box_size = 32
 default_checked = false
 
-[node name="Spacer_SD1_SD2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List5" unique_id=1830044156]
+[node name="Spacer_SD1_SD2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List4" unique_id=1830044156]
 custom_minimum_size = Vector2(8, 32)
 layout_mode = 2
 
-[node name="SuddenlyDeath_2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List5" unique_id=1528685501]
+[node name="SuddenlyDeath_2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List4" unique_id=1528685501]
 layout_mode = 2
 script = ExtResource("2_7sx2r")
 box_id = "SuddenlyDeath_2"
 box_size = 32
 default_checked = false
 
-[node name="Spacer_SD2_SD3" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List5" unique_id=941095585]
+[node name="Spacer_SD2_SD3" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List4" unique_id=941095585]
 custom_minimum_size = Vector2(8, 32)
 layout_mode = 2
 
-[node name="SuddenlyDeath_3" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List5" unique_id=1184382830]
+[node name="SuddenlyDeath_3" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List4" unique_id=1184382830]
 layout_mode = 2
 script = ExtResource("2_7sx2r")
 box_id = "SuddenlyDeath_3"
 box_size = 32
 default_checked = false
 
-[node name="Spacer_SD3_SD4" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List5" unique_id=327964791]
+[node name="Spacer_SD3_SD4" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List4" unique_id=327964791]
 custom_minimum_size = Vector2(8, 32)
 layout_mode = 2
 
-[node name="SuddenlyDeath_4" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List5" unique_id=1565546299]
+[node name="SuddenlyDeath_4" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List4" unique_id=1565546299]
 layout_mode = 2
 script = ExtResource("2_7sx2r")
 box_id = "SuddenlyDeath_4"
 box_size = 32
 default_checked = false
 
-[node name="Spacer_SD4_SD5" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List5" unique_id=1648572332]
+[node name="Spacer_SD4_SD5" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List4" unique_id=1648572332]
 custom_minimum_size = Vector2(8, 32)
 layout_mode = 2
 
-[node name="SuddenlyDeath_5" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List5" unique_id=1709791040]
+[node name="SuddenlyDeath_5" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List4" unique_id=1709791040]
 layout_mode = 2
 script = ExtResource("2_7sx2r")
 box_id = "SuddenlyDeath_5"
 box_size = 32
 default_checked = false
 
-[node name="Spacer_SD5_SD6" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List5" unique_id=1841248351]
+[node name="Spacer_SD5_SD6" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List4" unique_id=1841248351]
 custom_minimum_size = Vector2(8, 32)
 layout_mode = 2
 
-[node name="SuddenlyDeath_6" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List5" unique_id=615841152]
+[node name="SuddenlyDeath_6" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List4" unique_id=615841152]
 layout_mode = 2
 script = ExtResource("2_7sx2r")
 box_id = "SuddenlyDeath_6"
 box_size = 32
 default_checked = false
 
-[node name="Spacer_SD6_SD7" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List5" unique_id=1000188032]
+[node name="Spacer_SD6_SD7" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List4" unique_id=1000188032]
 custom_minimum_size = Vector2(8, 32)
 layout_mode = 2
 
-[node name="SuddenlyDeath_7" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List5" unique_id=1842038191]
+[node name="SuddenlyDeath_7" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List4" unique_id=1842038191]
 layout_mode = 2
 script = ExtResource("2_7sx2r")
 box_id = "SuddenlyDeath_7"
 box_size = 32
 default_checked = false
 
-[node name="Spacer_SD7_SD8" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List5" unique_id=780243839]
+[node name="Spacer_SD7_SD8" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List4" unique_id=780243839]
 custom_minimum_size = Vector2(8, 32)
 layout_mode = 2
 
-[node name="SuddenlyDeath_8" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List5" unique_id=1643636183]
+[node name="SuddenlyDeath_8" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List4" unique_id=1643636183]
 layout_mode = 2
 script = ExtResource("2_7sx2r")
 box_id = "SuddenlyDeath_8"
 box_size = 32
 default_checked = false
 
-[node name="Spacer_SD8_SD9" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List5" unique_id=1245312713]
+[node name="Spacer_SD8_SD9" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List4" unique_id=1245312713]
 custom_minimum_size = Vector2(8, 32)
 layout_mode = 2
 
-[node name="SuddenlyDeath_9" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List5" unique_id=320058133]
+[node name="SuddenlyDeath_9" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List4" unique_id=320058133]
 layout_mode = 2
 script = ExtResource("2_7sx2r")
 box_id = "SuddenlyDeath_9"
 box_size = 32
 default_checked = false
 
-[node name="Spacer_SD9_SD10" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List5" unique_id=193237295]
+[node name="Spacer_SD9_SD10" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List4" unique_id=193237295]
 custom_minimum_size = Vector2(8, 32)
 layout_mode = 2
 
-[node name="SuddenlyDeath_10" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List5" unique_id=63320414]
+[node name="SuddenlyDeath_10" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List4" unique_id=63320414]
 layout_mode = 2
 script = ExtResource("2_7sx2r")
 box_id = "SuddenlyDeath_10"
 box_size = 32
 default_checked = false
 
-[node name="List6" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=1455174070]
+[node name="List5" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=1455174070]
 layout_mode = 2
 
-[node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List6" unique_id=2106262616]
+[node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List5" unique_id=2106262616]
 layout_mode = 2
 text = "隐形："
 
-[node name="ConnectorLine" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List6" unique_id=2026337300]
+[node name="ConnectorLine" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List5" unique_id=2026337300]
 layout_mode = 2
 script = ExtResource("3_7sx2r")
 
-[node name="Invisible_1" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List6" unique_id=727009918]
+[node name="Invisible_1" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List5" unique_id=727009918]
 layout_mode = 2
 script = ExtResource("2_7sx2r")
 box_id = "Invisible_1"
 box_size = 32
 default_checked = false
 
-[node name="List7" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=1517168648]
+[node name="List6" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=1517168648]
 layout_mode = 2
 
-[node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List7" unique_id=1979673050]
+[node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List6" unique_id=1979673050]
 layout_mode = 2
 text = "全旋："
 
-[node name="ConnectorLine" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List7" unique_id=156552397]
+[node name="ConnectorLine" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List6" unique_id=156552397]
 layout_mode = 2
 script = ExtResource("3_7sx2r")
 
-[node name="Allspin_1" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List7" unique_id=734234311]
+[node name="Allspin_1" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List6" unique_id=734234311]
 layout_mode = 2
 script = ExtResource("2_7sx2r")
 box_id = "Allspin_1"
 box_size = 32
 default_checked = false
 
-[node name="List8" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=202804398]
+[node name="List7" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=202804398]
 layout_mode = 2
 
-[node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List8" unique_id=1686125779]
+[node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List7" unique_id=1686125779]
 layout_mode = 2
 text = "无暂存："
 
-[node name="ConnectorLine" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List8" unique_id=1366149505]
+[node name="ConnectorLine" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List7" unique_id=1366149505]
 layout_mode = 2
 script = ExtResource("3_7sx2r")
 
-[node name="NoHold_1" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List8" unique_id=734968014]
+[node name="NoHold_1" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List7" unique_id=734968014]
 layout_mode = 2
 script = ExtResource("2_7sx2r")
 box_id = "NoHold_1"
 box_size = 32
 default_checked = false
 
-[node name="List9" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=1495507124]
+[node name="List8" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=1495507124]
 layout_mode = 2
 
-[node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List9" unique_id=329050884]
+[node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List8" unique_id=329050884]
 layout_mode = 2
-text = "Spin判定："
+text = "无Spin判定："
 
-[node name="ConnectorLine" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List9" unique_id=714722812]
+[node name="ConnectorLine" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List8" unique_id=714722812]
 layout_mode = 2
 script = ExtResource("3_7sx2r")
 
-[node name="Talentless_1" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List9" unique_id=-1294967000]
+[node name="Talentless_1" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List8" unique_id=171872954]
 layout_mode = 2
 script = ExtResource("2_7sx2r")
 box_id = "Talentless_1"
 box_size = 32
 default_checked = false
 
-[node name="Spacer_TL1_TL2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List9" unique_id=-1294966999]
+[node name="Spacer_TL1_TL2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List8" unique_id=171872955]
 custom_minimum_size = Vector2(16, 32)
 layout_mode = 2
 
-[node name="Talentless_2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List9" unique_id=171872954]
+[node name="Talentless_2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List8" unique_id=171872956]
 layout_mode = 2
 script = ExtResource("2_7sx2r")
 box_id = "Talentless_2"
 box_size = 32
 default_checked = false
 
-[node name="Spacer_TL2_TL3" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List9" unique_id=171872955]
-custom_minimum_size = Vector2(16, 32)
+[node name="List9" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=1836073464]
 layout_mode = 2
 
-[node name="Talentless_3" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List9" unique_id=171872956]
-layout_mode = 2
-script = ExtResource("2_7sx2r")
-box_id = "Talentless_3"
-box_size = 32
-default_checked = false
-
-[node name="Spacer_TL3_TL4" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List9" unique_id=171872957]
-custom_minimum_size = Vector2(16, 32)
-layout_mode = 2
-
-[node name="Talentless_4" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List9" unique_id=171872958]
-layout_mode = 2
-script = ExtResource("2_7sx2r")
-box_id = "Talentless_4"
-box_size = 32
-default_checked = false
-
-[node name="List10" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=1836073464]
-layout_mode = 2
-
-[node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List10" unique_id=469802311]
+[node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List9" unique_id=469802311]
 layout_mode = 2
 text = "启用bot："
 
-[node name="ConnectorLine" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List10" unique_id=1556813599]
+[node name="ConnectorLine" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List9" unique_id=1556813599]
 layout_mode = 2
 script = ExtResource("3_7sx2r")
 
-[node name="BotPlay" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List10" unique_id=1093273368]
+[node name="BotPlay" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List9" unique_id=1093273368]
 layout_mode = 2
 script = ExtResource("2_7sx2r")
 box_id = "BotPlay"
 box_size = 32
 default_checked = false
 
-[node name="List11" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=-1294967100]
+[node name="List10" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=2000000010]
 layout_mode = 2
 
-[node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List11" unique_id=-1294967099]
-layout_mode = 2
-text = "Btb奖励："
-
-[node name="ConnectorLine" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List11" unique_id=-1294967098]
-layout_mode = 2
-script = ExtResource("3_7sx2r")
-
-[node name="BtbBonus_1" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List11" unique_id=-1294967096]
-layout_mode = 2
-script = ExtResource("2_7sx2r")
-box_id = "BtbBonus_1"
-box_size = 32
-default_checked = false
-
-[node name="List12" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=2000000010]
-layout_mode = 2
-
-[node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List12" unique_id=2000000011]
+[node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List10" unique_id=2000000011]
 layout_mode = 2
 text = "干旱："
 
-[node name="ConnectorLine" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List12" unique_id=2000000012]
+[node name="ConnectorLine" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List10" unique_id=2000000012]
 layout_mode = 2
 script = ExtResource("3_7sx2r")
 
-[node name="ChangeBag_1" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List12" unique_id=2000000013]
+[node name="ChangeBag_1" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List10" unique_id=2000000013]
 layout_mode = 2
 script = ExtResource("2_7sx2r")
 box_id = "ChangeBag_1"
 box_size = 32
 default_checked = false
 
-[node name="Spacer_CB1_CB2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List12" unique_id=2000000014]
+[node name="Spacer_CB1_CB2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List10" unique_id=2000000014]
 custom_minimum_size = Vector2(16, 32)
 layout_mode = 2
 
-[node name="ChangeBag_2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List12" unique_id=2000000015]
+[node name="ChangeBag_2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List10" unique_id=2000000015]
 layout_mode = 2
 script = ExtResource("2_7sx2r")
 box_id = "ChangeBag_2"
 box_size = 32
 default_checked = false
 
-[node name="Spacer_CB2_CB3" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List12" unique_id=2000000016]
+[node name="Spacer_CB2_CB3" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List10" unique_id=2000000016]
 custom_minimum_size = Vector2(16, 32)
 layout_mode = 2
 
-[node name="ChangeBag_3" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List12" unique_id=2000000017]
+[node name="ChangeBag_3" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List10" unique_id=2000000017]
 layout_mode = 2
 script = ExtResource("2_7sx2r")
 box_id = "ChangeBag_3"
 box_size = 32
 default_checked = false
 
-[node name="List13" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=2000000020]
+[node name="List11" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=2000000020]
 layout_mode = 2
 
-[node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List13" unique_id=2000000021]
+[node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List11" unique_id=2000000021]
 layout_mode = 2
 text = "版面："
 
-[node name="ConnectorLine" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List13" unique_id=2000000022]
+[node name="ConnectorLine" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List11" unique_id=2000000022]
 layout_mode = 2
 script = ExtResource("3_7sx2r")
 
-[node name="StartBoard" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List13" unique_id=2000000023]
+[node name="StartBoard" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List11" unique_id=2000000023]
 layout_mode = 2
 script = ExtResource("2_7sx2r")
 box_id = "StartBoard"
 box_size = 32
 default_checked = false
 
-[node name="List14" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=2000000030]
+[node name="List12" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=2000000030]
 layout_mode = 2
 
-[node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List14" unique_id=2000000031]
+[node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List12" unique_id=2000000031]
 layout_mode = 2
 text = "短见："
 
-[node name="ConnectorLine" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List14" unique_id=2000000032]
+[node name="ConnectorLine" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List12" unique_id=2000000032]
 layout_mode = 2
 script = ExtResource("3_7sx2r")
 
-[node name="ShortNext_1" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List14" unique_id=2000000033]
+[node name="ShortNext_1" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List12" unique_id=2000000033]
 layout_mode = 2
 script = ExtResource("2_7sx2r")
 box_id = "ShortNext_1"
 box_size = 32
 default_checked = false
 
-[node name="Spacer_SN1_SN2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List14" unique_id=2000000034]
+[node name="Spacer_SN1_SN2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List12" unique_id=2000000034]
 custom_minimum_size = Vector2(16, 32)
 layout_mode = 2
 
-[node name="ShortNext_2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List14" unique_id=2000000035]
+[node name="ShortNext_2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List12" unique_id=2000000035]
 layout_mode = 2
 script = ExtResource("2_7sx2r")
 box_id = "ShortNext_2"
 box_size = 32
 default_checked = false
 
-[node name="Spacer_SN2_SN3" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List14" unique_id=2000000036]
+[node name="Spacer_SN2_SN3" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List12" unique_id=2000000036]
 custom_minimum_size = Vector2(16, 32)
 layout_mode = 2
 
-[node name="ShortNext_3" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List14" unique_id=2000000037]
+[node name="ShortNext_3" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List12" unique_id=2000000037]
 layout_mode = 2
 script = ExtResource("2_7sx2r")
 box_id = "ShortNext_3"
 box_size = 32
 default_checked = false
 
-[node name="Spacer_SN3_SN4" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List14" unique_id=2000000038]
+[node name="Spacer_SN3_SN4" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List12" unique_id=2000000038]
 custom_minimum_size = Vector2(16, 32)
 layout_mode = 2
 
-[node name="ShortNext_4" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List14" unique_id=2000000039]
+[node name="ShortNext_4" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List12" unique_id=2000000039]
 layout_mode = 2
 script = ExtResource("2_7sx2r")
 box_id = "ShortNext_4"
 box_size = 32
 default_checked = false
 
-[node name="Spacer_SN4_SN5" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List14" unique_id=2000000040]
+[node name="Spacer_SN4_SN5" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List12" unique_id=2000000040]
 custom_minimum_size = Vector2(16, 32)
 layout_mode = 2
 
-[node name="ShortNext_5" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List14" unique_id=2000000041]
+[node name="ShortNext_5" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List12" unique_id=2000000041]
 layout_mode = 2
 script = ExtResource("2_7sx2r")
 box_id = "ShortNext_5"
 box_size = 32
 default_checked = false
 
-[node name="List15" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=2000000050]
+[node name="List13" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=2000000050]
 layout_mode = 2
 
-[node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List15" unique_id=2000000051]
+[node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List13" unique_id=2000000051]
 layout_mode = 2
 text = "双洞："
 
-[node name="ConnectorLine" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List15" unique_id=2000000052]
+[node name="ConnectorLine" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List13" unique_id=2000000052]
 layout_mode = 2
 script = ExtResource("3_7sx2r")
 
-[node name="DoubleHole_1" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List15" unique_id=2000000053]
+[node name="DoubleHole_1" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List13" unique_id=2000000053]
 layout_mode = 2
 script = ExtResource("2_7sx2r")
 box_id = "DoubleHole_1"
 box_size = 32
 default_checked = false
 
-[node name="Spacer_DH1_DH2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List15" unique_id=2000000054]
+[node name="Spacer_DH1_DH2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List13" unique_id=2000000054]
 custom_minimum_size = Vector2(16, 32)
 layout_mode = 2
 
-[node name="DoubleHole_2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List15" unique_id=2000000055]
+[node name="DoubleHole_2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List13" unique_id=2000000055]
 layout_mode = 2
 script = ExtResource("2_7sx2r")
 box_id = "DoubleHole_2"

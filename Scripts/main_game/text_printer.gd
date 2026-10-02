@@ -8,10 +8,7 @@ class_name TextPrinter
 ##   - 同一 key 可叠加多条文本（非持久文本每次显示都会新生成一条，不会覆盖之前正在淡出的文本）
 ##   - 每个文本可独立控制透明度、颜色、字号、对齐方式
 ##   - persistent=true 的文本为常驻显示，由调用方负责移除（同 key 只保留最新一条，用于 btb/damage）
-##   - persistent=false 的文本显示一段时间后按 drift 方向漂移并自然淡出消失（每次调用都会新增一条，多条在原位叠加、各自独立淡出）
-##   - 漂移是「加速度由快变慢」的减速运动：初速最大，之后按 drift_decay 指数衰减，越走越慢
-##   - 每条文本可单独设置旋转角度（rotation_deg，如 ±10° 的倾斜），以 position 为轴心旋转（描边一起旋转）
-##   - alignment 同时决定 position 的含义与旋转轴心：LEFT=文本起点 / CENTER=文本中心 / RIGHT=文本终点
+##   - persistent=false 的文本显示一段时间后向左漂移并自然淡出消失（每次调用都会新增一条，多条在原位叠加、各自独立淡出）
 
 class TextEntry:
 	var key: String = ""
@@ -27,9 +24,7 @@ class TextEntry:
 	var fade_duration: float = 0.8     # 淡出时长（秒）
 	var elapsed: float = 0.0           # 已显示时间
 	var fade_elapsed: float = 0.0      # 已淡出时间
-	var drift: Vector2 = Vector2.ZERO  # 漂移初速度（像素/秒，向左为负X、向上为负Y）
-	var drift_decay: float = DRIFT_DECEL_PER_SEC  # 速度衰减速率（/秒）：越大越快减速停下
-	var rotation_deg: float = 0.0      # 旋转角度偏移量（度）：以 position 为轴心倾斜文本
+	var drift: Vector2 = Vector2.ZERO  # 漂移速度（像素/秒，向左为负X）
 	var alignment: int = HORIZONTAL_ALIGNMENT_RIGHT
 
 
@@ -59,10 +54,8 @@ const OUTLINE_OFFSETS: Array = [
 ##   opacity        显示时的透明度（0-1，半透明用 0.5~0.8）
 ##   display_duration 保持显示的时间（秒），之后开始淡出
 ##   fade_duration  淡出时长（秒）
-##   drift          漂移初速度（像素/秒，向上/向左为负）
-##   alignment      文本对齐方式（同时是 position 的含义与旋转轴心：LEFT 起点 / CENTER 中心 / RIGHT 终点）
-##   drift_decay    速度衰减速率（/秒）：越大越快减速停住；默认 DRIFT_DECEL_PER_SEC
-##   rotation_deg   旋转角度偏移量（度），以 position 为轴心（如 ±10° 的倾斜）
+##   drift          漂移速度（像素/秒）
+##   alignment      文本对齐方式（相对 position 的锚点）
 func show_text(
 	key: String,
 	text: String,
@@ -75,9 +68,7 @@ func show_text(
 	display_duration: float = 1.0,
 	fade_duration: float = 0.8,
 	drift: Vector2 = Vector2.ZERO,
-	alignment: int = HORIZONTAL_ALIGNMENT_RIGHT,
-	drift_decay: float = DRIFT_DECEL_PER_SEC,
-	rotation_deg: float = 0.0
+	alignment: int = HORIZONTAL_ALIGNMENT_RIGHT
 ) -> void:
 	var list = _entries.get(key)
 	var entry: TextEntry
@@ -85,13 +76,11 @@ func show_text(
 		# 持久文本：更新已有的最新一条，不叠加
 		entry = list[0]
 		_fill_entry(entry, key, text, pos, color, outline_color, font_size,
-			persistent, opacity, display_duration, fade_duration, drift, alignment,
-			drift_decay, rotation_deg)
+			persistent, opacity, display_duration, fade_duration, drift, alignment)
 	else:
 		entry = TextEntry.new()
 		_fill_entry(entry, key, text, pos, color, outline_color, font_size,
-			persistent, opacity, display_duration, fade_duration, drift, alignment,
-			drift_decay, rotation_deg)
+			persistent, opacity, display_duration, fade_duration, drift, alignment)
 		# 叠加：多条非持久文本在原位叠加显示（不向下错开，各自独立淡出）
 		if list == null:
 			list = []
@@ -113,9 +102,7 @@ func _fill_entry(
 	display_duration: float,
 	fade_duration: float,
 	drift: Vector2,
-	alignment: int,
-	drift_decay: float = DRIFT_DECEL_PER_SEC,
-	rotation_deg: float = 0.0
+	alignment: int
 ) -> void:
 	entry.key = key
 	entry.text = text
@@ -129,8 +116,6 @@ func _fill_entry(
 	entry.display_duration = display_duration
 	entry.fade_duration = maxf(fade_duration, 0.0)
 	entry.drift = drift
-	entry.drift_decay = maxf(drift_decay, 0.0)
-	entry.rotation_deg = rotation_deg
 	entry.alignment = alignment
 	entry.elapsed = 0.0
 	entry.fade_elapsed = 0.0
@@ -230,10 +215,9 @@ func _process(delta: float) -> void:
 				remaining.append(entry)
 				continue
 			entry.elapsed += delta
-			# 加速度由快变慢：初速最大，之后按 drift_decay 指数衰减（exp 保证帧率无关），越走越慢直到几乎停住
+			# 加速度移动：初始速度快，随时间指数衰减减速
 			entry.position += entry.drift * delta
-			if entry.drift_decay > 0.0:
-				entry.drift *= exp(-entry.drift_decay * delta)
+			entry.drift *= maxf(0.0, 1.0 - DRIFT_DECEL_PER_SEC * delta)
 			# 淡出与移动并行：显示初期即开始淡出（与漂移同时进行），fade_duration 为淡出总时长
 			var t: float = 1.0
 			if entry.fade_duration > 0.0:
@@ -261,28 +245,14 @@ func _draw() -> void:
 			if entry.text.is_empty() or entry.opacity <= 0.0:
 				continue
 			var font_size_int: int = maxi(1, roundi(entry.font_size))
-			# position 是对齐锚点：LEFT=文本起点 / CENTER=文本中心 / RIGHT=文本终点
-			var text_size: Vector2 = font.get_string_size(entry.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size_int)
-			var local_pos: Vector2 = Vector2.ZERO
-			match entry.alignment:
-				HORIZONTAL_ALIGNMENT_CENTER:
-					local_pos.x = -text_size.x * 0.5
-				HORIZONTAL_ALIGNMENT_RIGHT:
-					local_pos.x = -text_size.x
-				_:
-					local_pos.x = 0.0
+			var draw_pos: Vector2 = entry.position
+			if entry.alignment == HORIZONTAL_ALIGNMENT_RIGHT:
+				var text_size: Vector2 = font.get_string_size(entry.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size_int)
+				draw_pos.x -= text_size.x
 			var color: Color = entry.color
 			color.a *= entry.opacity
 			var outline: Color = entry.outline_color
 			outline.a *= entry.opacity
-			# 有旋转角时：把坐标系搬到 position 并旋转，文本与描边一起绕 position 倾斜
-			var rotated: bool = not is_zero_approx(entry.rotation_deg)
-			if rotated:
-				draw_set_transform(entry.position, deg_to_rad(entry.rotation_deg), Vector2.ONE)
-			else:
-				local_pos += entry.position
 			for offset: Vector2 in OUTLINE_OFFSETS:
-				draw_string(font, local_pos + offset, entry.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size_int, outline)
-			draw_string(font, local_pos, entry.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size_int, color)
-			if rotated:
-				draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+				draw_string(font, draw_pos + offset, entry.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size_int, outline)
+			draw_string(font, draw_pos, entry.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size_int, color)

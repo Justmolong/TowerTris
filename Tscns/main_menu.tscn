@@ -2,67 +2,56 @@
 
 [ext_resource type="Script" uid="uid://cwfw7bdmn3td2" path="res://Scripts/menu_main/menu_controller.gd" id="1_lifoa"]
 
-[node name="Main_menu" type="Control" unique_id=465659194]
-layout_mode = 3
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
+[node name="Main_menu" type="Node2D" unique_id=465659194]
 
 [node name="menu_controller" type="Node2D" parent="." unique_id=1549282793 node_paths=PackedStringArray("start_button", "setting_button", "quit_button")]
 script = ExtResource("1_lifoa")
-start_button = NodePath("../Panel/Center/Content/StartButton")
-setting_button = NodePath("../Panel/Center/Content/SettingButton")
-quit_button = NodePath("../Panel/Center/Content/QuitButton")
+start_button = NodePath("../Panel/StartButton")
+setting_button = NodePath("../Panel/SettingButton")
+quit_button = NodePath("../Panel/QuitButton")
 
 [node name="Panel" type="Panel" parent="." unique_id=1702608027]
 self_modulate = Color(1, 1, 1, 0)
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
+offset_right = 600.0
+offset_bottom = 450.0
 
-[node name="Center" type="CenterContainer" parent="Panel" unique_id=1100000001]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-
-[node name="Content" type="VBoxContainer" parent="Panel/Center" unique_id=1100000002]
-layout_mode = 2
-theme_override_constants/separation = 18
-
-[node name="Label" type="Label" parent="Panel/Center/Content" unique_id=542739416]
-layout_mode = 2
+[node name="Label" type="Label" parent="Panel" unique_id=542739416]
+layout_mode = 0
+offset_left = 416.0
+offset_top = 45.0
+offset_right = 553.0
+offset_bottom = 87.0
 text = "Welcome to TowerTris"
-horizontal_alignment = 1
 
-[node name="StartButton" type="Button" parent="Panel/Center/Content" unique_id=1379869909]
-custom_minimum_size = Vector2(140, 46)
-layout_mode = 2
-size_flags_horizontal = 4
+[node name="StartButton" type="Button" parent="Panel" unique_id=1379869909]
+layout_mode = 0
+offset_left = 435.0
+offset_top = 108.0
+offset_right = 531.0
+offset_bottom = 161.0
 text = "START"
 
-[node name="SettingButton" type="Button" parent="Panel/Center/Content" unique_id=2053879447]
-custom_minimum_size = Vector2(140, 46)
-layout_mode = 2
-size_flags_horizontal = 4
+[node name="SettingButton" type="Button" parent="Panel" unique_id=2053879447]
+layout_mode = 0
+offset_left = 435.0
+offset_top = 183.0
+offset_right = 531.0
+offset_bottom = 232.0
 text = "SETTING"
 
-[node name="ReplayButton" type="Button" parent="Panel/Center/Content" unique_id=2136027357]
+[node name="ReplayButton" type="Button" parent="Panel" unique_id=2136027357]
 visible = false
-custom_minimum_size = Vector2(140, 46)
-layout_mode = 2
-size_flags_horizontal = 4
+layout_mode = 0
+offset_left = 435.0
+offset_top = 255.0
+offset_right = 531.0
+offset_bottom = 307.0
 text = "REPLAY"
 
-[node name="QuitButton" type="Button" parent="Panel/Center/Content" unique_id=1872047576]
-custom_minimum_size = Vector2(140, 46)
-layout_mode = 2
-size_flags_horizontal = 4
+[node name="QuitButton" type="Button" parent="Panel" unique_id=1872047576]
+layout_mode = 0
+offset_left = 435.0
+offset_top = 255.0
+offset_right = 531.0
+offset_bottom = 307.0
 text = "EXIT"

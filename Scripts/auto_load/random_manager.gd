@@ -38,7 +38,6 @@ func initialize(seed_value: int):
 	_create_sub_rng(seed_value, "ATTACK")
 	_create_sub_rng(seed_value, "TOWER_CLIMB")
 	_create_sub_rng(seed_value, "MISC")
-	_create_sub_rng(seed_value, "SPIKE")
 	
 	_is_initialized = true
 	# 已注释（调试噪音）：print("随机数管理器已初始化，主种子: ", seed_value)

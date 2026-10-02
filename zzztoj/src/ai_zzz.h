@@ -238,15 +238,12 @@ namespace ai_zzz
         size_t map_in_danger_(m_tetris::TetrisMap const &map, size_t t, size_t up) const;
     };
 
-    // TowerTris 诊断：NoSpin4 下「Spin0 候选被死亡惩罚」的累计次数
-    //（供 worker 的 WEIGHTS 命令输出，用来确认该分支确实生效而不是死代码）
-    int spin0_penalty_count();
-
     class IO
     {
     public:
         typedef search_amini::Search::ASpinType ASpinType;
-        typedef search_amini::Search::TetrisNodeWithASpinType TetrisNodeEx;        struct Param
+        typedef search_amini::Search::TetrisNodeWithASpinType TetrisNodeEx;
+        struct Param
         {
             double roof = 128;
             double col_trans = 160;
@@ -283,32 +280,12 @@ namespace ai_zzz
             int garbage_cap;
             clock_t start_count;
             Param param;
-            // ==== TowerTris 追加：BTB 加成系统与 PC 伤害 ====
-            // btb_system 与游戏的 TetrisClearLine.btb_system_use 对应，由 CFG 下发：
-            //   1 = surge break 系统：连续 4消/Spin 从第 2 手起 +1（pre_b2b >= 4 时 +2）；
-            //       长链（pre_b2b >= 4）被普通消行打断时按 pre_b2b 兑现 surge break 伤害
-            //   2 = 累加奖励系统：BTB=1 → +1；BTB>=2 → 1+ln(0.8*BTB+1) 取整数部分 a、
-            //       小数部分 b，加成 = a+(1+b)/3（本手伤害取整）；无 surge break 兑现
-            // 注意：不要再用 season_2 选伤害模型（那是「不可移动即 T-Spin」档的规则开关）。
-            int btb_system = 1;
-            // PC（Perfect Clear）附加伤害，游戏侧 pc_damage 原样下发（默认 6）
-            int pc_damage = 6;
             // ==== TowerTris 追加：Allspin 重复性惩罚 ====
-            // 本游戏 Allspin_1 规则（见 BuffChoseData 描述）：本次「消行类型 + 行数」与上一手完全一致时
-            // 立刻上涨一行垃圾。注意「类型」是字符串比较，非 Spin 消行的类型是 ""，
-            // 因此 NoSpin 模式（spin_type 恒为 ""）下只要连续两次消行行数相同就会触发。
-            // repeat_penalty > 0 时，eval 对「类型与行数都与上一手一致」的候选扣该分数。
+            // 本游戏 Allspin_1 规则：本次消行类型+行数与上一手完全一致时，立刻上涨一行垃圾。
+            // repeat_penalty > 0 时，eval 会对「与上一手同类型 spin 且同行数」的候选扣该分数。
             double repeat_penalty = 0;
             int last_spin_type = 0;      // 上一手的 ASpinType 数值（0=None/1=TSpin/2=AllSpin/3=TSpinMini/4=ASpinMini）
             int last_clear_count = 0;    // 上一手的消行数
-            // ==== TowerTris 追加：NoSpin 模式对齐 ====
-            // no_spin==2（无天赋II：所有 Spin 降级为 Mini）：T-Spin 也一律按 Mini 上报，
-            // 与游戏的 "Mini T-Spin" 类型与 mini 伤害表口径一致（否则重复性惩罚会因类型不等而漏判）。
-            bool spin_force_mini = false;
-            // no_spin==4（无天赋IV）：触发 Spin（含 Spin0）立刻上涨实心行 = 必死，
-            // 因此对任何被判为 Spin 的候选扣该分数（取极大值），使 bot 绝不选择 Spin。
-            // 注意：NoSpin4 下**不能**关掉引擎的 Spin 判定开关，否则 node.type 恒为 None、本惩罚永不触发。
-            double spin_death_penalty = 0;
         };
         struct Result
         {
