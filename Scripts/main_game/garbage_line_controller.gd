@@ -14,6 +14,10 @@ class_name TetrisGarbageLineController
 @export var garbage_messy: float = 0.9               # 垃圾行更换洞口的概率（0-1）
 @export var garbage_hole_count: int = 1              # DoubleHole：每行洞口数量（默认 1）
 @export var garbage_hole_wide_count: int = 1         # DoubleHole：每个洞口的宽度（默认 1，>1 = 连续多格宽的洞口）
+## DoubleHole（随机档，buff「双洞V」）：每行随机洞口数量的范围 [min, max]。
+## 模板长度固定为 2；[min,max] 有效（min>=1 且 max>=min）时，每行独立随机取一个数量，
+## 由 _apply_hole_settings() 按该数量裁剪/补足。与上面两个参数互斥（同为「双洞」档位）。
+@export var garbage_hole_count_random: Array = []
 @export var garbage_color: Color = Color(0.5, 0.5, 0.5, 1.0)  # 垃圾行颜色（浅灰色）
 @export var solid_garbage_color: Color = Color(0.3, 0.3, 0.3, 1.0)  # 实心垃圾行颜色（深灰色）
 @export var garbage_empty_color: Color = Color(0.08, 0.08, 0.08, 1.0)  # 垃圾行洞口颜色（与版面背景一致）
@@ -165,12 +169,14 @@ func _generate_row_holes(base_hole: Array, extra_hole_count: int) -> Array:
 			result.append(hole_x)
 	return _apply_hole_settings(result)
 
-## DoubleHole：按 buff 设置调整某一行的洞口
-##   garbage_hole_count      = 每行洞口数量（默认 1）
-##   garbage_hole_wide_count = 每个洞口的宽度（默认 1，>1 = 连续多格宽的洞口）
-## 两者默认均为 1 时直接返回原结果，不影响原有行为。
+## DoubleHole：按 buff 设置调整某一行的洞口（每行独立调用，所以随机档按行取值）
+##   garbage_hole_count        = 每行洞口数量（默认 1）
+##   garbage_hole_wide_count   = 每个洞口的宽度（默认 1，>1 = 连续多格宽的洞口）
+##   garbage_hole_count_random = [min,max]，每行随机洞口数量（随机档）
+## 全默认时直接返回原结果，不影响原有行为。
 func _apply_hole_settings(holes: Array) -> Array:
-	if garbage_hole_count <= 1 and garbage_hole_wide_count <= 1:
+	var random_range: Array = _valid_hole_count_range()
+	if garbage_hole_count <= 1 and garbage_hole_wide_count <= 1 and random_range.is_empty():
 		return holes
 
 	var width: int = board_drawer.grid_width if board_drawer else 10
@@ -179,14 +185,26 @@ func _apply_hole_settings(holes: Array) -> Array:
 	var result: Array = holes.duplicate()
 
 	# 1) 洞口数量：不足则随机补洞（避免与已有洞口重叠）
-	if garbage_hole_count > 1:
+	#    随机档取本行随机目标与范围上限的最大值，保证有足够洞口供后面裁剪
+	var target_count: int = garbage_hole_count
+	if not random_range.is_empty():
+		target_count = maxi(target_count, int(random_range[1]))
+	if target_count > 1:
 		var garbage_rng = RandomManager.get_random("GARBAGE")
 		var attempts: int = 0
-		while result.size() < garbage_hole_count and attempts < 200:
+		while result.size() < target_count and attempts < 200:
 			var hole_x = _get_random_hole_position(garbage_rng, -1)
 			if hole_x not in result:
 				result.append(hole_x)
 			attempts += 1
+
+	# 1.5) 随机档：按本行的随机目标数量保留洞口（逐个随机挑，保证洞口位置也随机）
+	if not random_range.is_empty() and result.size() > 1:
+		var garbage_rng2 = RandomManager.get_random("GARBAGE")
+		var want: int = clampi(garbage_rng2.randi_range(int(random_range[0]), int(random_range[1])),
+			1, result.size())
+		result.shuffle()
+		result.resize(want)
 
 	# 2) 洞口宽度：每个洞口扩展为连续 W 格（整体贴边时向左对齐，保证不越界）
 	if garbage_hole_wide_count > 1:
@@ -201,6 +219,16 @@ func _apply_hole_settings(holes: Array) -> Array:
 		result = wide
 
 	return result
+
+## 返回可用的随机洞口数量范围 [min,max]；未设置或非法时返回空数组（走固定数量/宽度分支）
+func _valid_hole_count_range() -> Array:
+	if garbage_hole_count_random.size() < 2:
+		return []
+	var lo: int = int(garbage_hole_count_random[0])
+	var hi: int = int(garbage_hole_count_random[1])
+	if lo < 1 or hi < lo:
+		return []
+	return [lo, hi]
 
 ## 生成单个垃圾行的洞口位置
 func _generate_single_hole() -> Array:

@@ -250,7 +250,6 @@ func _input(event):
 ## 清除其他动作中指定的按键（覆盖模式）
 ## 当新绑定的按键已被其他动作使用时，清除其他动作中的该按键
 func _clear_conflicting_keys(keycode: int) -> void:
-	var key_name := OS.get_keycode_string(keycode)
 	for action in action_list:
 		if action == waiting_key_action:
 			continue
@@ -271,7 +270,7 @@ func _clear_conflicting_keys(keycode: int) -> void:
 			if button:
 				button.text = "未绑定"
 			
-			# 已注释（调试噪音）：print("按键覆盖：动作 \"%s\" 的按键 \"%s\" 已被动作 \"%s\" 覆盖" % [action, key_name, waiting_key_action])
+			# 已注释（调试噪音）：print("按键覆盖：动作 \"%s\" 的按键已被动作 \"%s\" 覆盖" % [action, waiting_key_action])
 
 ## 设置按键到动作
 func _set_key_for_action(action: String, keycode: int):

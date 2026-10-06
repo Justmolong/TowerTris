@@ -475,10 +475,54 @@ text = "版面："
 layout_mode = 2
 script = ExtResource("3_7sx2r")
 
-[node name="StartBoard" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List13" unique_id=2000000023]
+[node name="StartBoard_1" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List13" unique_id=2000000023]
 layout_mode = 2
 script = ExtResource("2_7sx2r")
-box_id = "StartBoard"
+box_id = "StartBoard_1"
+box_size = 32
+default_checked = false
+
+[node name="Spacer_SB1_SB2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List13" unique_id=2000000060]
+custom_minimum_size = Vector2(16, 32)
+layout_mode = 2
+
+[node name="StartBoard_2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List13" unique_id=2000000024]
+layout_mode = 2
+script = ExtResource("2_7sx2r")
+box_id = "StartBoard_2"
+box_size = 32
+default_checked = false
+
+[node name="Spacer_SB2_SB3" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List13" unique_id=2000000061]
+custom_minimum_size = Vector2(16, 32)
+layout_mode = 2
+
+[node name="StartBoard_3" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List13" unique_id=2000000062]
+layout_mode = 2
+script = ExtResource("2_7sx2r")
+box_id = "StartBoard_3"
+box_size = 32
+default_checked = false
+
+[node name="Spacer_SB3_SB4" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List13" unique_id=2000000063]
+custom_minimum_size = Vector2(16, 32)
+layout_mode = 2
+
+[node name="StartBoard_4" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List13" unique_id=2000000064]
+layout_mode = 2
+script = ExtResource("2_7sx2r")
+box_id = "StartBoard_4"
+box_size = 32
+default_checked = false
+
+[node name="Spacer_SB4_SB5" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List13" unique_id=2000000065]
+custom_minimum_size = Vector2(16, 32)
+layout_mode = 2
+
+[node name="StartBoard_5" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List13" unique_id=2000000066]
+layout_mode = 2
+script = ExtResource("2_7sx2r")
+box_id = "StartBoard_5"
 box_size = 32
 default_checked = false
 
@@ -570,6 +614,101 @@ layout_mode = 2
 layout_mode = 2
 script = ExtResource("2_7sx2r")
 box_id = "DoubleHole_2"
+box_size = 32
+default_checked = false
+
+[node name="Spacer_DH2_DH3" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List15" unique_id=2000000090]
+custom_minimum_size = Vector2(16, 32)
+layout_mode = 2
+
+[node name="DoubleHole_3" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List15" unique_id=2000000091]
+layout_mode = 2
+script = ExtResource("2_7sx2r")
+box_id = "DoubleHole_3"
+box_size = 32
+default_checked = false
+
+[node name="Spacer_DH3_DH4" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List15" unique_id=2000000092]
+custom_minimum_size = Vector2(16, 32)
+layout_mode = 2
+
+[node name="DoubleHole_4" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List15" unique_id=2000000093]
+layout_mode = 2
+script = ExtResource("2_7sx2r")
+box_id = "DoubleHole_4"
+box_size = 32
+default_checked = false
+
+[node name="Spacer_DH4_DH5" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List15" unique_id=2000000094]
+custom_minimum_size = Vector2(16, 32)
+layout_mode = 2
+
+[node name="DoubleHole_5" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List15" unique_id=2000000095]
+layout_mode = 2
+script = ExtResource("2_7sx2r")
+box_id = "DoubleHole_5"
+box_size = 32
+default_checked = false
+
+[node name="List16" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=2000000070]
+layout_mode = 2
+
+[node name="ChoseType" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List16" unique_id=2000000071]
+layout_mode = 2
+text = "落块延迟："
+
+[node name="ConnectorLine" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List16" unique_id=2000000072]
+layout_mode = 2
+script = ExtResource("3_7sx2r")
+
+[node name="BlockDelay_1" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List16" unique_id=2000000073]
+layout_mode = 2
+script = ExtResource("2_7sx2r")
+box_id = "BlockDelay_1"
+box_size = 32
+default_checked = false
+
+[node name="Spacer_BD1_BD2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List16" unique_id=2000000074]
+custom_minimum_size = Vector2(16, 32)
+layout_mode = 2
+
+[node name="BlockDelay_2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List16" unique_id=2000000075]
+layout_mode = 2
+script = ExtResource("2_7sx2r")
+box_id = "BlockDelay_2"
+box_size = 32
+default_checked = false
+
+[node name="Spacer_BD2_BD3" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List16" unique_id=2000000076]
+custom_minimum_size = Vector2(16, 32)
+layout_mode = 2
+
+[node name="BlockDelay_3" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List16" unique_id=2000000077]
+layout_mode = 2
+script = ExtResource("2_7sx2r")
+box_id = "BlockDelay_3"
+box_size = 32
+default_checked = false
+
+[node name="Spacer_BD3_BD4" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List16" unique_id=2000000078]
+custom_minimum_size = Vector2(16, 32)
+layout_mode = 2
+
+[node name="BlockDelay_4" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List16" unique_id=2000000079]
+layout_mode = 2
+script = ExtResource("2_7sx2r")
+box_id = "BlockDelay_4"
+box_size = 32
+default_checked = false
+
+[node name="Spacer_BD4_BD5" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List16" unique_id=2000000080]
+custom_minimum_size = Vector2(16, 32)
+layout_mode = 2
+
+[node name="BlockDelay_5" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List16" unique_id=2000000081]
+layout_mode = 2
+script = ExtResource("2_7sx2r")
+box_id = "BlockDelay_5"
 box_size = 32
 default_checked = false
 

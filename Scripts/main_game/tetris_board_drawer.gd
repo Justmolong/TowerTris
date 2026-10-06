@@ -139,6 +139,10 @@ var no_hold: bool = false                             # NoHold模式：关闭Hol
 @export var next_display_width: int = 4               # 每个Next显示区域的格子宽度
 @export var next_display_height: int = 3              # 每个Next显示区域的格子高度
 @export_range(1, 7) var next_count: int = 6          # 显示Next方块的数量（1-7）
+## 该限制是否由 buff（ShortNext 短见系列）下发。
+## bot 侧据此判断：默认（false）时 bot 使用自身全部可知的块序（14 个），
+## 只有被短见限制（true）时才跟着把搜索深度收敛到可见数量。
+var next_limited_by_buff: bool = false
 @export var next_spacing_cells: int = 0               # Next方块之间的间距（以格子数为单位）
 @export var next_background_color: Color = Color(0.1, 0.1, 0.1, 1.0)  # Next框背景色
 @export var next_border_color: Color = Color.WHITE    # Next框边框颜色
@@ -252,7 +256,8 @@ func _process(_delta):
 func _update_speed_gauge(delta: float) -> void:
 	if not speed_gauge_enabled or not tower_controller:
 		return
-	var target: float = tower_controller.tower_speed_meter
+	# 用「真实速度」= 名义爬塔速度 + 奖励米数（消行/抵消/击杀一次性给的米数）折算的等效速度
+	var target: float = tower_controller.get_real_speed_meter()
 	if not _speed_gauge_initialized:
 		# 首帧直接对齐，避免开局指针从 0 甩过去
 		_speed_gauge_initialized = true

@@ -504,10 +504,14 @@ func _build_cfg(gc) -> String:
 	if cl != null:
 		no_spin_mode = int(cl.no_spin)
 		no_spin4_rows = int(cl.no_spin4_solid_rows)
-	return "CFG %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d" % [
+	# 末尾第 16 个字段：玩家可见的 next 个数（ShortNext 系列）。
+	# worker 用它把搜索深度（maxDepth）截断到可见数：0 → 完全不做后续块预判，
+	# 这样 bot 在「短见」规则下和玩家掌握同样的信息，不会知道完整块序。
+	var next_visible := visible_next_count(gc)
+	return "CFG %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d" % [
 		think_budget, gcap, 1, 0, hold_flag,
 		1 if allow_180 else 0, amini, aspin, tspin, immobile_t, rot_mode,
-		btb_system, pc_damage, no_spin_mode, no_spin4_rows,
+		btb_system, pc_damage, no_spin_mode, no_spin4_rows, next_visible,
 	]
 
 
@@ -594,12 +598,33 @@ func _last_spin_type(cl) -> int:
 
 
 ## next 串：取 bag 队列前 NEXT_MAX 个方块类型字符
+## 玩家实际能看到的 next 个数，同时也是 bot 允许使用的上限。
+##   · 默认（没有短见 buff）：返回 NEXT_MAX → bot 使用自身全部可知的块序（14 个）
+##   · ShortNext_1~4（next_limited_by_buff=true 且 next_count=N，N=5/4/3/1）→ N
+##   · ShortNext_5（next_display_enabled=false）→ 0（完全不做后续块预判）
+func visible_next_count(gc) -> int:
+	if gc == null:
+		return NEXT_MAX
+	var d = gc.board_drawer
+	if d == null:
+		return NEXT_MAX
+	if not bool(d.next_limited_by_buff):
+		return NEXT_MAX
+	if not bool(d.next_display_enabled):
+		return 0
+	return clampi(int(d.next_count), 0, NEXT_MAX)
+
+
 func _build_next(gc) -> String:
 	var out := ""
-	if gc.bag_controller == null:
+	var vis: int = visible_next_count(gc)
+	if vis <= 0:
+		# 玩家看不到任何 next：只发一个占位字符，worker 侧会按可见数（0）截断 → 搜索不做后续块预判
+		return "I"
+	if gc == null or gc.bag_controller == null:
 		return "I"
 	var q: Array = gc.bag_controller.piece_queue
-	for i in range(min(NEXT_MAX, q.size())):
+	for i in range(min(vis, min(NEXT_MAX, q.size()))):
 		var t := str(q[i])
 		if t.length() > 0:
 			out += t.substr(0, 1)

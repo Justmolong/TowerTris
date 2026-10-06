@@ -399,8 +399,13 @@ func check_and_clear_lines() -> int:
 			reset_rotation_record()
 			current_damage = 0
 			has_cleared_lines = false
-		# 没有可消除的行：消行处理结束，直接生成新方块（本次没消行 → 不给 clutch 容错）
-		_spawn_next_piece_after_clear(false)
+		# 没有可消除的行：本次没消行 → 标记后交给 TetrisController 结算出块
+		# （落块延迟可能还在计时，实际出块时刻 = 锁定时刻 + max(落块延迟, 0)）
+		if tetris_controller:
+			tetris_controller.note_clear_result(false)
+			tetris_controller.request_spawn_after_clear()
+		else:
+			_spawn_next_piece_after_clear(false)
 		return 0
 	
 	# Allspin判定：落块时判定此消行是否与上次完全一致
@@ -466,6 +471,12 @@ func check_and_clear_lines() -> int:
 	# 记录本次消行信息（供下次Allspin比对）
 	_last_clear_type = spin_type
 	_last_clear_count = clear_count
+	
+	# 通知 TetrisController：本次确实消了行（出块时用 clutch 容错）
+	# ⚠ 必须在 _clear_lines_animated() 之后调用：延迟路径下出块发生在计时器回调里，
+	#   那段代码排在 return 之前会把这个标记覆盖成 false。
+	if tetris_controller:
+		tetris_controller.note_clear_result(true)
 	
 	return clear_count
 
@@ -805,19 +816,23 @@ func _clear_single_line(line_y: int):
 		board_drawer.set_cell_color(x, 0, null)
 
 ## 单个函数：清除可消除的行。
-## 导入 clear_line_delay_time 变量：当 clear_line_delay_time > 0 时播放消行动画
-## （对已清除的行区域进行闪烁提示，持续 clear_line_delay_time 秒），消行延迟计时结束
-## （clear_line_delay_timer 超时）后才调用 spawn_new_piece 生成新方块；
-## clear_line_delay_time == 0 时直接清除并立即生成新方块。
+## clear_line_delay_time（buff「落块延迟」的 ClearDelay）> 0 时播放消行动画
+## （对已清除的行区域进行闪烁提示，持续该时长），计时结束后才继续出块结算。
+## 出块统一交给 TetrisController.request_spawn_after_clear()：
+## 实际出块时刻 = 锁定时刻 + max(clear_line_delay_time, spawn_delay_time)。
 func _clear_lines_animated(lines: Array) -> void:
 	if lines.is_empty():
-		# 没有可消除的行：无需等待，直接生成新方块（本次没消行 → 不给 clutch 容错）
-		_spawn_next_piece_after_clear(false)
+		# 没有可消除的行：本次没消行 → 交给 TetrisController 结算（可能要等落块延迟）
+		if tetris_controller:
+			tetris_controller.note_clear_result(false)
+			tetris_controller.request_spawn_after_clear()
+		else:
+			_spawn_next_piece_after_clear(false)
 		return
 	lines.sort()
 	if clear_line_delay_time > 0:
 		# 消行延迟期间：仅播放消行动画（完整行仍保留、不位移），
-		# 延迟结束后才执行正式消行（位移）并生成新方块。
+		# 延迟结束后才执行正式消行（位移）并继续出块结算。
 		_pending_clear_lines = lines
 		if board_drawer:
 			board_drawer.set_clearing_lines(lines)
@@ -825,11 +840,14 @@ func _clear_lines_animated(lines: Array) -> void:
 		clear_line_delay_timer.wait_time = clear_line_delay_time
 		clear_line_delay_timer.start()
 	else:
-		# 无延迟：立即执行正式消行（位移）并生成新方块
-		# clutch = true：本次是「消行后的出块」，重叠时允许向上移（clutch 机制）
+		# 无消行延迟：立即执行正式消行（位移），再由 TetrisController 结算出块
+		# （落块延迟仍可能生效；clutch 由 note_clear_result(true) 提供）
 		_pending_clear_lines = []
 		_clear_lines(lines)
-		_spawn_next_piece_after_clear(true)
+		if tetris_controller:
+			tetris_controller.request_spawn_after_clear()
+		else:
+			_spawn_next_piece_after_clear(true)
 
 ## 消行延迟计时结束：结束动画，执行正式消行（位移）并生成新方块
 func _on_clear_line_delay_timeout():
@@ -844,8 +862,15 @@ func _on_clear_line_delay_timeout():
 	# 消行延迟结束：恢复消行延迟期间被暂缓的垃圾行上涨（不丢弃行）
 	if garbage_line_controller:
 		garbage_line_controller.resume_rise_if_pending()
-	# 消行延迟结束：生成新方块（本次确实消了行 → clutch 出块）
-	_spawn_next_piece_after_clear(did_clear)
+	if tetris_controller:
+		# 记录本次是否消了行（出块 clutch 用）
+		tetris_controller.note_clear_result(did_clear)
+		# ⚠ 出块不能在这里直接做：落块延迟（spawn_delay_time）可能比消行延迟更长，
+		#   两种情况都交给 TetrisController 统一结算 —— 实际出块时刻 = 锁定时刻 + max(两者)。
+		tetris_controller.request_spawn_after_clear()
+	else:
+		# 兜底（正常场景不会走到）：沿用旧行为直接出块
+		_spawn_next_piece_after_clear(did_clear)
 
 ## 是否正处于消行动画/消行延迟中（供垃圾行控制器判断是否需暂缓上涨）
 func is_clear_animating_active() -> bool:

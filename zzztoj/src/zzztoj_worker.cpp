@@ -49,6 +49,11 @@ static bool g_prepared = false;
 static int g_prepared_kick_mode = -1;
 // 踢墙模式（与游戏 RotationSystemType 对应）：0=ASC 1=SRS 2=ARS 3=NONE（无旋转系统），由 CFG 第 11 个字段下发
 static int g_kick_mode = 0;
+// 玩家可见的 next 个数（-1 = 不限制；0 = 看不到 next）。
+// ShortNext 系列 buff 会把它设成 5/4/3/1/0，worker 据此截断搜索深度，
+// 使 bot 在「短见」规则下与玩家掌握同样的块序信息。
+static int g_next_visible = -1;
+
 // 最近一次 CFG 参数（reprepare 后需要重新应用）
 static int g_last_think = 100, g_last_gcap = 8, g_last_mult = 1;
 static bool g_last_lockout = false, g_last_can_hold = true, g_last_allow180 = true;
@@ -521,7 +526,19 @@ static std::string handle_request(std::vector<std::string> const &tok)
     g_ai.ai_config()->last_spin_type = last_spin_type;
     g_ai.ai_config()->last_clear_count = last_clear_count;
 
+    // 搜索深度 = 已知的后续块数；再按「玩家可见 next 数」截断（ShortNext 系列）。
+    // g_next_visible == 0 时 maxDepth = 0 → 引擎只考虑当前方块，不做任何后续块预判，
+    // 相当于「无 next 显示」规则下玩家能掌握的信息量。
     int maxDepth = (int)nextStr.size();
+    if (g_next_visible >= 0 && maxDepth > g_next_visible)
+        maxDepth = g_next_visible;
+    if (std::getenv("ZZZ_LOG_PARAMS") != nullptr)
+    {
+        // 诊断：实际用到的搜索深度（ShortNext 适配的核心指标）
+        std::fprintf(stderr, "[req] next=\"%s\" len=%d next_visible=%d maxDepth=%d\n",
+                     nextStr.c_str(), (int)nextStr.size(), g_next_visible, maxDepth);
+        std::fflush(stderr);
+    }
     std::string result;
     bool got_target = false;
     char holdChar = sanitize_piece_char(holdTok, ' ');   // 本游戏的空 hold 哨兵是 '-'，zzz 约定是空格
@@ -779,6 +796,9 @@ int main(int argc, char **argv)
             //   no_spin==4 → 任何 Spin（含 Spin0）都是必死，用极大权重惩罚让 bot 绝不走 Spin
             g_no_spin = (tok.size() >= 15) ? std::atoi(tok[14].c_str()) : g_no_spin;
             g_no_spin4_rows = (tok.size() >= 16) ? std::atoi(tok[15].c_str()) : g_no_spin4_rows;
+            // 可见 next 个数（ShortNext 系列）：-1 = 不限制（旧调用方缺省），0 = 玩家看不到任何 next。
+            // 用来把搜索深度截断到「玩家实际能看到」的块数，避免 bot 知道完整块序。
+            g_next_visible = (tok.size() >= 17) ? std::atoi(tok[16].c_str()) : g_next_visible;
             apply_config(std::atoi(tok[1].c_str()), std::atoi(tok[2].c_str()), std::atoi(tok[3].c_str()),
                          tok[4] == "1", tok[5] == "1", tok[6] == "1", tok[7] == "1",
                          tok[8] == "1", tok[9] == "1", tok[10] == "1",
@@ -799,11 +819,11 @@ int main(int argc, char **argv)
                 ai_zzz::IO::Config *wac = g_ai.ai_config();
                 ai_zzz::IO::Param const &wp = wac->param;
                 std::printf("WEIGHTS no_spin=%d kick=%d amini=%d aspin=%d tspin=%d immobile=%d last_rotate=%d "
-                            "force_mini=%d death_penalty=%.0f spin0_penalized=%d tspin_mini=%.3f tspin_1=%.3f tspin_2=%.3f tspin_3=%.3f "
+                            "force_mini=%d death_penalty=%.0f spin0_penalized=%d next_visible=%d tspin_mini=%.3f tspin_1=%.3f tspin_2=%.3f tspin_3=%.3f "
                             "t2_slot=%.3f t3_slot=%.3f hold_t=%.3f hold_i=%.3f clear_1=%.3f clear_2=%.3f clear_3=%.3f clear_4=%.3f\n",
                             g_no_spin, g_kick_mode, (int)wsc->is_amini, (int)wsc->is_aspin, (int)wsc->is_tspin,
                             (int)wsc->allow_immobile_t, (int)wsc->last_rotate, (int)wac->spin_force_mini,
-                            wac->spin_death_penalty, ai_zzz::spin0_penalty_count(),
+                            wac->spin_death_penalty, ai_zzz::spin0_penalty_count(), g_next_visible,
                             wp.tspin_mini, wp.tspin_1, wp.tspin_2, wp.tspin_3, wp.t2_slot, wp.t3_slot,
                             wp.hold_t, wp.hold_i, wp.clear_1, wp.clear_2, wp.clear_3, wp.clear_4);
                 // 180° 踢墙候选：按当前踢墙模式重新生成一份，核对 bot 的 180 表与游戏是否一致

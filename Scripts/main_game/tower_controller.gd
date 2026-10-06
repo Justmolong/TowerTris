@@ -56,6 +56,16 @@ var lock_delay_array: Array = [1]
 var tower_meter: float = 0.0            
 var tower_speed_meter: float = 0.0      
 var tower_lowest_speed: float = 0.1
+
+# ---- 真实爬塔速度（右下角速度表用）：与 PPM/RPM 同口径的「最近一分钟米数增量 ÷ 秒数」 ----
+## 统计窗口（秒）：与 TetrisController 的 RPM_WINDOW_SECONDS 保持一致
+@export var meter_window_span: float = 60.0
+## 采样间隔（秒）：每帧记一个点太浪费，按这个间隔记录一次米数位置
+@export var meter_window_sample_interval: float = 0.5
+var _meter_clock: float = 0.0                  # 内部计时（累加 delta，窗口跨度用）
+var _meter_samples: Array[Dictionary] = []     # [{ "time": 采样时刻, "meter": 当时米数 }]
+var _meter_sample_timer: float = 0.0
+var _real_speed_meter: float = 0.0             # 最近窗口内的平均涨米速度（m/s）
 var tower_dropped_mult: Array = [0.8,0.9,1,1,1,1.1,1.2,1.3,1.4,1.5,1.7,1.9,2]
 var tower_current_dropped_mult: float = 1.0
 var attack_to_meter_mult: float = 0.2
@@ -128,6 +138,12 @@ func _ready() -> void:
 	_extra_data_deal()
 	_set_timer()
 	_previous_stage = current_stage
+	# 真实速度窗口的起始参照点（t=0、当前米数）：未满一分钟时就是拿它当分子起点做放缩
+	_meter_clock = 0.0
+	_meter_sample_timer = 0.0
+	_meter_samples.clear()
+	_meter_samples.append({"time": 0.0, "meter": tower_meter})
+	_real_speed_meter = 0.0
 
 func _auto_finding():
 	# 飘字用的文本打印器：MainBoard 下的 TextPrinter（与版面、消行文本同层，坐标系一致）
@@ -210,6 +226,19 @@ func _extra_data_deal():
 		if clear_line_controller:
 			clear_line_controller.btb_system_use = int(extra_data_dict["BtbBonus"])
 	
+	# 落块延迟（buff「落块延迟」BlockDelay）：方块锁定后到「下一块出现 / 消行判定开始」的间隔。
+	#   BlockDelay → TetrisController.spawn_delay_time（锁定后先等这么久再判消行，因此下一块也晚出现）
+	#   ClearDelay → TetrisClearLine.clear_line_delay_time（消行动画/延迟，期间版面不动、下一块不出现）
+	# 两者同时存在时无需特殊处理：spawn_delay_time 让消行判定整体推迟，而 clear_line_delay_time
+	# 只在真正判出消行时才启动，所以实际等待 = max(两者)，不会是两者相加。
+	# 参数为 0 时各自走原本的「立即」路径。
+	if extra_data_dict.has("BlockDelay"):
+		if tetris_controller:
+			tetris_controller.set_spawn_delay(float(extra_data_dict["BlockDelay"]))
+	if extra_data_dict.has("ClearDelay"):
+		if clear_line_controller:
+			clear_line_controller.clear_line_delay_time = float(extra_data_dict["ClearDelay"])
+	
 	if extra_data_dict.has("tetris_allspin"):
 		clear_line_controller.tetris_allspin = extra_data_dict["tetris_allspin"]
 
@@ -233,14 +262,18 @@ func _extra_data_deal():
 	# ShortNext（短见）：限制 Next 显示数量 / 是否显示 Next 区
 	#   next_display_enabled=false（短见V）→ 不显示 next
 	#   next_count=N（短见I-IV）→ 显示 N 个 next
+	# next_limited_by_buff：标记「这个限制来自 buff」，bot 侧据此决定是否也限制自己的块序信息：
+	#   默认（未开短见）→ bot 使用自身全部可知的块序（14 个）；只有被短见限制时才跟着收敛。
 	var next_changed: bool = false
 	if extra_data_dict.has("next_display_enabled"):
 		if board_drawer:
 			board_drawer.next_display_enabled = bool(extra_data_dict["next_display_enabled"])
+			board_drawer.next_limited_by_buff = true
 			next_changed = true
 	if extra_data_dict.has("next_count"):
 		if board_drawer:
 			board_drawer.next_count = clampi(int(extra_data_dict["next_count"]), 1, 7)
+			board_drawer.next_limited_by_buff = true
 			next_changed = true
 	# 首块可能在 TowerController._ready 之前已生成（此时用的是默认 next_count），
 	# 立即刷新一次 Next 显示，使 buff 立刻生效、next_pieces_data 与 next_count 一致。
@@ -248,16 +281,30 @@ func _extra_data_deal():
 		tetris_controller._update_next_display()
 	
 	# DoubleHole：垃圾行洞口形态
-	# garbage_hole_wide_count = X宽（每行一组紧邻连续洞口）；garbage_hole_count = 每行洞口数量。
-	# 两者互斥且默认 1（一个洞且 1 宽）；若同时被覆盖（均 > 1）则报错并不应用。
-	if extra_data_dict.has("garbage_hole_wide_count") or extra_data_dict.has("garbage_hole_count"):
+	# garbage_hole_wide_count    = X宽（每行一组紧邻连续洞口）
+	# garbage_hole_count         = 每行洞口数量
+	# garbage_hole_count_random  = [min,max]（每行随机洞口数量，buff「双洞V」）
+	# 三者互斥（同为「双洞」档位，JSON 里由 BuffConflick 的 DoubleHole 组保证；
+	# 若被同时覆盖则报错并不应用，避免出现「又宽又多」的歧义形态）。
+	if extra_data_dict.has("garbage_hole_wide_count") or extra_data_dict.has("garbage_hole_count") \
+			or extra_data_dict.has("garbage_hole_count_random"):
 		var dh_wide: int = int(extra_data_dict.get("garbage_hole_wide_count", 1))
 		var dh_holes: int = int(extra_data_dict.get("garbage_hole_count", 1))
-		if dh_wide > 1 and dh_holes > 1:
-			push_error("DoubleHole参数冲突：garbage_hole_wide_count 与 garbage_hole_count 互斥，不能同时大于1")
+		var dh_random = extra_data_dict.get("garbage_hole_count_random", [])
+		var dh_has_random: bool = typeof(dh_random) == TYPE_ARRAY and dh_random.size() >= 2
+		var dh_effective: int = 0
+		if dh_wide > 1:
+			dh_effective += 1
+		if dh_holes > 1:
+			dh_effective += 1
+		if dh_has_random:
+			dh_effective += 1
+		if dh_effective > 1:
+			push_error("DoubleHole参数冲突：garbage_hole_wide_count / garbage_hole_count / garbage_hole_count_random 互斥，不能同时生效")
 		elif garbage_line_controller:
 			garbage_line_controller.garbage_hole_wide_count = dh_wide
 			garbage_line_controller.garbage_hole_count = dh_holes
+			garbage_line_controller.garbage_hole_count_random = dh_random if dh_has_random else []
 	
 	# NoHold模式：关闭Hold显示并禁用Hold输入（JSON中键名为"NoHold"）
 	if extra_data_dict.has("NoHold") or extra_data_dict.has("no_hold"):
@@ -284,17 +331,75 @@ func _extra_data_deal():
 		if tetris_controller and tetris_controller.bot_debug_log:
 			print("[旋转系统] 由关卡/Buff 切换为 ", tetris_controller.get_rotation_system_name())
 
-	# StartBoard：按参数直接印刷自定义初始版面（从下往上）。
-	# 版面由 BuffChoseData 的 StartBoard 参数（二维数组）指定，第 0 行为最底层（最大 y）。
-	# 宽度与版面不一致或行数超出可玩高度时 push_error。
+	# 初始版面（关卡/Buff）：
+	#   StartGarbage*（int）   → 在版面底部印刷 N 行普通垃圾行（可消、带洞口）
+	#   StartBoard*（二维数组）→ 直接印刷自定义初始版面（列表最后一项为最底层）
+	# 键名允许带后缀（StartBoard_1 / StartBoard_2 / StartGarbage / ... 见 BuffChoseData.json 的 BuffChange），
+	# 因此 buff 内部键名与 buff id 同名也能工作（例："StartBoard_2": {"StartBoard_2": [...] }）。
+	# 两者同时存在时先印垃圾行、再印自定义版面（自定义版面覆盖在其上）。
 	# 印刷通过 set_cell_color 直接写入 board_data；bot 在请求决策时实时读取 board_data
 	# （coldclear_bridge._build_board_rows），因此无需额外同步，bot 会自动看到该改写的初始版面。
-	if extra_data_dict.has("StartBoard"):
-		_print_start_board(extra_data_dict["StartBoard"])
+	# 印刷完各自会调 _refresh_after_board_change()：出块和影子是在更早的 _ready 里按空版面算的，
+	# 不刷新的话开局影子会停在「按空版面算出来的最底层」。
+	for key: String in extra_data_dict:
+		if key.begins_with("StartGarbage"):
+			_print_start_garbage(int(extra_data_dict[key]))
+	for key: String in extra_data_dict:
+		if not key.begins_with("StartBoard"):
+			continue
+		var start_value: Variant = extra_data_dict[key]
+		if typeof(start_value) == TYPE_ARRAY:
+			_print_start_board(start_value)
+		else:
+			push_warning("StartBoard: 键 %s 的值应为二维数组（最后一项为最底层），实际为 %s，已忽略"
+				% [key, type_string(typeof(start_value))])
 
-## 按 StartBoard 参数印刷初始版面（从下往上印刷）。
-## 第 0 行为最底层（最大 y），后续行依次向上。
-## 宽度与版面不一致（行宽 != grid_width）或行数超出可玩高度 → push_error。
+## 版面内容被「外部」改写之后刷新一次（目前只有 StartBoard / StartGarbage 印刷会调）。
+## 背景：_ready 顺序是「先子后父」，MainBoard 子树（含 TetrisController）先 ready，
+## 它在出块时就已经算过一遍影子；而关卡/Buff 的初始版面是在 TowerController._ready 里才印上去的，
+## 于是影子会停在按空版面算出的最底层 —— 这里重新校验当前方块位置并刷新影子。
+func _refresh_after_board_change() -> void:
+	if tetris_controller == null:
+		return
+	tetris_controller.refresh_after_board_change()
+
+## 按 StartGarbage 参数在版面底部印刷 N 行普通垃圾行（可消、带洞口，与游戏中上涨的垃圾行一致）。
+## 第 0 行印在最底层（最大 y）；洞口按当前 DoubleHole 设置（garbage_hole_count / garbage_hole_wide_count）生成。
+## 与 _print_start_board 一致：通过 set_cell_color 写入 board_data，bot 实时读取 board_data 所以自动同步。
+func _print_start_garbage(row_count: int) -> void:
+	if board_drawer == null or garbage_line_controller == null:
+		push_error("StartGarbage: 未找到 board_drawer / garbage_line_controller，无法印刷初始垃圾行")
+		return
+	# board_data 需已初始化；若尚未初始化则延迟到所有节点 _ready 完成后印刷
+	if board_drawer.board_data.is_empty():
+		_print_start_garbage.call_deferred(row_count)
+		return
+	if row_count <= 0:
+		return
+	var grid_w: int = board_drawer.grid_width
+	var playable_h: int = board_drawer.get_playable_height()
+	if row_count > playable_h:
+		push_error("StartGarbage: 行数 %d 超过可玩高度 %d" % [row_count, playable_h])
+		return
+	for i in range(row_count):
+		var y: int = playable_h - 1 - i  # 从下往上：第 0 行印在最底层（最大 y）
+		var holes: Array = garbage_line_controller._apply_hole_settings(
+			garbage_line_controller._generate_single_hole())
+		for x in range(grid_w):
+			# 洞口为 null（空格），其余为普通垃圾色 —— 与 _generate_garbage_row_generator() 的口径一致。
+			# ⚠ 不要写成 `null if holes.has(x) else 颜色` 的三元式：null 与 Color 两个分支类型不兼容，
+			#   会触发 默认开启的 INCOMPATIBLE_TERNARY 警告，所以这里用显式 Variant + if。
+			var cell_color: Variant = garbage_line_controller.garbage_color
+			if holes.has(x):
+				cell_color = null
+			board_drawer.set_cell_color(x, y, cell_color)
+	board_drawer.queue_redraw()
+	_refresh_after_board_change()
+
+## 按 StartBoard 参数印刷初始版面。
+## 行序：**列表最后一项 = 最底层**，再往前一项项往上填 —— 也就是按版面的视觉顺序从上往下书写，
+## 例如 [[顶层], [中层], [底层]]。每项是一行格子，行宽必须等于 grid_width。
+## 宽度不符 / 行数超出可玩高度 → push_error。
 ## 通过 set_cell_color 写入 board_data，bot 实时读取 board_data，因此自动同步给 bot。
 func _print_start_board(start_board: Variant) -> void:
 	if board_drawer == null:
@@ -305,7 +410,7 @@ func _print_start_board(start_board: Variant) -> void:
 		_print_start_board.call_deferred(start_board)
 		return
 	if typeof(start_board) != TYPE_ARRAY or start_board.is_empty():
-		push_error("StartBoard: 参数必须是非空二维数组（从下往上）")
+		push_error("StartBoard: 参数必须是非空二维数组（最后一项为最底层）")
 		return
 	var grid_w: int = board_drawer.grid_width
 	var playable_h: int = board_drawer.get_playable_height()
@@ -313,19 +418,27 @@ func _print_start_board(start_board: Variant) -> void:
 	if rows > playable_h:
 		push_error("StartBoard: 高度超出，行数 %d > 可玩高度 %d" % [rows, playable_h])
 		return
+	# 先整体校验再写：避免写到一半才发现格式错误，留下半成品版面
 	for i in range(rows):
-		var row: Variant = start_board[i]
-		if typeof(row) != TYPE_ARRAY:
-			push_error("StartBoard: 第 %d 行不是数组，格式错误" % i)
+		var src_index: int = rows - 1 - i  # 最底层 = 列表最后一项
+		var check_row: Variant = start_board[src_index]
+		if typeof(check_row) != TYPE_ARRAY:
+			push_error("StartBoard: 列表第 %d 项（从下往上第 %d 行）不是数组，格式错误"
+				% [src_index, i + 1])
 			return
-		if row.size() != grid_w:
-			push_error("StartBoard: 宽度不匹配，第 %d 行宽度 %d != 版面宽度 %d" % [i, row.size(), grid_w])
+		if check_row.size() != grid_w:
+			push_error("StartBoard: 宽度不匹配，列表第 %d 项（从下往上第 %d 行）宽度 %d != 版面宽度 %d"
+				% [src_index, i + 1, check_row.size(), grid_w])
 			return
-		var y: int = playable_h - 1 - i  # 从下往上：第 0 行印在最底层（最大 y）
+	for i in range(rows):
+		var src_index: int = rows - 1 - i
+		var row: Array = start_board[src_index]
+		var y: int = playable_h - 1 - i  # i = 0 是最底层（最大 y）
 		for x in range(grid_w):
-			var color: Variant = _start_board_cell_to_color(row[x], i, x)
+			var color: Variant = _start_board_cell_to_color(row[x], src_index, x)
 			board_drawer.set_cell_color(x, y, color)
 	board_drawer.queue_redraw()
+	_refresh_after_board_change()
 
 ## 将 StartBoard 单元格值转换为颜色。
 ## null / 空字符串 / 0 → 空；字符串支持颜色名与十六进制（如 "#RRGGBB"）；
@@ -458,6 +571,49 @@ func _tower_climb(delta: float):
 	#TODO::制作一个特殊的分界线，在分界线下无速度加成，在上有微弱加成，突破界限后加成幅度突变上涨并且触发特殊特效，持续到回落界限下位置
 	
 	tower_meter += tower_speed_meter * delta
+	
+	# 维护「最近一分钟爬升米数」窗口 → 真实速度（m/s）
+	_update_meter_window(delta)
+
+## 维护「窗口内爬升米数」并算出真实涨米速度（m/s），与 TetrisController 的 PPM / RPM / 短期 APM 同口径：
+##   · 开局未满 meter_window_span 秒：分母用「已运行时间」放缩 —— 也就是把这段时间爬升的米数
+##     折算成每秒多少米（例如 5 秒爬了 10m → 2.0 m/s），避免开局因为窗口没满而读数为 0 或偏小；
+##   · 满 meter_window_span 秒之后：分母固定为窗口长度 —— 即「最近一分钟爬升的米数 ÷ 60」。
+## 因为直接读 tower_meter 的位置差，所以「持续爬升」和「消行/抵消/击杀一次性奖励米数」都会自然计入。
+func _update_meter_window(delta: float) -> void:
+	_meter_clock += delta
+	_meter_sample_timer += delta
+	# 采样：开局立刻记一个点，之后每 meter_window_sample_interval 秒记一个点
+	if _meter_samples.is_empty() or _meter_sample_timer >= meter_window_sample_interval:
+		_meter_sample_timer = 0.0
+		_meter_samples.append({"time": _meter_clock, "meter": tower_meter})
+	
+	# 分母：未满一个窗口时用已运行时间放缩，满了之后用窗口长度
+	var span: float = minf(meter_window_span, _meter_clock)
+	if span <= 0.0:
+		_real_speed_meter = 0.0
+		return
+	
+	# 丢掉窗口外的采样点（保留最新的一个作参照）
+	var cutoff: float = _meter_clock - span
+	while _meter_samples.size() > 1 and float(_meter_samples[0]["time"]) < cutoff:
+		_meter_samples.pop_front()
+	
+	# 分子：窗口内实际爬升的米数（参照点是最早的采样点；未满窗口时它就是开局那个点）
+	var oldest: Dictionary = _meter_samples[0]
+	_real_speed_meter = (tower_meter - float(oldest["meter"])) / span
+
+## 奖励米数入账（消行/抵消奖励与击杀奖励都走这里）。
+## 真实速度是按 tower_meter 的窗口增量算的，所以这里只要加进总米数，速度表就会自动反映出来。
+func _add_reward_meter(amount: float) -> void:
+	if amount <= 0.0:
+		return
+	tower_meter += amount
+
+## 爬塔速度表用的「真实速度」：最近一分钟实际爬升的米数 ÷ 秒数（m/s）。
+## 与名义速度 tower_speed_meter 的区别：名义速度只看持续爬升，不含消行/击杀一次性给的奖励米数。
+func get_real_speed_meter() -> float:
+	return _real_speed_meter
 
 ##塔的模拟伤害攻击
 func _try_sent_garbage():
@@ -563,7 +719,8 @@ func default_get_oneD_array_things(id:int,array:Array):
 ## 只是飘字用红色，以便和普通攻击奖励（绿色）区分开。
 func attack_increase_tower(attack:float, is_defence:bool = false):
 	var meter_gain : float = attack * attack_to_meter_mult
-	tower_meter += meter_gain
+	# 走奖励米数入账：总米数 + 真实速度池（速度表要反映这部分米数）
+	_add_reward_meter(meter_gain)
 	
 	tower_speed_meter += attack * attack_to_speed_mult
 	
@@ -719,7 +876,8 @@ func try_give_kill_reward(attack:int):
 ## 与上面的随机数调用顺序保持一致（先米数、后速度），以免影响 TOWER_CLIMB 随机流的复现。
 func _give_kill_reward_meter(grant_apm_bonus: bool = true):
 	var meter_gain: float = snapped(kill_reward[0] - tower_rng.randf_range(0,min(tower_meter / 500.0,8)),0.1)
-	tower_meter += meter_gain
+	# 走奖励米数入账：总米数 + 真实速度池（速度表要反映这部分米数）
+	_add_reward_meter(meter_gain)
 	tower_speed_meter += snapped(kill_reward[1] - tower_rng.randf_range(0,min(tower_speed_meter / 10.0,8)),0.1)
 	kill_count += 1
 	if grant_apm_bonus:

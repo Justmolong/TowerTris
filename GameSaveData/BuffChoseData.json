@@ -6,7 +6,7 @@
 		},
 		"ClassicTetris":{
 			"Info":"经典俄罗斯方块",
-			"Group":["Nohold","Gravity","Talentless"]
+			"Group":["Nohold","Gravity","Talentless_3"]
 		},
 		"TheToppedOut":{
 			"Info":"爆顶",
@@ -14,7 +14,7 @@
 		},
 		"ReverseNoHold":{
 			"Info":"逆位无暂存",
-			"Group":["NoHold","ChangeBag_3","SuddenlyDeath_5","Talentless_1","ShortNext_4","DoubleHole_1"]
+			"Group":["NoHold","ChangeBag_3","SuddenlyDeath_5","Talentless_2","ShortNext_4","DoubleHole_1"]
 		}
 	},
 	"BuffGroup":{
@@ -26,8 +26,10 @@
 		"NoHold": ["NoHold_1"],
 		"RotateSystem": ["RotateSystem_1","RotateSystem_2","RotateSystem_3"],
 		"Talentless": ["Talentless_1","Talentless_2","Talentless_3","Talentless_4"],
+		"StartBoard": ["StartBoard_1","StartBoard_2","StartBoard_3","StartBoard_4","StartBoard_5"],
 		"ShortNext": ["ShortNext_1","ShortNext_2","ShortNext_3","ShortNext_4","ShortNext_5"],
-		"DoubleHole": ["DoubleHole_1","DoubleHole_2"]
+		"DoubleHole": ["DoubleHole_1","DoubleHole_2","DoubleHole_3","DoubleHole_4","DoubleHole_5"],
+		"BlockDelay": ["BlockDelay_1","BlockDelay_2","BlockDelay_3","BlockDelay_4","BlockDelay_5"]
 	},
 	"BuffConflick":{
 		"Pressure": ["Pressure1", "Pressure2", "Pressure3"],
@@ -39,7 +41,9 @@
 		"RotateSystem": ["RotateSystem_1","RotateSystem_2","RotateSystem_3"],
 		"Talentless": ["Talentless_1","Talentless_2","Talentless_3","Talentless_4"],
 		"ShortNext": ["ShortNext_1","ShortNext_2","ShortNext_3","ShortNext_4","ShortNext_5"],
-		"DoubleHole": ["DoubleHole_1","DoubleHole_2"]
+		"DoubleHole": ["DoubleHole_1","DoubleHole_2","DoubleHole_3","DoubleHole_4","DoubleHole_5"],
+		"StartBoard": ["StartBoard_1","StartBoard_2","StartBoard_3","StartBoard_4","StartBoard_5"],
+		"BlockDelay": ["BlockDelay_1","BlockDelay_2","BlockDelay_3","BlockDelay_4","BlockDelay_5"]
 	},
 	"BuffInfo":{
 		"Pressure1": "高压I：apm总量增加20%",
@@ -73,14 +77,26 @@
 		"RotateSystem_2":"旋转系统II: 采用 ARS 旋转",
 		"RotateSystem_3":"旋转系统III: 无旋转系统",
 		"BtbBonus_1":"Btb奖励: 使用tetr.io S1的btb伤害系统",
-		"StartBoard":"StartBoard：自定义初始版面（从下往上印刷）",
+		"StartBoard_1":"初始版面I：初始版面为3行垃圾行",
+		"StartBoard_2":"初始版面II：初始版面为10行垃圾行",
+		"StartBoard_3":"初始版面III：初始版面为10高的斜线",
+		"StartBoard_4":"初始版面IV：初始版面为12高的六个方框",
+		"StartBoard_5":"初始版面V：初始版面为14高的点阵",
 		"ShortNext_1":"短见I: 只显示5next",
 		"ShortNext_2":"短见II: 只显示4next",
 		"ShortNext_3":"短见III: 只显示3next",
 		"ShortNext_4":"短见IV: 只显示1next",
 		"ShortNext_5":"短见V: 无next显示",
 		"DoubleHole_1":"双洞I: 所有垃圾行变为2宽洞口",
-		"DoubleHole_2":"双洞II: 所有垃圾行拥有2个洞口"
+		"DoubleHole_2":"双洞II: 所有垃圾行拥有2个洞口",
+		"DoubleHole_3":"双洞III: 所有垃圾行拥有3个洞口",
+		"DoubleHole_4":"双洞IV: 所有垃圾行拥有5个洞口",
+		"DoubleHole_5":"双洞V: 所有垃圾行随机拥有4-7个洞口",
+		"BlockDelay_1":"落块延迟I：消行有0.25s延迟",
+		"BlockDelay_2":"落块延迟II：消行有0.5s延迟",
+		"BlockDelay_3":"落块延迟III：消行有1s延迟",
+		"BlockDelay_4":"落块延迟IV：消行有1s延迟，且落块有0.25s延迟",
+		"BlockDelay_5":"落块延迟V：消行有1s延迟，且落块有0.5s延迟"
 	},
 	"BuffChange":{
 		"Pressure1": {"extra_pressure_mult": 1.2},
@@ -114,11 +130,54 @@
 		"RotateSystem_2": {"RotateSystem": 2},
 		"RotateSystem_3": {"RotateSystem": 3},
 		"BtbBonus_1": {"BtbBonus": 2},
-		"StartBoard": {
-			"StartBoard": [
-				["#E74C3C","#E74C3C","#E74C3C",0,0,0,0,"#E74C3C","#E74C3C","#E74C3C"],
-				["#3498DB",0,0,0,0,0,0,0,0,"#3498DB"],
-				["#2ECC71","#2ECC71","#2ECC71","#2ECC71","#2ECC71","#2ECC71","#2ECC71","#2ECC71","#2ECC71","#2ECC71"]
+		"StartBoard_1":{"StartGarbage": 3},
+		"StartBoard_2":{"StartGarbage": 10},
+		"StartBoard_3": {
+			"StartBoard_3": [
+				["#808080","#808080","#808080","#808080","#808080","#808080","#808080","#808080","#808080",0],
+				["#808080","#808080","#808080","#808080","#808080","#808080","#808080","#808080",0,"#808080"],
+				["#808080","#808080","#808080","#808080","#808080","#808080","#808080",0,"#808080","#808080"],
+				["#808080","#808080","#808080","#808080","#808080","#808080",0,"#808080","#808080","#808080"],
+				["#808080","#808080","#808080","#808080","#808080",0,"#808080","#808080","#808080","#808080"],
+				["#808080","#808080","#808080","#808080",0,"#808080","#808080","#808080","#808080","#808080"],
+				["#808080","#808080","#808080",0,"#808080","#808080","#808080","#808080","#808080","#808080"],
+				["#808080","#808080",0,"#808080","#808080","#808080","#808080","#808080","#808080","#808080"],
+				["#808080",0,"#808080","#808080","#808080","#808080","#808080","#808080","#808080","#808080"],
+				[0,"#808080","#808080","#808080","#808080","#808080","#808080","#808080","#808080","#808080"]
+			]
+		},
+		"StartBoard_4": {
+			"StartBoard_4": [
+				[0,"#808080","#808080","#808080",0,0,"#808080","#808080","#808080",0],
+				[0,"#808080",0,"#808080",0,0,"#808080",0,"#808080",0],
+				[0,"#808080","#808080","#808080",0,0,"#808080","#808080","#808080",0],
+				[0,0,0,0,0,0,0,0,0,0],
+				[0,"#808080","#808080","#808080",0,0,"#808080","#808080","#808080",0],
+				[0,"#808080",0,"#808080",0,0,"#808080",0,"#808080",0],
+				[0,"#808080","#808080","#808080",0,0,"#808080","#808080","#808080",0],
+				[0,0,0,0,0,0,0,0,0,0],
+				[0,"#808080","#808080","#808080",0,0,"#808080","#808080","#808080",0],
+				[0,"#808080",0,"#808080",0,0,"#808080",0,"#808080",0],
+				[0,"#808080","#808080","#808080",0,0,"#808080","#808080","#808080",0],
+				[0,0,0,0,0,0,0,0,0,0]
+			]
+		},
+		"StartBoard_5": {
+			"StartBoard_5": [
+				["#808080",0,"#808080",0,"#808080",0,"#808080",0,"#808080",0],
+				[0,"#808080",0,"#808080",0,"#808080",0,"#808080",0,"#808080"],
+				["#808080",0,"#808080",0,"#808080",0,"#808080",0,"#808080",0],
+				[0,"#808080",0,"#808080",0,"#808080",0,"#808080",0,"#808080"],
+				["#808080",0,"#808080",0,"#808080",0,"#808080",0,"#808080",0],
+				[0,"#808080",0,"#808080",0,"#808080",0,"#808080",0,"#808080"],
+				["#808080",0,"#808080",0,"#808080",0,"#808080",0,"#808080",0],
+				[0,"#808080",0,"#808080",0,"#808080",0,"#808080",0,"#808080"],
+				["#808080",0,"#808080",0,"#808080",0,"#808080",0,"#808080",0],
+				[0,"#808080",0,"#808080",0,"#808080",0,"#808080",0,"#808080"],
+				["#808080",0,"#808080",0,"#808080",0,"#808080",0,"#808080",0],
+				[0,"#808080",0,"#808080",0,"#808080",0,"#808080",0,"#808080"],
+				["#808080",0,"#808080",0,"#808080",0,"#808080",0,"#808080",0],
+				[0,"#808080",0,"#808080",0,"#808080",0,"#808080",0,"#808080"]
 			]
 		},
 		"ShortNext_1": {"next_count": 5},
@@ -127,8 +186,17 @@
 		"ShortNext_4": {"next_count": 1},
 		"ShortNext_5": {"next_display_enabled": false},
 		"DoubleHole_1": {"garbage_hole_wide_count": 2},
-		"DoubleHole_2": {"garbage_hole_count": 2}
+		"DoubleHole_2": {"garbage_hole_count": 2},
+		"DoubleHole_3": {"garbage_hole_count": 3},
+		"DoubleHole_4": {"garbage_hole_count": 5},
+		"DoubleHole_5": {"garbage_hole_count_random": [4, 7]},
+		"BlockDelay_1": {"ClearDelay": 0.25},
+		"BlockDelay_2": {"ClearDelay": 0.5},
+		"BlockDelay_3": {"ClearDelay": 1.0},
+		"BlockDelay_4": {"ClearDelay": 1.0, "BlockDelay": 0.25},
+		"BlockDelay_5": {"ClearDelay": 1.0, "BlockDelay": 0.5}
 	},
+	"_comment_startboard": "StartBoard 键：StartGarbage* = 底部印 N 行普通垃圾行；StartBoard* = 自定义初始版面，数组按版面从上往下书写 —— 第一项是最顶行，最后一项是最底层（1=占格，0/null=空，支持颜色名或 #RRGGBB 字符串，\"garbage\"/\"solid\" 用垃圾行配色）。",
 	"_comment_bot": "ExtraBotChange：勾选对应 buff 时覆盖 zzztoj 的 AI 参数（键名 = zzztoj/src/ai_zzz.h 的 io_zzz::IO::Param 字段名，另支持 repeat_penalty）。未列出的参数保持 worker 默认（zzz 自带 io-DLL 调参）。",
 	"ExtraBotChange":{
 		"Allspin_1": {"repeat_penalty": 500},

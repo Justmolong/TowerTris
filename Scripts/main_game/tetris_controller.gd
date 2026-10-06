@@ -76,9 +76,17 @@ var lock_delay: float = 1  # 触底后锁定延迟（秒）
 var gravity_drop_time: float = 5
 var gravity_timer: Timer
 
-# 方块锁定后的生成延迟（秒）：>0 时先等待该延迟再开始消行判定；0 表示不等待
+# 方块锁定后通往下一块的最小间隔（秒）：buff「落块延迟」经 tower_controller 的 BlockDelay 键设置。
+# 计时从「锁定」时刻起算（set_spawn_delay 只存值，实际结算见 _try_spawn_after_delays）。
+# 0 表示锁定后立刻出下一块；与消行延迟同时存在时取两者较长者。
 var spawn_delay_time: float = 0
 var spawn_delay_timer: Timer
+# 已锁定但下一块还没出现的窗口（防止两个计时器都到点时出块两次）
+var locked: bool = false
+# 最近一次锁定的时间戳（毫秒，落块延迟以它为基准）
+var lock_time_ms: int = 0
+# 本次锁定是否消了行（由 TetrisClearLine 记录）→ 出块时用它决定 clutch
+var _last_clear_did_clear: bool = false
 
 # ========== 统计系统 ==========
 # 全局计时
@@ -604,10 +612,10 @@ func _set_timer():
 	lock_timer.timeout.connect(_lock_piece)
 	add_child(lock_timer)
 	
-	# 生成延迟计时器：方块锁定后先等待 spawn_delay_time，再开始消行判定
+	# 落块延迟计时器：从「锁定」时刻起算，到点后再结算出块（见 _try_spawn_after_delays）
 	spawn_delay_timer = Timer.new()
 	spawn_delay_timer.one_shot = true
-	spawn_delay_timer.timeout.connect(_process_after_spawn_delay)
+	spawn_delay_timer.timeout.connect(_on_spawn_delay_timeout)
 	add_child(spawn_delay_timer)
 	
 	gravity_timer = Timer.new()
@@ -645,6 +653,13 @@ func set_lock_delay(value: float) -> void:
 	lock_delay = value
 	if lock_timer != null and value > 0 and lock_timer.wait_time != value:
 		lock_timer.wait_time = value
+
+## 设置「落块延迟」（秒）：从方块锁定那一刻起算，到下一块出现为止的最小间隔。
+## 供 buff「落块延迟」经 tower_controller 的 BlockDelay 键调用；<=0 表示锁定后立即出下一块。
+## 与消行延迟同时存在时取较长者（消行延迟 = TetrisClearLine.clear_line_delay_time，
+## 由 tower_controller 的 ClearDelay 键设置），不会互相叠加。
+func set_spawn_delay(value: float) -> void:
+	spawn_delay_time = maxf(value, 0.0)
 
 ## 初始化统计系统
 func _init_stats():
@@ -785,6 +800,8 @@ func _resolve_spawn_y(spawn_x: int, shape: Array, base_y: int, allow_up_shift: b
 ##   —— 即 clutch 机制：玩家做出了消行行为，不到完全致死高度就不判死亡。
 ## clutch = false（默认，含开局首块、非消行锁定后的出块）：保持原行为，出生点被占即判死。
 func spawn_new_piece(clutch: bool = false):
+	# 任何出块路径（含开局/重开/消行后）都结束「已锁定但未出下一块」的窗口
+	locked = false
 	# 从Bag控制器获取下一个方块
 	var piece_data = bag_controller.get_next_piece()
 	var spawn_x = int((board_drawer.grid_width - piece_data["shape"][0].size()) / 2)
@@ -895,6 +912,10 @@ func _game_over(reason: String = "Game Over"):
 	move_start_timer.stop()
 	move_keep_timer.stop()
 	softdrop_timer.stop()
+	# 落块延迟不再需要（同时清掉「等待出块」窗口标记，避免残留状态）
+	locked = false
+	if spawn_delay_timer:
+		spawn_delay_timer.stop()
 	
 	# 停止接受输入
 	set_process(false)
@@ -1098,9 +1119,9 @@ func _check_underground_touch():
 		lock_timer.start()
 
 ## 锁定当前方块。
-## 逻辑上清除 current_piece（board_data 中已锁定的格子保持不变），
-## 先触发 spawn_delay_time 延迟（为 0 时无需等待），延迟结束后再开始消行判定。
-## 生成新方块由 TetrisClearLine 在消行结束后调用 spawn_new_piece() 完成。
+## 逻辑上清除 current_piece（board_data 中已锁定的格子保持不变），然后立刻开始消行判定；
+## 「落块延迟」（spawn_delay_time，buff「落块延迟」）是**锁定后**通往下一块的最小间隔，
+## 由 _try_spawn_after_delays() 在出块前结算（见下方说明），不在锁定前计时。
 func _lock_piece():
 	# 已在等待生成新方块时避免重复触发
 	if current_piece.is_empty():
@@ -1120,14 +1141,14 @@ func _lock_piece():
 	last_locked_cells = _get_piece_cells(current_piece, current_position)
 	# 逻辑上清除当前方块（保留 board_data 中已锁定的格子）
 	current_piece = []
-	# 触发生成延迟；为 0 时直接处理消行
-	if spawn_delay_time > 0:
-		spawn_delay_timer.wait_time = spawn_delay_time
-		spawn_delay_timer.start()
-	else:
-		_process_after_spawn_delay()
+	# 落块延迟从「锁定」这一刻起算；已锁定、尚未出下一块
+	locked = true
+	lock_time_ms = Time.get_ticks_msec()
+	# 立刻开始消行判定（消行延迟由 TetrisClearLine 自己负责）
+	_process_after_spawn_delay()
 
-## 生成延迟结束：开始处理消行判定（消行 + 统计 + 垃圾处理）
+## 锁定后的处理：消行判定（消行 + 统计 + 垃圾处理）
+## 函数名沿用 spawn_delay_timer 的回调（该计时器现在专用于「落块延迟」的到点通知）。
 func _process_after_spawn_delay():
 	# 先检测是否有消行
 	var cleared = _check_and_clear_lines()
@@ -1135,6 +1156,54 @@ func _process_after_spawn_delay():
 	# 只有在没有消行的情况下才触发垃圾行增长
 	if cleared == 0 and garbage_line_controller:
 		garbage_line_controller.process_garbage_after_lock()
+	# 出块前结算落块延迟（消行延迟需要更久时，由 TetrisClearLine 先等完它再走这里）
+	_try_spawn_after_delays()
+
+## 从锁定时刻起、落块延迟还差多少秒（已过时返回 0）；供 TetrisClearLine 在消行延迟结束时询问。
+func get_block_delay_remaining() -> float:
+	if spawn_delay_time <= 0.0 or not locked:
+		return 0.0
+	var elapsed: float = float(Time.get_ticks_msec() - lock_time_ms) / 1000.0
+	return maxf(spawn_delay_time - elapsed, 0.0)
+
+## 出块前的延迟结算：锁定后的实际出块时刻 = 锁定时刻 + max(落块延迟, 消行延迟)。
+## 三个调用点都收敛到本函数，保证只出块一次：
+##   1) 锁定后的消行判定结束（_process_after_spawn_delay）
+##   2) 消行延迟计时结束（由 TetrisClearLine 调用 request_spawn_after_clear）
+##   3) 落块延迟计时到点（_on_spawn_delay_timeout）
+## 规则：
+##   · 消行延迟还没结束（正在播消行动画）→ 让位给 2)，不在这里出块
+##   · 距锁定还差一段落块延迟 → 起计时器等 3)
+##   · 两者都已满足 → 出块（clutch 取本次是否消行）
+func _try_spawn_after_delays() -> void:
+	if not locked:
+		return
+	if clear_line_controller and clear_line_controller.is_clear_animating_active():
+		return
+	var remaining: float = get_block_delay_remaining()
+	if remaining > 0.0:
+		if spawn_delay_timer.is_stopped():
+			spawn_delay_timer.wait_time = remaining
+			spawn_delay_timer.start()
+		return
+	# 落块延迟已满足 → 出块
+	locked = false
+	spawn_new_piece(_last_clear_did_clear)
+
+## 落块延迟到点：再做一次结算
+func _on_spawn_delay_timeout() -> void:
+	_try_spawn_after_delays()
+
+## 供 TetrisClearLine 在消行延迟/消行动画结束时调用：继续做出块结算。
+## 若落块延迟更长，这里会接着等剩余时间；否则立即出块。
+func request_spawn_after_clear() -> void:
+	_try_spawn_after_delays()
+
+## 由 TetrisClearLine 在消行处理完成（消行位移已执行）时调用：记录本次是否消了行，供出块时决定 clutch。
+func note_clear_result(did_clear: bool) -> void:
+	_last_clear_did_clear = did_clear
+
+
 
 ## 检测并消除完整的行，并处理垃圾行抵消
 func _check_and_clear_lines() -> int:
@@ -1435,6 +1504,30 @@ func _update_shadow():
 			var shadow_pos = _calculate_shadow_position()
 			board_drawer.update_shadow(current_piece, shadow_pos, current_color)
 
+## 版面被外部改写（关卡/Buff 的初始版面 StartBoard / StartGarbage 印刷）后调用。
+## 出块与影子是在节点 _ready 时按「当时的空版面」算好的，而初始版面是 TowerController._ready
+## 才印上去的（_ready 顺序先子后父）—— 不刷新的话开局影子会停在按空版面算出的最底层，
+## 方块也可能正好压在刚印出来的初始版面上。这里按当前版面重算一次：
+##   1) 当前方块若与新版面重叠 → 用与出块相同的纯查询向上找第一个不重叠位置；
+##   2) 刷新影子。
+func refresh_after_board_change() -> void:
+	if board_drawer == null:
+		return
+	if not current_piece.is_empty():
+		# ⚠ 当前方块自身的格子此刻就在 board_data 里（出块/移动都会写进去），
+		#   所以纯查询必须把「自身格子」作为 ignore 传入；否则会把自己判成碰撞、把方块一路往上顶。
+		var self_cells: Array = _get_piece_cells(current_piece, current_position)
+		var fixed_y: int = current_position.y
+		while fixed_y > 0 and _check_collision_pure(
+				Vector2i(current_position.x, fixed_y), current_piece, self_cells):
+			fixed_y -= 1
+		if fixed_y != current_position.y:
+			_clear_current_piece()
+			current_position = Vector2i(current_position.x, fixed_y)
+			_draw_current_piece()
+	_update_shadow()
+	board_drawer.queue_redraw()
+
 ## 左移
 func move_left():
 	_try_move(-1, 0)
@@ -1555,7 +1648,7 @@ var bot_param_overrides: Dictionary = {}
 var _bot_waiting_time: float = 0.0
 const BOT_WAIT_TIMEOUT := 3.0
 ## bot 决策日志次数上限
-var _bot_plan_log_budget: int = 12
+## （原先按步打印计划时会用这个预算限流；现在改成「每块只打印一次计划」，预算已无用，故删除）
 ## 进入 bot 循环的一次性日志标记 / 无方块空转计时
 var _bot_loop_logged: bool = false
 var _bot_idle_log_time: float = 0.0
@@ -1690,7 +1783,7 @@ func _process_bot_control(delta: float) -> void:
 		var elapsed: float = maxf(0.0, (float(Time.get_ticks_msec()) - _bot_last_lock_ms) / 1000.0)
 		_bot_piece_cooldown = maxf(0.0, _get_bot_piece_interval() - elapsed)
 		# [BotPlan] 每块只打印一次（放在这里 = 计划到手的第一时间，steps 是完整步数）。
-		# 原来放在每步动作前打印，一份计划要打 N 行，只能靠 _bot_plan_log_budget 限流 12 行，
+		# 原来放在每步动作前打印，一份计划要打 N 行，还得靠日志预算限流，
 		# 结果一局后半段的决策完全没有日志 —— 排查「某手选点奇怪」时看不到现场。
 		if bot_debug_log:
 			var tgt: Dictionary = _zzz_bridge.get_plan_target()
@@ -1832,9 +1925,16 @@ func _bot_cfg_signature_now() -> String:
 		hold_flag = 1 if (_zzz_bridge.allow_hold and not no_hold) else 0
 		allow180_flag = 1 if _zzz_bridge.allow_180 else 0
 		think = int(_zzz_bridge.think_budget)
-	return "%d|%d|%d|%d|%d|%d|%d|%d|%d" % [
+	# bot 可用的 next 个数：默认 = 自身全部可知（14）；只有短见 buff 下发限制时才收敛。
+	# 口径与 zzz_bridge.visible_next_count 一致；变了 → 旧计划作废（信息量变了）。
+	var next_vis := 14
+	if _zzz_bridge != null:
+		next_vis = int(_zzz_bridge.visible_next_count(self))
+	elif board_drawer != null and bool(board_drawer.next_limited_by_buff):
+		next_vis = 0 if not bool(board_drawer.next_display_enabled) else clampi(int(board_drawer.next_count), 0, 14)
+	return "%d|%d|%d|%d|%d|%d|%d|%d|%d|%d" % [
 		int(rotation_system), gcap, btb, pc, nospin, nospin_rows,
-		hold_flag, allow180_flag, think,
+		hold_flag, allow180_flag, think, next_vis,
 	]
 
 ## 当前生效的 bot PPS
