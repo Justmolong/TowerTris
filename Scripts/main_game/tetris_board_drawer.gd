@@ -3,20 +3,9 @@ class_name TetrisBoardDrawer
 
 ## 俄罗斯方块版面绘制器
 ## 提供网格绘制功能，支持自定义基准点、格子大小、网格尺寸
-
-@export var clear_line_controller: TetrisClearLine
-@export var garbage_line_controller: TetrisGarbageLineController
-@export var tetris_controller: TetrisController
-@export var tower_controller: TowerController      # 塔控制器引用（用于读取高度/速度）
+## 需要其它节点时一律通过公共数据区 TetrisGlobalData 取用（见 tetris_global_data.gd）。
 
 # 网格配置
-@export var grid_width: int = 10        # 网格宽度（列数）
-@export var grid_height: int = 20       # 网格高度（行数）- 实际可见高度
-@export var above_visible_rows: int = 70 # 可见区域上方预留行数（用于垃圾槽扩展，不绘制背景和网格线）
-@export var grid_max_height: int = 100   # 网格最大高度（行数）- 用于垃圾槽和扩展
-@export var cell_size: int = 24         # 格子边长（像素）
-@export var offset_x: int = 0           # 基准点X偏移（左上角X坐标）- 通常由自动居中覆盖
-@export var offset_y: int = 0           # 基准点Y偏移（左上角Y坐标）- 通常由自动居中覆盖
 
 # 显示配置
 @export var auto_center: bool = true    # 是否自动居中版面
@@ -40,7 +29,7 @@ class_name TetrisBoardDrawer
 @export var garbage_slot_width: int = 1               # 垃圾槽宽度（格子数）
 @export var garbage_slot_border_color: Color = Color.WHITE  # 垃圾槽边框颜色
 @export var garbage_slot_border_width: float = 2.0    # 垃圾槽边框宽度（与版面边框一致，保证左右两侧粗细相同）
-var garbage_cap : int
+# 注：这里过去缓存过一份 garbage_cap，现已删除 —— 画横线时直接读公共数据区 TetrisGlobalData.garbage_cap
 @export var garbage_cap_line_color: Color = Color.WHITE  # 垃圾槽横线颜色
 @export var garbage_bar_color: Color = Color.RED      # 垃圾行矩形颜色
 @export var garbage_bar_buffer_color: Color = Color(0.5, 0.0, 0.0, 0.35)  # 缓冲中垃圾的底色（半透明）
@@ -61,15 +50,15 @@ var garbage_cap : int
 # 位置在统计文本块最上面一行（TIME）的上方：蓝色 = PPM，橙色 = 短期 APM，
 # 数值与 RPM 同口径（最近 60s 滚动窗口）；超过上限显示满格（不溢出），低于下限显示为空。
 @export var speed_bars_enabled: bool = false        # 是否显示（默认关闭，预留）
-@export var speed_bar_width_ratio: float = 0.32     # 条宽（相对 cell_size，较细）
+@export var speed_bar_width_ratio: float = 0.32     # 条宽（相对 TetrisGlobalData.board_cell_size，较细）
 @export var speed_bar_height_cells: float = 3.5     # 条最大高度（格子数，较短）
-@export var speed_bar_gap_ratio: float = 0.35       # 两条之间的基础间距（相对 cell_size）
+@export var speed_bar_gap_ratio: float = 0.35       # 两条之间的基础间距（相对 TetrisGlobalData.board_cell_size）
 @export var speed_bar_gap_px: float = 10.0          # 两条之间额外增加的间距（像素）
 @export var speed_bars_offset_y_cells: float = 0.5  # 条底边与 TIME 行之间的额外间距（格子数）
 @export var speed_bars_offset_x_px: float = 75.0    # 在右对齐基础上再右移的像素（正=右）
 @export var speed_bars_offset_y_px: float = 10.0    # 在 offset_y_cells 基础上再上移的像素（正=上）
 @export var speed_bar_show_value: bool = true       # 条顶是否写当前数值（四舍五入取整）
-@export var speed_bar_value_font_ratio: float = 0.5 # 条顶数字字号（相对 cell_size）
+@export var speed_bar_value_font_ratio: float = 0.5 # 条顶数字字号（相对 TetrisGlobalData.board_cell_size）
 @export var speed_bar_value_gap_px: float = 4.0     # 条顶数字与条顶部之间的间距（像素）
 @export var speed_bar_bg_color: Color = Color(0.0, 0.0, 0.0, 0.85)   # 黑底（显示 0~上限的整个范围）
 @export var speed_bar_border_color: Color = Color.WHITE              # 白边框（满格时也能看清边界）
@@ -120,29 +109,54 @@ var garbage_cap : int
 @export var speed_gauge_text_color: Color = Color.WHITE       # 圆心数字颜色
 @export var speed_gauge_text_outline_color: Color = Color.BLACK  # 圆心数字描边
 
+# 惩罚预警显示配置（Allspin_1 重复惩罚：next / 手上 的方块显示为「原本颜色 + 灰色」）
+@export var penalty_tint_enabled: bool = true          # 是否启用灰化显示
+@export var penalty_tint_color: Color = Color(0.22, 0.22, 0.22)  # 叠加上去的深灰色
+@export var penalty_tint_mix: float = 0.95             # 深灰占比（0.95 ≈ 几乎完全盖掉原色，只留一点色相）
+## 调试用：强制所有方块都按「原色+灰」绘制，用来确认渲染是否生效（正式游玩保持 false）
+@export var penalty_tint_force_all: bool = false
+
+# Spin 闪光反馈（旋转后判定到 Spin 时，操控中的方块闪一下光）
+@export var spin_flash_enabled: bool = true                 # 总开关
+@export var spin_flash_duration: float = 0.22               # 单次闪光时长（秒，线性衰减）
+@export var spin_flash_color: Color = Color(1, 1, 1)        # 普通 Spin：白光
+@export var spin_flash_penalty_color: Color = Color(1, 0.22, 0.22)  # 会触发重复惩罚：红光
+@export var spin_flash_alpha: float = 0.55                  # 起始填充透明度
+@export var spin_flash_border_alpha: float = 1.0            # 起始边框透明度
+@export var spin_flash_border_width: float = 3.0            # 边框宽度（0 = 不画边框）
+var _spin_flash_remaining: float = 0.0
+var _spin_flash_penalized: bool = false
+
+# Allspin_5 顶部行数指示：N S D T = Spin0 / Spin1 / Spin2 / Spin3
+# 白色 = 该行数现在消行不会被判重复；红色 = 会被判重复惩罚（轮内重复或与上一手有效行数相同）
+# 位置：画在 NEXT 标签右侧同一基线上（见 allspin5_counts_gap_after_next_px）
+@export var allspin5_counts_enabled: bool = true            # 仅在 Allspin_5 局内自动显示
+@export var allspin5_counts_text: String = "NSDT"           # 文字（顺序依次代表 0/1/2/3 行）
+@export var allspin5_counts_font_ratio: float = 0.62        # 字号 = 格子大小 × 该比例
+@export var allspin5_counts_gap_ratio: float = 1.05         # 相邻字母间距 = 字号 × 该比例（越小越紧）
+@export var allspin5_counts_gap_after_next_px: float = 8.0  # 与 NEXT 标签文字之间的水平间距（像素）
+@export var allspin5_counts_offset_y_px: float = 0.0        # 相对 NEXT 标签基线的垂直微调（像素，正值向下）
+@export var allspin5_counts_normal_color: Color = Color(1, 1, 1)
+@export var allspin5_counts_penalty_color: Color = Color(1, 0.22, 0.22)
+@export var allspin5_counts_outline_color: Color = Color(0, 0, 0)
+var _allspin5_counts_last: int = -1
+
 # Hold方块显示配置
 @export var hold_display_enabled: bool = true         # 是否启用Hold显示
-var no_hold: bool = false                             # NoHold模式：关闭Hold显示（由TowerController转发）
+# NoHold 模式（关闭 Hold 显示）读公共数据区的公共开关 TetrisGlobalData.no_hold，不再各存一份
 @export var hold_display_offset_cells: int = -5       # Hold框相对版面的X偏移（以格子数为单位，负值在左侧）
 @export var hold_display_offset_y_cells: int = 0      # Hold框相对版面的Y偏移（以格子数为单位）
 @export var hold_display_width: int = 4               # Hold显示区域的格子宽度
-@export var hold_display_height: int = 4              # Hold显示区域的格子高度
 @export var hold_background_color: Color = Color(0.1, 0.1, 0.1, 1.0)  # Hold框背景色
 @export var hold_border_color: Color = Color.WHITE    # Hold框边框颜色
 @export var hold_border_width: float = 2.0            # Hold框边框宽度
 @export var hold_padding: float = 0.2                 # Hold框内边距（相对于格子大小的比例）
 
 # Next方块显示配置
-@export var next_display_enabled: bool = true         # 是否启用Next显示
 @export var next_display_offset_cells: int = 10       # Next框相对版面的X偏移（以格子数为单位，正值在右侧）
 @export var next_display_offset_y_cells: int = 0      # Next框相对版面的Y偏移（以格子数为单位）
 @export var next_display_width: int = 4               # 每个Next显示区域的格子宽度
 @export var next_display_height: int = 3              # 每个Next显示区域的格子高度
-@export_range(1, 7) var next_count: int = 6          # 显示Next方块的数量（1-7）
-## 该限制是否由 buff（ShortNext 短见系列）下发。
-## bot 侧据此判断：默认（false）时 bot 使用自身全部可知的块序（14 个），
-## 只有被短见限制（true）时才跟着把搜索深度收敛到可见数量。
-var next_limited_by_buff: bool = false
 @export var next_spacing_cells: int = 0               # Next方块之间的间距（以格子数为单位）
 @export var next_background_color: Color = Color(0.1, 0.1, 0.1, 1.0)  # Next框背景色
 @export var next_border_color: Color = Color.WHITE    # Next框边框颜色
@@ -160,7 +174,6 @@ var next_limited_by_buff: bool = false
 @export var next_label_color: Color = Color.WHITE     # Next标签颜色
 
 # 外部数据引用
-var board_data: Array = []               # 版面数据（用于存储每个格子的颜色/类型）
 var show_grid_lines: bool = true         # 是否显示网格线
 
 # 正在播放消行动画的行（行号，用于闪烁高亮提示）
@@ -171,7 +184,6 @@ var hold_piece_data: Array = []          # 暂存的方块矩阵
 var hold_piece_color: Color = Color.WHITE  # 暂存的方块颜色
 
 # Next方块数据
-var next_pieces_data: Array = []         # Next方块数据列表 [{shape: Array, color: Color}]
 
 # 影子方块数据（由TetrisController计算后提供）
 var shadow_piece: Array = []             # 影子的形状矩阵
@@ -200,10 +212,8 @@ var _speed_gauge_initialized: bool = false
 
 # 大攻击警告状态
 var big_attack_warning_active: bool = false
-var big_attack_warning_progress: float = 0.0  # 0→1 渐变进度
 
 # 游戏结束状态
-var is_game_over: bool = false
 
 # 窗口尺寸追踪
 var last_viewport_size: Vector2 = Vector2.ZERO
@@ -218,46 +228,191 @@ var _is_visible_mode: bool = true                   # true=正在显示方块, f
 var _invisible_timer: Timer = null                  # 隐藏模式计时器
 
 # 每个格子锁定的时间戳（用于drop_visible_time渐隐），0表示未锁定
-var _cell_lock_times: Array = []                    # 与board_data同维度，存储Time.get_ticks_msec()
+
+func _enter_tree() -> void:
+	# 自注册到公共数据区（整棵场景树的 _enter_tree 都先于任何 _ready 完成）
+	TetrisGlobalData.register_node(self)
+
+func _exit_tree() -> void:
+	TetrisGlobalData.unregister_node(self)
 
 func _ready():
-	_get_find_controller()
 	_init_board_data()
 	_update_board_position()
 	
 	# 连接窗口大小变化信号
 	get_tree().root.size_changed.connect(_on_window_resized)
 	
-	# 连接大攻击警告信号
-	if tower_controller:
-		tower_controller.big_attack_warning_started.connect(_on_big_attack_warning_started)
-		tower_controller.big_attack_warning_ended.connect(_on_big_attack_warning_ended)
+	# 连接大攻击警告信号：走公共区域的公共事件（本节点不需要认识塔节点，也不碰它的 Timer）
+	TetrisGlobalData.big_attack_warning_started.connect(_on_big_attack_warning_started)
+	TetrisGlobalData.big_attack_warning_ended.connect(_on_big_attack_warning_ended)
 	
 	# 初始化隐藏模式
 	_init_invisible_mode()
+	
+	# 上报就绪：当场景内所有节点都就绪后，公共数据区会通知各节点读走自己的 buff 参数
+	TetrisGlobalData.notify_node_ready(self)
+
+## 读取公共区域里属于版面绘制器的关卡 / buff 参数（谁用谁读：公共区域不认这些键名）。
+func apply_init_params() -> void:
+	# ---- 隐身模式（Invisible_1：放置的方块隐藏，垃圾行正常显示）----
+	if TetrisGlobalData.init_has("tetris_invisible"):
+		tetris_invisible = TetrisGlobalData.get_init_int("tetris_invisible", tetris_invisible)
+		# 显示状态与计时器要按新值重建（推迟一拍执行，避免和 _ready 里的初始化互相覆盖）
+		_init_invisible_mode.call_deferred()
+	if TetrisGlobalData.init_has("visible_time_between"):
+		visible_time_between = TetrisGlobalData.get_init_float("visible_time_between", visible_time_between)
+	if TetrisGlobalData.init_has("visible_show_time"):
+		visible_show_time = TetrisGlobalData.get_init_float("visible_show_time", visible_show_time)
+	if TetrisGlobalData.init_has("drop_visible_time"):
+		drop_visible_time = TetrisGlobalData.get_init_float("drop_visible_time", drop_visible_time)
+	
+	# ---- 短见（ShortNext）：限制 Next 显示数量 / 是否显示 Next 区 ----
+	# 仅影响玩家侧显示；bot 一律使用自身全部可知的块序（见 zzz_bridge.visible_next_count）
+	if TetrisGlobalData.init_has("next_display_enabled"):
+		TetrisGlobalData.board_next_display_enabled = TetrisGlobalData.get_init_bool("next_display_enabled", TetrisGlobalData.board_next_display_enabled)
+	if TetrisGlobalData.init_has("next_count"):
+		TetrisGlobalData.board_next_count = clampi(TetrisGlobalData.get_init_int("next_count", TetrisGlobalData.board_next_count), 1, 7)
+	# NoHold（NoHold_1）：Hold 显示由公共数据区的公共开关 TetrisGlobalData.no_hold 决定，
+	# 该参数由方块控制器统一读取写入，本节点不再各存一份。
+
+## 阶段 2：所有节点的参数都就位之后再印刷初始版面。
+## StartGarbage* / StartBoard* 依赖阶段 1 里垃圾行控制器读好的洞口等设置（DoubleHole），
+## 所以必须等它们读完再印。
+func finalize_init_params() -> void:
+	var keys: Array[String] = TetrisGlobalData.get_init_keys()
+	# 先印垃圾行，再印自定义版面（自定义版面覆盖在其上）
+	for key: String in keys:
+		if key.begins_with("StartGarbage"):
+			print_start_garbage(TetrisGlobalData.get_init_int(key, 0))
+	for key: String in keys:
+		if not key.begins_with("StartBoard"):
+			continue
+		var start_value: Variant = TetrisGlobalData.get_init_value(key)
+		if typeof(start_value) == TYPE_ARRAY:
+			print_start_board(start_value)
+		else:
+			push_warning("StartBoard: 键 %s 的值应为二维数组（最后一项为最底层），实际为 %s，已忽略"
+				% [key, type_string(typeof(start_value))])
 
 func _process(_delta):
 	# 检查窗口是否被拉伸
 	if auto_resize and get_viewport_rect().size != last_viewport_size:
 		_on_window_resized()
 	
-	# 更新大攻击警告渐变进度
-	if big_attack_warning_active and tower_controller:
-		var timer = tower_controller.big_attack_delay_timer
-		if timer and timer.wait_time > 0:
-			big_attack_warning_progress = 1.0 - (timer.time_left / timer.wait_time)
-			queue_redraw()
+	# 大攻击警告的渐变进度由塔每帧写进公共数据区，这里不缓存（绘制时直接读）
 	
 	# 速度表指针缓动（塔速度是「每次消行瞬间加一截」的离散变化，直接画会一跳一跳）
 	_update_speed_gauge(_delta)
+	
+	# Spin 闪光计时（判定到 Spin 时给操控中的方块闪一下）
+	if _spin_flash_remaining > 0.0:
+		_spin_flash_remaining = maxf(0.0, _spin_flash_remaining - _delta)
+		queue_redraw()
+	
+	# Allspin_5 顶部行数指示：状态（哪些行数会被罚）变化时才重绘
+	if allspin5_counts_enabled and TetrisGlobalData.clear_allspin == 5:
+		var st: int = _allspin5_counts_state()
+		if st != _allspin5_counts_last:
+			_allspin5_counts_last = st
+			queue_redraw()
+
+
+## Allspin_5 行数指示的状态位（bit0..bit3 = 0/1/2/3 行是否会被判重复）
+func _allspin5_counts_state() -> int:
+	var cl = TetrisGlobalData.clear_line_controller
+	if cl == null:
+		return 0
+	var st: int = 0
+	for i in range(4):
+		if cl.allspin5_count_penalized(i):
+			st |= 1 << i
+	return st
+
+
+## Allspin_5 顶部行数指示：在 NEXT 标签文字右侧依次画 N S D T（代表 0/1/2/3 行 Spin），
+## 白 = 现在这一行数消行不会被罚；红 = 会被判重复惩罚。
+func _draw_allspin5_counts():
+	if not allspin5_counts_enabled:
+		return
+	if TetrisGlobalData.clear_allspin != 5:
+		return
+	var cl = TetrisGlobalData.clear_line_controller
+	if cl == null:
+		return
+	var letters: String = allspin5_counts_text.replace(" ", "")
+	if letters.is_empty():
+		return
+	# 位置：与 NEXT 标签同一基线，放在其文字右侧（NEXT 标签只画在第一个 Next 框上方）
+	var next_pos: Vector2 = _get_next_position(0)
+	var label_y: float = next_pos.y - TetrisGlobalData.board_cell_size * 0.5
+	var label_size: float = TetrisGlobalData.board_cell_size * 0.4
+	var label_font: Font = ThemeDB.fallback_font
+	var label_width: float = label_font.get_string_size(next_label_text, HORIZONTAL_ALIGNMENT_LEFT, -1, maxi(1, int(label_size))).x
+	var x0: float = next_pos.x + label_width + allspin5_counts_gap_after_next_px
+	var y0: float = label_y + allspin5_counts_offset_y_px
+	# 字号（比 NEXT 标签更大）与字母间距（按字号取比例，所以调小 gap_ratio 就会更紧）
+	var font_size: float = TetrisGlobalData.board_cell_size * allspin5_counts_font_ratio
+	var font_size_int: int = maxi(1, roundi(font_size))
+	var gap: float = font_size * allspin5_counts_gap_ratio
+	var font: Font = ThemeDB.fallback_font
+	for i in range(letters.length()):
+		var color: Color = allspin5_counts_penalty_color if cl.allspin5_count_penalized(i) else allspin5_counts_normal_color
+		var pos := Vector2(x0 + float(i) * gap, y0)
+		# 描边（4 向）保证在任何背景上都看得清
+		for off: Vector2 in [Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1), Vector2(0, 1)]:
+			draw_string(font, pos + off, letters[i], HORIZONTAL_ALIGNMENT_LEFT, -1, font_size_int, allspin5_counts_outline_color)
+		draw_string(font, pos, letters[i], HORIZONTAL_ALIGNMENT_LEFT, -1, font_size_int, color)
+
+# ========== Spin 闪光反馈 ==========
+
+## 触发一次闪光（由 TetrisController 在「旋转后判定到 Spin」时调用）：
+##   penalized = false → 白色（达成 Spin）
+##   penalized = true  → 红色（这次 Spin 直接消行会触发 Allspin 重复惩罚）
+func flash_spin(penalized: bool) -> void:
+	if not spin_flash_enabled:
+		return
+	_spin_flash_remaining = maxf(spin_flash_duration, 0.01)
+	_spin_flash_penalized = penalized
+	queue_redraw()
+
+
+## 绘制当前闪光：在操控中的方块每个格子上叠一层高亮 + 亮边框，透明度随时间线性衰减
+func _draw_spin_flash():
+	if _spin_flash_remaining <= 0.0:
+		return
+	if TetrisGlobalData.piece_shape.is_empty():
+		return
+	var base: Color = spin_flash_penalty_color if _spin_flash_penalized else spin_flash_color
+	var t: float = clampf(_spin_flash_remaining / maxf(spin_flash_duration, 0.01), 0.0, 1.0)
+	var fill: Color = base
+	fill.a = spin_flash_alpha * t
+	var border: Color = base
+	border.a = minf(1.0, spin_flash_border_alpha * t)
+	var piece: Array = TetrisGlobalData.piece_shape
+	var pos: Vector2i = TetrisGlobalData.piece_position
+	var cell: float = TetrisGlobalData.board_cell_size
+	for y in range(piece.size()):
+		for x in range(piece[y].size()):
+			if piece[y][x] != 1:
+				continue
+			var bx: int = pos.x + x
+			var by: int = pos.y + y
+			if bx < 0 or bx >= TetrisGlobalData.board_grid_width:
+				continue
+			var rect := Rect2(cell_to_world(bx, by), Vector2(cell, cell))
+			draw_rect(rect, fill, true)
+			if spin_flash_border_width > 0.0:
+				draw_rect(rect, border, false, spin_flash_border_width)
 
 ## 速度表显示值的缓动：指数逼近目标值 —— 起步快、越接近目标越慢（帧率无关）
 ## speed_gauge_smooth_rate <= 0 时不平滑，直接用真实速度。
 func _update_speed_gauge(delta: float) -> void:
-	if not speed_gauge_enabled or not tower_controller:
+	if not speed_gauge_enabled or not TetrisGlobalData.tower_controller:
 		return
 	# 用「真实速度」= 名义爬塔速度 + 奖励米数（消行/抵消/击杀一次性给的米数）折算的等效速度
-	var target: float = tower_controller.get_real_speed_meter()
+	# （塔的运行状态统一从公共数据区读取，不直接访问塔节点）
+	var target: float = TetrisGlobalData.tower_real_speed_meter
 	if not _speed_gauge_initialized:
 		# 首帧直接对齐，避免开局指针从 0 甩过去
 		_speed_gauge_initialized = true
@@ -321,30 +476,10 @@ func _on_invisible_timer_timeout():
 	_invisible_timer.start()
 	queue_redraw()
 
-func _get_find_controller():
-	# 自动查找tetris_controller（如果未设置）
-	if not tetris_controller:
-		tetris_controller = get_node_or_null("../TetrisController")
-	
-	# 自动查找tower_controller（如果未设置）
-	if not tower_controller:
-		tower_controller = get_node_or_null("../../TowerController")
-
 ## 初始化版面数据
 func _init_board_data():
-	if garbage_line_controller:
-		garbage_cap = garbage_line_controller.garbage_cap
-	
-	board_data.clear()
-	_cell_lock_times.clear()
-	for y in range(grid_max_height):
-		var row: Array = []
-		var time_row: Array = []
-		for x in range(grid_width):
-			row.append(null)  # null 表示空格子
-			time_row.append(0)  # 0 表示未锁定
-		board_data.append(row)
-		_cell_lock_times.append(time_row)
+	# 版面内容住在公共数据区（TetrisGlobalData.board_data / board_cell_lock_times）
+	TetrisGlobalData.board_reset()
 
 ## 更新版面位置和大小（自动居中）
 func _update_board_position():
@@ -352,18 +487,18 @@ func _update_board_position():
 		return
 	
 	var viewport_size = get_viewport_rect().size
-	var board_width = grid_width * cell_size
-	var board_height = grid_height * cell_size  # 使用可见高度计算显示尺寸
+	var board_width = TetrisGlobalData.board_grid_width * TetrisGlobalData.board_cell_size
+	var board_height = TetrisGlobalData.board_grid_height * TetrisGlobalData.board_cell_size  # 使用可见高度计算显示尺寸
 	
 	# 计算居中位置
-	offset_x = int((viewport_size.x - board_width) / 2)
-	offset_y = int((viewport_size.y - board_height) / 2)
+	TetrisGlobalData.board_offset_x = int((viewport_size.x - board_width) / 2)
+	TetrisGlobalData.board_offset_y = int((viewport_size.y - board_height) / 2)
 	
 	# 应用边距（如果需要）
 	if auto_resize:
 		var margin = min(viewport_size.x, viewport_size.y) * margin_percentage
-		offset_x = max(offset_x, margin)
-		offset_y = max(offset_y, margin)
+		TetrisGlobalData.board_offset_x = max(TetrisGlobalData.board_offset_x, margin)
+		TetrisGlobalData.board_offset_y = max(TetrisGlobalData.board_offset_y, margin)
 	
 	queue_redraw()
 
@@ -380,8 +515,8 @@ func _auto_adjust_cell_size():
 	var available_height = viewport_size.y - margin * 2
 	
 	# 计算理论格子大小（使用可见高度）
-	var cell_size_by_width = available_width / grid_width
-	var cell_size_by_height = available_height / grid_height
+	var cell_size_by_width = available_width / TetrisGlobalData.board_grid_width
+	var cell_size_by_height = available_height / TetrisGlobalData.board_grid_height
 	
 	# 取最小值以保证完整显示
 	var new_cell_size = min(cell_size_by_width, cell_size_by_height)
@@ -390,8 +525,8 @@ func _auto_adjust_cell_size():
 	new_cell_size = clamp(new_cell_size, 16, 64)
 	
 	# 只有变化时才更新
-	if abs(new_cell_size - cell_size) > 0.1:
-		cell_size = int(new_cell_size)
+	if abs(new_cell_size - TetrisGlobalData.board_cell_size) > 0.1:
+		TetrisGlobalData.board_cell_size = int(new_cell_size)
 		_update_board_position()
 		queue_redraw()
 
@@ -406,78 +541,25 @@ func _on_window_resized():
 	
 	queue_redraw()
 
-## 规范化格子颜色：null / 非颜色 / 黑色 都视为空格
-func _normalize_cell_color(color) -> Variant:
-	if color == null:
-		return null
-	if typeof(color) == TYPE_COLOR and color == Color.BLACK:
-		return null
-	if typeof(color) != TYPE_COLOR:
-		return null
-	return color
 
-## 设置某个格子的颜色
-func set_cell_color(x: int, y: int, color):
-	var c = _normalize_cell_color(color)
-	
-	if _is_valid_position(x, y):
-		board_data[y][x] = c
-		# 记录锁定时间（非空格、非垃圾行）
-		if c != null and not _is_garbage_color(c):
-			_cell_lock_times[y][x] = Time.get_ticks_msec()
-		elif c == null:
-			_cell_lock_times[y][x] = 0
-		queue_redraw()  # 请求重绘
 
-## 设置格子颜色，并显式指定锁定时间戳（不按「刚刚落下」刷新）。
-## 专供「整版位移」类操作使用（消行下移、垃圾行/Allspin 上涨）：
-## 这些操作只是把已有格子搬到新行，若走 set_cell_color()，时间戳会被刷成「刚刚落下」，
-## 隐形模式（tetris_invisible == 1）下整片版面就会突然显形 —— 而按规则只有
-## 「刚放下不久的方块」和「到点重新现形的方块」才应该可见。
-func set_cell_color_with_lock_time(x: int, y: int, color, lock_time: int):
-	var c = _normalize_cell_color(color)
-	
-	if _is_valid_position(x, y):
-		board_data[y][x] = c
-		_cell_lock_times[y][x] = lock_time if c != null else 0
-		queue_redraw()
 
-## 获取某个格子的锁定时间戳（毫秒；0 = 空/无记录）。隐形的渐隐判定用得到。
-func get_cell_lock_time(x: int, y: int) -> int:
-	if _is_valid_position(x, y):
-		return int(_cell_lock_times[y][x])
-	return 0
 
-## 获取某个格子的颜色
-func get_cell_color(x: int, y: int) -> Variant:
-	if _is_valid_position(x, y):
-		return board_data[y][x]
-	return null
-
-## 清除所有格子
-func clear_board():
-	_init_board_data()
-	queue_redraw()
-
-## 检查坐标是否有效（使用最大高度）
-func _is_valid_position(x: int, y: int) -> bool:
-	return x >= 0 and x < grid_width and y >= 0 and y < grid_max_height
-
-## 获取完整可玩行数（含上方出块区域）
+## 获取完整可玩行数（含上方出块区域）：直接取公共数据区的派生值
 func get_playable_height() -> int:
-	return grid_height + above_visible_rows
+	return TetrisGlobalData.board_playable_height
 
 ## 将网格坐标转换为世界坐标（格子左上角）
 ## y为数据行索引，减去above_visible_rows后映射到可见区域
 func cell_to_world(x: int, y: int) -> Vector2:
-	return Vector2(offset_x + x * cell_size, offset_y + (y - above_visible_rows) * cell_size)
+	return Vector2(TetrisGlobalData.board_offset_x + x * TetrisGlobalData.board_cell_size, TetrisGlobalData.board_offset_y + (y - TetrisGlobalData.board_above_visible_rows) * TetrisGlobalData.board_cell_size)
 
 ## 将世界坐标转换为网格坐标（返回数据行索引）
 func world_to_cell(world_pos: Vector2) -> Vector2i:
-	var local_x = world_pos.x - offset_x
-	var local_y = world_pos.y - offset_y
-	var cell_x = floor(local_x / cell_size)
-	var cell_y = floor(local_y / cell_size) + above_visible_rows
+	var local_x = world_pos.x - TetrisGlobalData.board_offset_x
+	var local_y = world_pos.y - TetrisGlobalData.board_offset_y
+	var cell_x = floor(local_x / TetrisGlobalData.board_cell_size)
+	var cell_y = floor(local_y / TetrisGlobalData.board_cell_size) + TetrisGlobalData.board_above_visible_rows
 	return Vector2i(cell_x, cell_y)
 
 ## ========== 影子方块系统 ==========
@@ -501,11 +583,11 @@ func clear_shadow():
 
 ## 检查某个位置是否被当前方块占据
 func _is_occupied_by_current_piece(board_x: int, board_y: int) -> bool:
-	if not tetris_controller:
+	if not TetrisGlobalData.tetris_controller:
 		return false
 	
-	var current_piece = tetris_controller.current_piece
-	var current_pos = tetris_controller.current_position
+	var current_piece = TetrisGlobalData.piece_shape
+	var current_pos = TetrisGlobalData.piece_position
 	
 	if current_piece.is_empty():
 		return false
@@ -557,7 +639,7 @@ func _draw_shadow():
 				var board_y = shadow_position.y + y
 				
 				# 只绘制在可见区域（含上方出块区域）内的影子
-				if board_x < 0 or board_x >= grid_width or board_y < 0 or board_y >= grid_height + above_visible_rows:
+				if board_x < 0 or board_x >= TetrisGlobalData.board_grid_width or board_y < 0 or board_y >= TetrisGlobalData.board_grid_height + TetrisGlobalData.board_above_visible_rows:
 					continue
 				
 				# 检查该位置是否被当前方块占据（本体与影子重叠）
@@ -565,11 +647,11 @@ func _draw_shadow():
 					continue
 				
 				# 检查该位置是否被其他已锁定的方块占据
-				if board_data[board_y][board_x] != null:
+				if TetrisGlobalData.board_data[board_y][board_x] != null:
 					continue
 				
 				# 绘制影子格子
-				var cell_rect = Rect2(cell_to_world(board_x, board_y), Vector2(cell_size, cell_size))
+				var cell_rect = Rect2(cell_to_world(board_x, board_y), Vector2(TetrisGlobalData.board_cell_size, TetrisGlobalData.board_cell_size))
 				draw_rect(cell_rect, shadow_color, true)
 				# 绘制影子边框
 				draw_rect(cell_rect, shadow_border_color, false, 1.0)
@@ -581,31 +663,31 @@ func _draw_grid_lines():
 	if not show_grid_lines:
 		return
 	
-	var width = grid_width * cell_size
-	var height = grid_height * cell_size  # 只绘制可见高度
+	var width = TetrisGlobalData.board_grid_width * TetrisGlobalData.board_cell_size
+	var height = TetrisGlobalData.board_grid_height * TetrisGlobalData.board_cell_size  # 只绘制可见高度
 	
 	# 绘制垂直线（跳过x=0和x=grid_width，由白色版边边框覆盖）
-	for x in range(1, grid_width):
-		var start_pos = Vector2(offset_x + x * cell_size, offset_y)
-		var end_pos = Vector2(offset_x + x * cell_size, offset_y + height)
+	for x in range(1, TetrisGlobalData.board_grid_width):
+		var start_pos = Vector2(TetrisGlobalData.board_offset_x + x * TetrisGlobalData.board_cell_size, TetrisGlobalData.board_offset_y)
+		var end_pos = Vector2(TetrisGlobalData.board_offset_x + x * TetrisGlobalData.board_cell_size, TetrisGlobalData.board_offset_y + height)
 		draw_line(start_pos, end_pos, grid_line_color, grid_line_width)
 	
 	# 绘制水平线（只绘制可见高度，跳过y=0和y=grid_height）
-	for y in range(1, grid_height):
-		var start_pos = Vector2(offset_x, offset_y + y * cell_size)
-		var end_pos = Vector2(offset_x + width, offset_y + y * cell_size)
+	for y in range(1, TetrisGlobalData.board_grid_height):
+		var start_pos = Vector2(TetrisGlobalData.board_offset_x, TetrisGlobalData.board_offset_y + y * TetrisGlobalData.board_cell_size)
+		var end_pos = Vector2(TetrisGlobalData.board_offset_x + width, TetrisGlobalData.board_offset_y + y * TetrisGlobalData.board_cell_size)
 		draw_line(start_pos, end_pos, grid_line_color, grid_line_width)
 
 ## 绘制所有格子（含可见区域上方的出块区域）
 func _draw_cells():
 	# 优先判断：不处于隐形模式 → 全部正常绘制
 	if tetris_invisible != 1:
-		for y in range(grid_height + above_visible_rows):
-			for x in range(grid_width):
-				var cell_color: Variant = board_data[y][x]
+		for y in range(TetrisGlobalData.board_grid_height + TetrisGlobalData.board_above_visible_rows):
+			for x in range(TetrisGlobalData.board_grid_width):
+				var cell_color: Variant = TetrisGlobalData.board_data[y][x]
 				if cell_color == null:
 					continue
-				var cell_rect := Rect2(cell_to_world(x, y), Vector2(cell_size, cell_size))
+				var cell_rect := Rect2(cell_to_world(x, y), Vector2(TetrisGlobalData.board_cell_size, TetrisGlobalData.board_cell_size))
 				draw_rect(cell_rect, cell_color as Color, true)
 				draw_rect(cell_rect, grid_line_color, false, 1.0)
 		return
@@ -613,43 +695,43 @@ func _draw_cells():
 	# 隐形模式（tetris_invisible == 1）
 	var now := Time.get_ticks_msec()
 	
-	for y in range(grid_height + above_visible_rows):
-		for x in range(grid_width):
-			var cell_color: Variant = board_data[y][x]
+	for y in range(TetrisGlobalData.board_grid_height + TetrisGlobalData.board_above_visible_rows):
+		for x in range(TetrisGlobalData.board_grid_width):
+			var cell_color: Variant = TetrisGlobalData.board_data[y][x]
 			if cell_color == null:
 				continue
 			
 			# 处于显示阶段 → 所有方块正常绘制
 			if _is_visible_mode:
-				var cell_rect := Rect2(cell_to_world(x, y), Vector2(cell_size, cell_size))
+				var cell_rect := Rect2(cell_to_world(x, y), Vector2(TetrisGlobalData.board_cell_size, TetrisGlobalData.board_cell_size))
 				draw_rect(cell_rect, cell_color as Color, true)
 				draw_rect(cell_rect, grid_line_color, false, 1.0)
 				continue
 			
 			# 隐藏阶段：手上控制的方块始终显示
 			if _is_occupied_by_current_piece(x, y):
-				var cell_rect := Rect2(cell_to_world(x, y), Vector2(cell_size, cell_size))
+				var cell_rect := Rect2(cell_to_world(x, y), Vector2(TetrisGlobalData.board_cell_size, TetrisGlobalData.board_cell_size))
 				draw_rect(cell_rect, cell_color as Color, true)
 				draw_rect(cell_rect, grid_line_color, false, 1.0)
 				continue
 			
 			# 隐藏阶段：垃圾行始终显示
-			if _is_garbage_color(cell_color as Color):
-				var cell_rect := Rect2(cell_to_world(x, y), Vector2(cell_size, cell_size))
+			if TetrisGlobalData.board_is_garbage_color(cell_color):
+				var cell_rect := Rect2(cell_to_world(x, y), Vector2(TetrisGlobalData.board_cell_size, TetrisGlobalData.board_cell_size))
 				draw_rect(cell_rect, cell_color as Color, true)
 				draw_rect(cell_rect, grid_line_color, false, 1.0)
 				continue
 			
 			# 普通已锁定方块 → 渐隐逻辑（落块后的短暂现形）
 			if drop_visible_time > 0.0:
-				var elapsed: float = (now - int(_cell_lock_times[y][x])) / 1000.0
+				var elapsed: float = (now - int(TetrisGlobalData.board_cell_lock_times[y][x])) / 1000.0
 				var alpha: float = 1.0 - (elapsed / drop_visible_time)
 				alpha = clamp(alpha, 0.0, 1.0)
 				if alpha <= 0.0:
 					continue  # 完全消失
 				var draw_color: Color = cell_color as Color
 				draw_color.a = alpha
-				var cell_rect := Rect2(cell_to_world(x, y), Vector2(cell_size, cell_size))
+				var cell_rect := Rect2(cell_to_world(x, y), Vector2(TetrisGlobalData.board_cell_size, TetrisGlobalData.board_cell_size))
 				draw_rect(cell_rect, draw_color, true)
 				draw_rect(cell_rect, grid_line_color, false, 1.0)
 			else:
@@ -663,21 +745,16 @@ func _draw_clearing_lines():
 	var now := Time.get_ticks_msec()
 	var alpha := 0.45 + 0.35 * (0.5 + 0.5 * sin(now / 90.0))
 	for y in clearing_lines:
-		var rect := Rect2(cell_to_world(0, y), Vector2(grid_width * cell_size, cell_size))
+		var rect := Rect2(cell_to_world(0, y), Vector2(TetrisGlobalData.board_grid_width * TetrisGlobalData.board_cell_size, TetrisGlobalData.board_cell_size))
 		draw_rect(rect, Color(1, 1, 1, alpha), true)
 
 ## 判断颜色是否为垃圾行颜色（垃圾行需要始终绘制）
-func _is_garbage_color(color: Color) -> bool:
-	if not garbage_line_controller:
-		return false
-	return (color == garbage_line_controller.garbage_color or 
-			color == garbage_line_controller.buffered_garbage_color or 
-			color == garbage_line_controller.solid_garbage_color)
+
 
 ## 绘制背景（只绘制可见区域）
 func _draw_background():
-	var background_rect = Rect2(offset_x, offset_y, 
-		grid_width * cell_size, grid_height * cell_size)
+	var background_rect = Rect2(TetrisGlobalData.board_offset_x, TetrisGlobalData.board_offset_y, 
+		TetrisGlobalData.board_grid_width * TetrisGlobalData.board_cell_size, TetrisGlobalData.board_grid_height * TetrisGlobalData.board_cell_size)
 	
 	draw_rect(background_rect, background_color, true)
 
@@ -685,12 +762,12 @@ func _draw_background():
 ## 网格线只画内部（x/y 都跳过边界），所以四条边都必须在这里补白线：
 ## 之前只画了左右，上下两侧没有任何白线，看起来就是网格/格子描边的灰线。
 func _draw_board_border():
-	var board_width_px = grid_width * cell_size
-	var board_height_px = grid_height * cell_size
-	var board_left = offset_x
-	var board_right = offset_x + board_width_px
-	var board_top = offset_y
-	var board_bottom = offset_y + board_height_px
+	var board_width_px = TetrisGlobalData.board_grid_width * TetrisGlobalData.board_cell_size
+	var board_height_px = TetrisGlobalData.board_grid_height * TetrisGlobalData.board_cell_size
+	var board_left = TetrisGlobalData.board_offset_x
+	var board_right = TetrisGlobalData.board_offset_x + board_width_px
+	var board_top = TetrisGlobalData.board_offset_y
+	var board_bottom = TetrisGlobalData.board_offset_y + board_height_px
 	
 	# 左边缘白线
 	draw_line(Vector2(board_left, board_top), Vector2(board_left, board_bottom), board_border_color, board_border_width)
@@ -708,10 +785,10 @@ func _draw_board_border():
 
 ## 获取垃圾槽的位置（在Hold框和版面之间）
 func _get_garbage_slot_position() -> Rect2:
-	var slot_x = offset_x + hold_display_offset_cells * cell_size + hold_display_width * cell_size
-	var slot_width = garbage_slot_width * cell_size
-	var slot_height = grid_height * cell_size  # 与可见版面同高
-	var slot_y = offset_y  # 与版面顶部对齐
+	var slot_x = TetrisGlobalData.board_offset_x + hold_display_offset_cells * TetrisGlobalData.board_cell_size + hold_display_width * TetrisGlobalData.board_cell_size
+	var slot_width = garbage_slot_width * TetrisGlobalData.board_cell_size
+	var slot_height = TetrisGlobalData.board_grid_height * TetrisGlobalData.board_cell_size  # 与可见版面同高
+	var slot_y = TetrisGlobalData.board_offset_y  # 与版面顶部对齐
 	
 	return Rect2(slot_x, slot_y, slot_width, slot_height)
 
@@ -732,31 +809,30 @@ func _draw_garbage_slot():
 	_draw_garbage_bars(slot_rect)
 	
 	# 绘制 garbage_cap 横线（从下往上数第 garbage_cap 行）
-	# ⚠ 必须读控制器的实时值：本节点 _ready 里 _init_board_data() 拷贝的那份 garbage_cap 是
-	#   在 TowerController._extra_data_deal()（关卡/buff 设置 garbage_cap）之前取的，
-	#   只读缓存的话横线高度会永远停在默认值上（buff 把 cap 改成 5/8/12 都不动）。
-	var cap_now: int = garbage_line_controller.garbage_cap if garbage_line_controller else garbage_cap
-	if cap_now > 0 and cap_now < grid_height:
-		var gap_y = slot_rect.position.y + (grid_height - cap_now) * cell_size
+	# ⚠ 必须读实时值（公共数据区转发到垃圾行控制器）：buff 会把 cap 改成 5/8/12，
+	#   只读本节点缓存的话横线高度会永远停在默认值上。
+	var cap_now: int = TetrisGlobalData.garbage_cap
+	if cap_now > 0 and cap_now < TetrisGlobalData.board_grid_height:
+		var gap_y = slot_rect.position.y + (TetrisGlobalData.board_grid_height - cap_now) * TetrisGlobalData.board_cell_size
 		var line_start = Vector2(slot_rect.position.x, gap_y)
 		var line_end = Vector2(slot_rect.position.x + slot_rect.size.x, gap_y)
 		draw_line(line_start, line_end, garbage_cap_line_color, 1.0)
 
 ## 绘制垃圾行矩形（包括正常和缓冲）
 func _draw_garbage_bars(slot_rect: Rect2):
-	if not garbage_line_controller:
+	if not TetrisGlobalData.garbage_line_controller:
 		return
 	
 	# 获取正常队列和缓冲队列数据
-	var enter_queue = garbage_line_controller.get_enter_queue()
-	var buffer_queue = garbage_line_controller.get_buffer_queue()
+	var enter_queue = TetrisGlobalData.garbage_line_controller.get_enter_queue()
+	var buffer_queue = TetrisGlobalData.garbage_line_controller.get_buffer_queue()
 	
 	if enter_queue.is_empty() and buffer_queue.is_empty():
 		return
 	
 	# 计算绘制参数
-	var bar_width = slot_rect.size.x - garbage_bar_padding * cell_size * 2
-	var padding_x = slot_rect.position.x + garbage_bar_padding * cell_size
+	var bar_width = slot_rect.size.x - garbage_bar_padding * TetrisGlobalData.board_cell_size * 2
+	var padding_x = slot_rect.position.x + garbage_bar_padding * TetrisGlobalData.board_cell_size
 	
 	# 从底部开始绘制
 	var current_bottom = slot_rect.position.y + slot_rect.size.y
@@ -765,12 +841,12 @@ func _draw_garbage_bars(slot_rect: Rect2):
 	for i in range(enter_queue.size()):
 		var entry = enter_queue[i]
 		var row_count = entry["count"] if typeof(entry) == TYPE_DICTIONARY else entry
-		var bar_height = row_count * cell_size - garbage_bar_padding * cell_size * 1
+		var bar_height = row_count * TetrisGlobalData.board_cell_size - garbage_bar_padding * TetrisGlobalData.board_cell_size * 1
 		
 		if bar_height <= 0:
-			bar_height = cell_size * 0.5
+			bar_height = TetrisGlobalData.board_cell_size * 0.5
 		
-		var bar_y = current_bottom - bar_height - garbage_bar_padding * cell_size
+		var bar_y = current_bottom - bar_height - garbage_bar_padding * TetrisGlobalData.board_cell_size
 		var bar_rect = Rect2(padding_x, bar_y, bar_width, bar_height)
 		
 		# 正常垃圾使用红色
@@ -779,9 +855,9 @@ func _draw_garbage_bars(slot_rect: Rect2):
 		draw_rect(bar_rect, border_color, false, 1.0)
 		
 		if i > 0:
-			var separator_y = bar_y - garbage_bar_padding * cell_size
-			var line_start = Vector2(slot_rect.position.x + garbage_bar_padding * cell_size, separator_y)
-			var line_end = Vector2(slot_rect.position.x + slot_rect.size.x - garbage_bar_padding * cell_size, separator_y)
+			var separator_y = bar_y - garbage_bar_padding * TetrisGlobalData.board_cell_size
+			var line_start = Vector2(slot_rect.position.x + garbage_bar_padding * TetrisGlobalData.board_cell_size, separator_y)
+			var line_end = Vector2(slot_rect.position.x + slot_rect.size.x - garbage_bar_padding * TetrisGlobalData.board_cell_size, separator_y)
 			draw_line(line_start, line_end, garbage_bar_separator_color, garbage_bar_separator_width)
 		
 		current_bottom = bar_y
@@ -791,19 +867,19 @@ func _draw_garbage_bars(slot_rect: Rect2):
 	for i in range(buffer_queue.size()):
 		var entry = buffer_queue[i]
 		var row_count = entry["count"]
-		var bar_height = row_count * cell_size - garbage_bar_padding * cell_size * 1
+		var bar_height = row_count * TetrisGlobalData.board_cell_size - garbage_bar_padding * TetrisGlobalData.board_cell_size * 1
 		
 		if bar_height <= 0:
-			bar_height = cell_size * 0.5
+			bar_height = TetrisGlobalData.board_cell_size * 0.5
 		
-		var bar_y = current_bottom - bar_height - garbage_bar_padding * cell_size
+		var bar_y = current_bottom - bar_height - garbage_bar_padding * TetrisGlobalData.board_cell_size
 		var bar_rect = Rect2(padding_x, bar_y, bar_width, bar_height)
 		
 		# 缓冲中：整条先画半透明底色，再用不透明红色自左往右填充
 		# 填充宽度 = 已缓冲时间 / 缓冲总时长，填满（整条变红）时正好缓冲结束、转入正常队列
 		draw_rect(bar_rect, garbage_bar_buffer_color, true)
 		var timer: float = float(entry.get("timer", 0.0))
-		var timer_total: float = float(entry.get("timer_total", garbage_line_controller.buffer_duration))
+		var timer_total: float = float(entry.get("timer_total", TetrisGlobalData.garbage_buffer_duration))
 		var progress: float = 1.0
 		if timer_total > 0.0:
 			progress = clampf(1.0 - timer / timer_total, 0.0, 1.0)
@@ -814,9 +890,9 @@ func _draw_garbage_bars(slot_rect: Rect2):
 		draw_rect(bar_rect, garbage_bar_buffer_border_color, false, 1.0)
 		
 		if i > 0:
-			var separator_y = bar_y - garbage_bar_padding * cell_size
-			var line_start = Vector2(slot_rect.position.x + garbage_bar_padding * cell_size, separator_y)
-			var line_end = Vector2(slot_rect.position.x + slot_rect.size.x - garbage_bar_padding * cell_size, separator_y)
+			var separator_y = bar_y - garbage_bar_padding * TetrisGlobalData.board_cell_size
+			var line_start = Vector2(slot_rect.position.x + garbage_bar_padding * TetrisGlobalData.board_cell_size, separator_y)
+			var line_end = Vector2(slot_rect.position.x + slot_rect.size.x - garbage_bar_padding * TetrisGlobalData.board_cell_size, separator_y)
 			draw_line(line_start, line_end, garbage_bar_separator_color, garbage_bar_separator_width)
 		
 		current_bottom = bar_y
@@ -842,18 +918,17 @@ func _draw_stats():
 		return
 	
 	var slot_rect = _get_garbage_slot_position()
-	var font_size = cell_size * stats_font_size_ratio
-	var _font = ThemeDB.fallback_font
+	var font_size = TetrisGlobalData.board_cell_size * stats_font_size_ratio
 	
 	# 计算文字位置（在垃圾槽左侧，右对齐）
-	var text_x = slot_rect.position.x + stats_offset_x_cells * cell_size
-	var text_y_base = slot_rect.position.y + slot_rect.size.y - stats_offset_y_cells * cell_size  # 从底部向上偏移
+	var text_x = slot_rect.position.x + stats_offset_x_cells * TetrisGlobalData.board_cell_size
+	var text_y_base = slot_rect.position.y + slot_rect.size.y - stats_offset_y_cells * TetrisGlobalData.board_cell_size  # 从底部向上偏移
 	
 	# 文本行（自上而下：TIME / PPS / APM / RPM）
 	# TIME：游戏时长 MM:SS（分钟补足两位），取自 TetrisController.game_time（与结算统计同源）
 	var total_seconds: int = 0
-	if tetris_controller:
-		total_seconds = int(tetris_controller.game_time)
+	if TetrisGlobalData.tetris_controller:
+		total_seconds = int(TetrisGlobalData.game_time)
 	var stats_lines = [
 		"TIME %02d:%02d" % [int(total_seconds / 60.0), total_seconds % 60],  # TIME 分:秒
 		"PPS %.2f/s" % [pps_value],  # PPS X.XX/s
@@ -861,7 +936,7 @@ func _draw_stats():
 		"RPM %.2f/m" % [rpm_value]   # RPM X.XX/m
 	]
 	
-	var line_spacing = cell_size * stats_spacing_cells
+	var line_spacing = TetrisGlobalData.board_cell_size * stats_spacing_cells
 	
 	# 从底部向上绘制
 	for i in range(stats_lines.size() - 1, -1, -1):
@@ -904,16 +979,16 @@ func _draw_speed_bars():
 		return
 	
 	var slot_rect = _get_garbage_slot_position()
-	var font_size: float = cell_size * stats_font_size_ratio
-	var text_x: float = slot_rect.position.x + stats_offset_x_cells * cell_size
-	var text_y_base: float = slot_rect.position.y + slot_rect.size.y - stats_offset_y_cells * cell_size
+	var font_size: float = TetrisGlobalData.board_cell_size * stats_font_size_ratio
+	var text_x: float = slot_rect.position.x + stats_offset_x_cells * TetrisGlobalData.board_cell_size
+	var text_y_base: float = slot_rect.position.y + slot_rect.size.y - stats_offset_y_cells * TetrisGlobalData.board_cell_size
 	# 与 _draw_stats 同一套算式：TIME 是自上而下第一行
-	var time_line_y: float = text_y_base - (STATS_LINE_COUNT - 1) * (cell_size * stats_spacing_cells) - font_size * 0.5
-	var bottom_y: float = time_line_y - speed_bars_offset_y_cells * cell_size - speed_bars_offset_y_px
+	var time_line_y: float = text_y_base - (STATS_LINE_COUNT - 1) * (TetrisGlobalData.board_cell_size * stats_spacing_cells) - font_size * 0.5
+	var bottom_y: float = time_line_y - speed_bars_offset_y_cells * TetrisGlobalData.board_cell_size - speed_bars_offset_y_px
 	
-	var bar_width: float = cell_size * speed_bar_width_ratio
-	var gap: float = cell_size * speed_bar_gap_ratio + speed_bar_gap_px
-	var max_height: float = cell_size * speed_bar_height_cells
+	var bar_width: float = TetrisGlobalData.board_cell_size * speed_bar_width_ratio
+	var gap: float = TetrisGlobalData.board_cell_size * speed_bar_gap_ratio + speed_bar_gap_px
+	var max_height: float = TetrisGlobalData.board_cell_size * speed_bar_height_cells
 	# 右对齐后再整体右移：橙条最右，蓝条在它左侧
 	var orange_x: float = text_x - bar_width + speed_bars_offset_x_px
 	var blue_x: float = orange_x - gap - bar_width
@@ -925,7 +1000,7 @@ func _draw_speed_bars():
 	
 	# 条顶写当前数值（四舍五入为整数）
 	if speed_bar_show_value:
-		var value_font_size: float = cell_size * speed_bar_value_font_ratio
+		var value_font_size: float = TetrisGlobalData.board_cell_size * speed_bar_value_font_ratio
 		var value_y: float = bottom_y - max_height - speed_bar_value_gap_px
 		_draw_text_centered(Vector2(blue_x + bar_width * 0.5, value_y),
 			"%d" % roundi(ppm_value), stats_text_color, stats_text_outline_color, value_font_size)
@@ -939,35 +1014,35 @@ func _draw_speed_bars():
 ## 窗口过小、按配置下移会把整块挤出视口底部时，这里自动回缩到刚好放得下。
 ## （爬塔速度文字已移到右下角速度计圆心，这里不再为它预留高度）
 func _get_height_display_offset_px() -> float:
-	var font_size: float = cell_size * height_font_size_ratio
+	var font_size: float = TetrisGlobalData.board_cell_size * height_font_size_ratio
 	# 整块高度：米数下方 0.4 字高 + 进度条 + 0.2 字高下沿余量
-	var block_height: float = font_size * 0.4 + stage_progress_bar_height_cells * cell_size \
+	var block_height: float = font_size * 0.4 + stage_progress_bar_height_cells * TetrisGlobalData.board_cell_size \
 		+ font_size * 0.2
-	var board_bottom_y: float = offset_y + grid_height * cell_size
+	var board_bottom_y: float = TetrisGlobalData.board_offset_y + TetrisGlobalData.board_grid_height * TetrisGlobalData.board_cell_size
 	var max_offset: float = get_viewport_rect().size.y - board_bottom_y - block_height
-	return clampf(height_display_offset_y_cells * cell_size, 0.0, maxf(max_offset, 0.0))
+	return clampf(height_display_offset_y_cells * TetrisGlobalData.board_cell_size, 0.0, maxf(max_offset, 0.0))
 
 ## 获取「爬塔米数」文字的居中基准位置（版面下侧居中，与 _draw_height_display 第一行完全一致）。
 ## 供 TowerController 在米数位置弹出 "+X.XXm" 字样使用：两处共用同一套布局数学，
 ## 改动 height_display_offset_y_cells / cell_size / 版面偏移后不会错位。
 func get_tower_meter_text_position() -> Vector2:
-	var board_center_x: float = offset_x + grid_width * cell_size * 0.5
-	var board_bottom_y: float = offset_y + grid_height * cell_size
+	var board_center_x: float = TetrisGlobalData.board_offset_x + TetrisGlobalData.board_grid_width * TetrisGlobalData.board_cell_size * 0.5
+	var board_bottom_y: float = TetrisGlobalData.board_offset_y + TetrisGlobalData.board_grid_height * TetrisGlobalData.board_cell_size
 	return Vector2(board_center_x, board_bottom_y + _get_height_display_offset_px())
 
 ## 绘制高度显示（在版面下侧居中，自上而下：爬塔高度 → 层进度条 → 爬塔速度）
 func _draw_height_display():
 	if not height_display_enabled:
 		return
-	if not tower_controller:
+	if not TetrisGlobalData.tower_controller:
 		return
 	
-	var font_size = cell_size * height_font_size_ratio
+	var font_size = TetrisGlobalData.board_cell_size * height_font_size_ratio
 	
 	# 第一行：爬塔高度（版面底部中央，位置与 get_tower_meter_text_position 同源）
 	var height_pos: Vector2 = get_tower_meter_text_position()
 	var board_center_x: float = height_pos.x
-	var height_text = "%.2fm" % tower_controller.tower_meter
+	var height_text = "%.2fm" % TetrisGlobalData.tower_meter
 	_draw_text_centered(height_pos, height_text, height_text_color,
 		height_text_outline_color, font_size)
 	
@@ -984,16 +1059,16 @@ func _draw_height_display():
 func _draw_speed_gauge():
 	if not speed_gauge_enabled:
 		return
-	if not tower_controller:
+	if not TetrisGlobalData.tower_controller:
 		return
 	
 	var viewport_size: Vector2 = get_viewport_rect().size
-	var radius: float = cell_size * speed_gauge_radius_cells
-	var margin: float = cell_size * speed_gauge_margin_cells
+	var radius: float = TetrisGlobalData.board_cell_size * speed_gauge_radius_cells
+	var margin: float = TetrisGlobalData.board_cell_size * speed_gauge_margin_cells
 	# 位置：Next 列正下方居中（Next 列 = offset_x + next_display_offset_cells 起、宽 next_display_width 格）
-	var next_center_x: float = offset_x + (next_display_offset_cells + next_display_width * 0.5) * cell_size
-	var next_stack_bottom: float = offset_y \
-		+ next_count * (next_display_height + next_spacing_cells) * cell_size
+	var next_center_x: float = TetrisGlobalData.board_offset_x + (next_display_offset_cells + next_display_width * 0.5) * TetrisGlobalData.board_cell_size
+	var next_stack_bottom: float = TetrisGlobalData.board_offset_y \
+		+ TetrisGlobalData.board_next_count * (next_display_height + next_spacing_cells) * TetrisGlobalData.board_cell_size
 	var center := Vector2(next_center_x, next_stack_bottom + margin + radius)
 	# 保险：整圆不超出视口底部（空间不够时整体上移）
 	center.y = minf(center.y, viewport_size.y - margin - radius)
@@ -1036,22 +1111,22 @@ func _draw_speed_gauge():
 func _draw_stage_progress_bar(center_x: float, top_y: float):
 	if not stage_progress_bar_enabled:
 		return
-	if not tower_controller:
+	if not TetrisGlobalData.tower_controller:
 		return
 	
 	# 计算进度（当前米数在当前阶段门槛到下一阶段门槛之间的百分比）
 	var floor_array = TowerController.FLOOR_HIGHER
-	var stage = tower_controller.current_stage
+	var stage = TetrisGlobalData.current_stage
 	var current_floor = floor_array[stage] if stage < floor_array.size() else floor_array[-1]
 	var next_floor = floor_array[stage + 1] if stage + 1 < floor_array.size() else current_floor
 	
 	var progress: float = 1.0
 	if next_floor > current_floor:
-		progress = (tower_controller.tower_meter - current_floor) / (next_floor - current_floor)
+		progress = (TetrisGlobalData.tower_meter - current_floor) / (next_floor - current_floor)
 		progress = clampf(progress, 0.0, 1.0)
 	
-	var bar_width = stage_progress_bar_width_cells * cell_size
-	var bar_height = stage_progress_bar_height_cells * cell_size
+	var bar_width = stage_progress_bar_width_cells * TetrisGlobalData.board_cell_size
+	var bar_height = stage_progress_bar_height_cells * TetrisGlobalData.board_cell_size
 	
 	var bar_top_left = Vector2(center_x - bar_width * 0.5, top_y)
 	var bar_rect = Rect2(bar_top_left, Vector2(bar_width, bar_height))
@@ -1072,19 +1147,20 @@ func _draw_stage_progress_bar(center_x: float, top_y: float):
 
 func _on_big_attack_warning_started():
 	big_attack_warning_active = true
-	big_attack_warning_progress = 0.0
+	queue_redraw()
 
 func _on_big_attack_warning_ended():
 	big_attack_warning_active = false
-	big_attack_warning_progress = 0.0
 	queue_redraw()
 
 # ========== Hold方块显示系统 ==========
 
 ## 设置Hold显示的方块
-func set_hold_piece(piece: Array, color: Color):
+## penalty=true → 用「原本颜色 + 灰色」绘制（Allspin_1 重复惩罚预警）
+func set_hold_piece(piece: Array, color: Color, penalty: bool = false):
 	hold_piece_data = piece
 	hold_piece_color = color
+	TetrisGlobalData.board_hold_piece_penalty = penalty
 	queue_redraw()
 
 ## 清除Hold显示
@@ -1094,27 +1170,27 @@ func clear_hold_piece():
 	queue_redraw()
 
 ## 计算Hold框的位置（基于当前cell_size）
-func _get_hold_position() -> Vector2:
-	var hold_offset_x = hold_display_offset_cells * cell_size
-	var hold_offset_y = hold_display_offset_y_cells * cell_size
-	return Vector2(offset_x + hold_offset_x, offset_y + hold_offset_y)
+func get_hold_position() -> Vector2:
+	var hold_offset_x = hold_display_offset_cells * TetrisGlobalData.board_cell_size
+	var hold_offset_y = hold_display_offset_y_cells * TetrisGlobalData.board_cell_size
+	return Vector2(TetrisGlobalData.board_offset_x + hold_offset_x, TetrisGlobalData.board_offset_y + hold_offset_y)
 
 ## 绘制Hold方块区域
 func _draw_hold_display():
 	if not hold_display_enabled:
 		return
-	# NoHold模式：关闭Hold显示
-	if no_hold:
+	# NoHold模式：关闭Hold显示（公共开关由方块控制器按 buff 写入）
+	if TetrisGlobalData.no_hold:
 		return
 	
 	# 计算Hold框的位置（基于当前cell_size）
-	var hold_pos = _get_hold_position()
+	var hold_pos = get_hold_position()
 	var hold_x = hold_pos.x
 	var hold_y = hold_pos.y
 	
 	# 计算Hold框的大小（使用当前cell_size）
-	var hold_width = hold_display_width * cell_size
-	var hold_height = hold_display_height * cell_size
+	var hold_width = hold_display_width * TetrisGlobalData.board_cell_size
+	var hold_height = TetrisGlobalData.board_hold_display_height * TetrisGlobalData.board_cell_size
 	
 	# 绘制背景
 	var hold_rect = Rect2(hold_x, hold_y, hold_width, hold_height)
@@ -1124,47 +1200,73 @@ func _draw_hold_display():
 	draw_rect(hold_rect, hold_border_color, false, hold_border_width)
 	
 	# 绘制"HOLD"标签
-	_draw_label(hold_x, hold_y - cell_size * 0.5, "HOLD", hold_border_color, cell_size * 0.4)
+	_draw_label(hold_x, hold_y - TetrisGlobalData.board_cell_size * 0.5, "HOLD", hold_border_color, TetrisGlobalData.board_cell_size * 0.4)
 	
 	# 如果有方块数据，绘制方块（框 + 内边距 + 放大倍数都交给绘制函数统一处理）
 	if not hold_piece_data.is_empty():
-		_draw_piece_in_area(hold_piece_data, hold_piece_color,
+		var hold_draw_color: Color = hold_piece_color
+		if should_tint(TetrisGlobalData.board_hold_piece_penalty):
+			hold_draw_color = penalty_display_color(hold_piece_color)
+		_draw_piece_in_area(hold_piece_data, hold_draw_color,
 			hold_x, hold_y, hold_width, hold_height, hold_padding, hold_preview_scale)
+
+# ========== 惩罚预警显示（Allspin_1 重复惩罚） ==========
+
+## 把方块显示成「原本颜色 + 灰色」：在原本颜色里混入 penalty_tint_color。
+## penalty_tint_mix = 0 → 原色不变；= 1 → 全灰。alpha 保持原样。
+func penalty_display_color(base: Color) -> Color:
+	if not penalty_tint_enabled:
+		return base
+	var mixed: Color = base.lerp(penalty_tint_color, clampf(penalty_tint_mix, 0.0, 1.0))
+	mixed.a = base.a
+	return mixed
+
+
+## 统一入口：这一块是否要按「原色 + 灰」绘制。
+## penalty_tint_force_all = true 时无视标记强制全部灰化（调试用：确认渲染与调色是否生效）。
+func should_tint(penalty: bool) -> bool:
+	if not penalty_tint_enabled:
+		return false
+	return penalty or penalty_tint_force_all
 
 # ========== Next方块显示系统 ==========
 
 ## 设置Next显示的方块列表
+## pieces: [{shape: Array, color: Color, penalty: bool}, ...]
+## penalty=true 的那一项会用「原本颜色 + 灰色」绘制（Allspin_1 重复惩罚预警）
 func set_next_pieces(pieces: Array):
-	# pieces: [{shape: Array, color: Color}, ...]
-	next_pieces_data = pieces
+	TetrisGlobalData.board_next_pieces_data = pieces
 	queue_redraw()
 
 ## 清除Next显示
 func clear_next_pieces():
-	next_pieces_data = []
+	TetrisGlobalData.board_next_pieces_data = []
 	queue_redraw()
 
 ## 计算Next框的位置（基于当前cell_size）
 func _get_next_position(index: int) -> Vector2:
-	var next_offset_x = next_display_offset_cells * cell_size
-	var next_offset_y = next_display_offset_y_cells * cell_size + index * (next_display_height + next_spacing_cells) * cell_size
-	return Vector2(offset_x + next_offset_x, offset_y + next_offset_y)
+	var next_offset_x = next_display_offset_cells * TetrisGlobalData.board_cell_size
+	var next_offset_y = next_display_offset_y_cells * TetrisGlobalData.board_cell_size + index * (next_display_height + next_spacing_cells) * TetrisGlobalData.board_cell_size
+	return Vector2(TetrisGlobalData.board_offset_x + next_offset_x, TetrisGlobalData.board_offset_y + next_offset_y)
 
 ## 绘制Next方块区域
 func _draw_next_display():
-	if not next_display_enabled:
+	if not TetrisGlobalData.board_next_display_enabled:
 		return
 	
-	if next_pieces_data.is_empty():
+	if TetrisGlobalData.board_next_pieces_data.is_empty():
 		return
 	
 	# 限制显示的Next数量
-	var display_count = min(next_count, next_pieces_data.size())
+	var display_count = min(TetrisGlobalData.board_next_count, TetrisGlobalData.board_next_pieces_data.size())
 	
 	for i in range(display_count):
-		var piece_data = next_pieces_data[i]
+		var piece_data = TetrisGlobalData.board_next_pieces_data[i]
 		var shape = piece_data["shape"]
 		var color = piece_data["color"]
+		# Allspin_1 重复惩罚预警：这块会触发惩罚时用「原本颜色 + 灰色」显示
+		if should_tint(bool(piece_data.get("penalty", false))):
+			color = penalty_display_color(color)
 		
 		# 计算Next框的位置
 		var next_pos = _get_next_position(i)
@@ -1172,8 +1274,8 @@ func _draw_next_display():
 		var next_y = next_pos.y
 		
 		# 计算Next框的大小
-		var next_width = next_display_width * cell_size
-		var next_height = next_display_height * cell_size
+		var next_width = next_display_width * TetrisGlobalData.board_cell_size
+		var next_height = next_display_height * TetrisGlobalData.board_cell_size
 		
 		# 绘制背景
 		var next_rect = Rect2(next_x, next_y, next_width, next_height)
@@ -1184,7 +1286,7 @@ func _draw_next_display():
 		
 		# 绘制"NEXT"标签（只对第一个显示）
 		if i == 0:
-			_draw_label(next_x, next_y - cell_size * 0.5, next_label_text, next_label_color, cell_size * 0.4)
+			_draw_label(next_x, next_y - TetrisGlobalData.board_cell_size * 0.5, next_label_text, next_label_color, TetrisGlobalData.board_cell_size * 0.4)
 		
 		# 绘制方块（如果有）（框 + 内边距 + 放大倍数都交给绘制函数统一处理）
 		if not shape.is_empty():
@@ -1195,9 +1297,9 @@ func _draw_next_display():
 func _get_highest_block_y() -> int:
 	# 获取当前控制方块所占格子集合
 	var current_cells := {}
-	if tetris_controller:
-		var piece = tetris_controller.current_piece
-		var pos = tetris_controller.current_position
+	if TetrisGlobalData.tetris_controller:
+		var piece = TetrisGlobalData.piece_shape
+		var pos = TetrisGlobalData.piece_position
 		if piece and pos:
 			for py in range(piece.size()):
 				for px in range(piece[py].size()):
@@ -1206,16 +1308,18 @@ func _get_highest_block_y() -> int:
 						var by = pos.y + py
 						current_cells[Vector2i(bx, by)] = true
 	
-	var playable_height = min(grid_height + above_visible_rows, board_data.size())
+	var playable_height = min(TetrisGlobalData.board_grid_height + TetrisGlobalData.board_above_visible_rows, TetrisGlobalData.board_data.size())
 	for y in range(playable_height):
-		for x in range(grid_width):
-			if board_data[y][x] != null and not current_cells.has(Vector2i(x, y)):
+		for x in range(TetrisGlobalData.board_grid_width):
+			if TetrisGlobalData.board_data[y][x] != null and not current_cells.has(Vector2i(x, y)):
 				return y
 	return -1  # 没有方块
 
 ## 绘制大攻击警告：在最高方块上侧边缘划横线+朝上箭头
 func _draw_big_attack_warning():
-	if not big_attack_warning_active or big_attack_warning_progress <= 0.0:
+	# 进度由塔每帧写进公共数据区（0→1）
+	var warning_progress: float = TetrisGlobalData.tower_big_attack_progress
+	if not big_attack_warning_active or warning_progress <= 0.0:
 		return
 	
 	var highest_y = _get_highest_block_y()
@@ -1223,11 +1327,11 @@ func _draw_big_attack_warning():
 		return
 	
 	# warning_alpha 随进度从 0.3 渐变到 1.0
-	var warning_alpha: float = 0.3 + 0.7 * big_attack_warning_progress
+	var warning_alpha: float = 0.3 + 0.7 * warning_progress
 	var warning_color: Color = Color(1.0, 0.0, 0.0, warning_alpha * 0.6)
 	
-	var board_left = offset_x
-	var board_right = offset_x + grid_width * cell_size
+	var board_left = TetrisGlobalData.board_offset_x
+	var board_right = TetrisGlobalData.board_offset_x + TetrisGlobalData.board_grid_width * TetrisGlobalData.board_cell_size
 	var board_width_px = board_right - board_left
 	
 	# 计算最高方块上侧边缘的世界坐标
@@ -1238,10 +1342,10 @@ func _draw_big_attack_warning():
 	
 	# 在上方绘制4个朝上半透明箭头
 	var arrow_count = 4
-	var arrow_width = cell_size * 0.5          # 箭头底部宽度
-	var arrow_height = cell_size * 0.6         # 箭头高度
+	var arrow_width = TetrisGlobalData.board_cell_size * 0.5          # 箭头底部宽度
+	var arrow_height = TetrisGlobalData.board_cell_size * 0.6         # 箭头高度
 	var arrow_spacing = 1.0 * board_width_px / (arrow_count + 1)  # 等间距
-	var arrow_alpha: float = 0.4 + 0.6 * big_attack_warning_progress
+	var arrow_alpha: float = 0.4 + 0.6 * warning_progress
 	var arrow_color: Color = Color(1.0, 0.0, 0.0, arrow_alpha * 0.7)
 	
 	for i in range(arrow_count):
@@ -1258,14 +1362,14 @@ func _draw_big_attack_warning():
 
 ## 绘制游戏结束暗幕（半透明黑色覆盖版面区域）
 func _draw_death_overlay():
-	if not is_game_over:
+	if not TetrisGlobalData.board_is_game_over:
 		return
 	
 	# 覆盖版面区域 + 垃圾槽 + Hold/Next区域
-	var board_left = offset_x + hold_display_offset_cells * cell_size
-	var board_top = offset_y
-	var board_right = offset_x + (grid_width + next_display_offset_cells + next_display_width) * cell_size
-	var board_bottom = offset_y + grid_height * cell_size
+	var board_left = TetrisGlobalData.board_offset_x + hold_display_offset_cells * TetrisGlobalData.board_cell_size
+	var board_top = TetrisGlobalData.board_offset_y
+	var board_right = TetrisGlobalData.board_offset_x + (TetrisGlobalData.board_grid_width + next_display_offset_cells + next_display_width) * TetrisGlobalData.board_cell_size
+	var board_bottom = TetrisGlobalData.board_offset_y + TetrisGlobalData.board_grid_height * TetrisGlobalData.board_cell_size
 	
 	var overlay_rect = Rect2(board_left, board_top, board_right - board_left, board_bottom - board_top)
 	var overlay_color = Color(0, 0, 0, 0.7)
@@ -1394,6 +1498,12 @@ func _draw():
 	# 3. 绘制影子方块
 	_draw_shadow()
 	
+	# 3.5 Spin 闪光（叠在操控中的方块上）
+	_draw_spin_flash()
+	
+	# 3.6 Allspin_5 顶部行数指示（N S D T）
+	_draw_allspin5_counts()
+	
 	# 4. 绘制垃圾槽
 	_draw_garbage_slot()
 	
@@ -1427,10 +1537,6 @@ func _draw():
 	# 13. 游戏结束暗幕（最上层）
 	_draw_death_overlay()
 
-## 获取消行控制器的引用
-func set_clear_line_controller(controller: TetrisClearLine):
-	clear_line_controller = controller
-
 ## 设置正在播放消行动画的行（行号），用于闪烁高亮提示
 func set_clearing_lines(lines: Array) -> void:
 	clearing_lines = lines.duplicate()
@@ -1443,10 +1549,10 @@ func clear_clearing_lines() -> void:
 
 ## 更新网格尺寸（动态调整）
 func resize_grid(new_width: int, new_height: int, new_max_height: int = -1):
-	grid_width = new_width
-	grid_height = new_height
+	TetrisGlobalData.board_grid_width = new_width
+	TetrisGlobalData.board_grid_height = new_height
 	if new_max_height > 0:
-		grid_max_height = new_max_height
+		TetrisGlobalData.board_grid_max_height = new_max_height
 	_init_board_data()
 	
 	if auto_resize:
@@ -1458,7 +1564,7 @@ func resize_grid(new_width: int, new_height: int, new_max_height: int = -1):
 
 ## 手动设置格子大小（会覆盖自动调整）
 func set_cell_size(new_size: int, preserve_center: bool = true):
-	cell_size = new_size
+	TetrisGlobalData.board_cell_size = new_size
 	
 	if preserve_center and auto_center:
 		_update_board_position()
@@ -1467,8 +1573,8 @@ func set_cell_size(new_size: int, preserve_center: bool = true):
 
 ## 设置基准点（手动模式）
 func set_offset(new_x: int, new_y: int):
-	offset_x = new_x
-	offset_y = new_y
+	TetrisGlobalData.board_offset_x = new_x
+	TetrisGlobalData.board_offset_y = new_y
 	auto_center = false  # 手动设置后禁用自动居中
 	queue_redraw()
 
@@ -1481,5 +1587,122 @@ func set_auto_center(enabled: bool):
 
 ## 获取版面的实际边界矩形
 func get_board_rect() -> Rect2:
-	return Rect2(offset_x, offset_y, 
-		grid_width * cell_size, grid_height * cell_size)
+	return Rect2(TetrisGlobalData.board_offset_x, TetrisGlobalData.board_offset_y, 
+		TetrisGlobalData.board_grid_width * TetrisGlobalData.board_cell_size, TetrisGlobalData.board_grid_height * TetrisGlobalData.board_cell_size)
+
+
+# ============================================================
+# 关卡 / Buff 的初始版面印刷
+# ============================================================
+# 入口由公共数据区 TetrisGlobalData.apply_init_data() 调用（StartGarbage* / StartBoard* 参数）。
+# 版面内容归属于本节点，因此「印刷初始版面」也放在这里，塔控制器不再参与。
+
+## 按 StartGarbage 参数在版面底部印刷 N 行普通垃圾行（可消、带洞口，与游戏中上涨的垃圾行一致）。
+## 第 0 行印在最底层（最大 y）；洞口按当前 DoubleHole 设置（garbage_hole_count / garbage_hole_wide_count）生成。
+## 与 print_start_board 一致：通过 set_cell_color 写入 board_data，bot 实时读取 board_data 所以自动同步。
+func print_start_garbage(row_count: int) -> void:
+	if TetrisGlobalData.garbage_line_controller == null:
+		push_error("StartGarbage: 未找到 garbage_line_controller，无法印刷初始垃圾行")
+		return
+	# board_data 需已初始化；若尚未初始化则延迟到所有节点 _ready 完成后印刷
+	if TetrisGlobalData.board_data.is_empty():
+		print_start_garbage.call_deferred(row_count)
+		return
+	if row_count <= 0:
+		return
+	var grid_w: int = TetrisGlobalData.board_grid_width
+	var playable_h: int = get_playable_height()
+	if row_count > playable_h:
+		push_error("StartGarbage: 行数 %d 超过可玩高度 %d" % [row_count, playable_h])
+		return
+	for i in range(row_count):
+		var y: int = playable_h - 1 - i  # 从下往上：第 0 行印在最底层（最大 y）
+		# 洞口规则属于垃圾行控制器（公开 API），本节点不碰它的私有实现
+		var holes: Array = TetrisGlobalData.garbage_line_controller.build_garbage_row_holes()
+		for x in range(grid_w):
+			# 洞口为 null（空格），其余为普通垃圾色 —— 与 _generate_garbage_row_generator() 的口径一致。
+			# ⚠ 不要写成 `null if holes.has(x) else 颜色` 的三元式：null 与 Color 两个分支类型不兼容，
+			#   会触发 默认开启的 INCOMPATIBLE_TERNARY 警告，所以这里用显式 Variant + if。
+			var cell_color: Variant = TetrisGlobalData.garbage_color
+			if holes.has(x):
+				cell_color = null
+			TetrisGlobalData.board_set_cell(x, y, cell_color)
+	queue_redraw()
+	_refresh_after_board_change()
+
+## 按 StartBoard 参数印刷初始版面。
+## 行序：**列表最后一项 = 最底层**，再往前一项项往上填 —— 也就是按版面的视觉顺序从上往下书写，
+## 例如 [[顶层], [中层], [底层]]。每项是一行格子，行宽必须等于 grid_width。
+## 宽度不符 / 行数超出可玩高度 → push_error。
+## 通过 set_cell_color 写入 board_data，bot 实时读取 board_data，因此自动同步给 bot。
+func print_start_board(start_board: Variant) -> void:
+	# board_data 需已初始化（grid_width × grid_max_height）；若尚未初始化则延迟到所有节点 _ready 完成后印刷
+	if TetrisGlobalData.board_data.is_empty():
+		print_start_board.call_deferred(start_board)
+		return
+	if typeof(start_board) != TYPE_ARRAY or start_board.is_empty():
+		push_error("StartBoard: 参数必须是非空二维数组（最后一项为最底层）")
+		return
+	var grid_w: int = TetrisGlobalData.board_grid_width
+	var playable_h: int = get_playable_height()
+	var rows: int = start_board.size()
+	if rows > playable_h:
+		push_error("StartBoard: 高度超出，行数 %d > 可玩高度 %d" % [rows, playable_h])
+		return
+	# 先整体校验再写：避免写到一半才发现格式错误，留下半成品版面
+	for i in range(rows):
+		var src_index: int = rows - 1 - i  # 最底层 = 列表最后一项
+		var check_row: Variant = start_board[src_index]
+		if typeof(check_row) != TYPE_ARRAY:
+			push_error("StartBoard: 列表第 %d 项（从下往上第 %d 行）不是数组，格式错误"
+				% [src_index, i + 1])
+			return
+		if check_row.size() != grid_w:
+			push_error("StartBoard: 宽度不匹配，列表第 %d 项（从下往上第 %d 行）宽度 %d != 版面宽度 %d"
+				% [src_index, i + 1, check_row.size(), grid_w])
+			return
+	for i in range(rows):
+		var src_index: int = rows - 1 - i
+		var row: Array = start_board[src_index]
+		var y: int = playable_h - 1 - i  # i = 0 是最底层（最大 y）
+		for x in range(grid_w):
+			var color: Variant = _start_board_cell_to_color(row[x], src_index, x)
+			TetrisGlobalData.board_set_cell(x, y, color)
+	queue_redraw()
+	_refresh_after_board_change()
+
+## 将 StartBoard 单元格值转换为颜色。
+## null / 空字符串 / 0 → 空；字符串支持颜色名与十六进制（如 "#RRGGBB"）；
+## 特殊标记 "solid"/"实心" → 实心垃圾深灰，"garbage"/"垃圾" → 普通垃圾灰。
+func _start_board_cell_to_color(cell: Variant, row_i: int, col_i: int) -> Variant:
+	if cell == null:
+		return null
+	var t := typeof(cell)
+	if t == TYPE_STRING:
+		var s: String = str(cell).strip_edges().to_lower()
+		if s.is_empty() or s == "0" or s == "null" or s == "empty" or s == "空":
+			return null
+		if s == "solid" or s == "实心":
+			return TetrisGlobalData.garbage_solid_color if TetrisGlobalData.garbage_line_controller else Color(0.3, 0.3, 0.3)
+		if s == "garbage" or s == "垃圾":
+			return TetrisGlobalData.garbage_color if TetrisGlobalData.garbage_line_controller else Color(0.5, 0.5, 0.5)
+		var c: Color = Color.from_string(s, Color(-999, -999, -999))
+		if c.r < -100 or c.g < -100 or c.b < -100:
+			push_error("StartBoard: 无法解析颜色 '%s'（第 %d 行第 %d 列）" % [str(cell), row_i, col_i])
+			return null
+		return c
+	if t == TYPE_FLOAT or t == TYPE_INT:
+		var v: float = cell
+		if is_zero_approx(v):
+			return null
+		push_error("StartBoard: 不支持的数值单元格 %s（第 %d 行第 %d 列）" % [str(cell), row_i, col_i])
+		return null
+	push_error("StartBoard: 未知单元格类型 %s（第 %d 行第 %d 列）" % [str(cell), row_i, col_i])
+	return null
+
+## 版面内容被「外部」改写之后通知一次（目前只有 print_start_board / print_start_garbage 印刷会调）。
+## 背景：_ready 顺序是「先子后父」，TetrisController 先 ready，它在出块时就已经算过一遍影子；
+## 而关卡/Buff 的初始版面是在所有节点都就绪之后才印上去的，于是影子会停在按空版面算出的最底层
+## —— 这里发公共事件，由关心版面变化的一方（方块控制器）自己连接处理。
+func _refresh_after_board_change() -> void:
+	TetrisGlobalData.board_layout_changed.emit()

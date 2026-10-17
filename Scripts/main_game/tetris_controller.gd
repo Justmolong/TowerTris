@@ -3,41 +3,33 @@ class_name TetrisController
 
 ## 俄罗斯方块控制器
 ## 负责方块移动、碰撞检测、触底锁定等逻辑
+## 需要其它节点时一律通过公共数据区 TetrisGlobalData 取用（见 tetris_global_data.gd）。
 
-# 节点引用
-@export var board_drawer: TetrisBoardDrawer  # 版面绘制器节点
-@export var bag_controller: TetrisBagController  # Bag生成器节点
-@export var garbage_line_controller: TetrisGarbageLineController
 # @export var replay_record: ReplayRecord
-@export var clear_line_controller: TetrisClearLine
-@export var tower_controller: TowerController
 # @export var replay_player: ReplayPlayer
 
 var _game_started_emitted: bool = false
 # var _replay_seed_override: int = 0
 
 # 方块配置
-var current_piece: Array = []      # 当前方块的形状矩阵
 var current_color: Color = Color.WHITE  # 当前方块颜色
-var current_position: Vector2i = Vector2i.ZERO  # 当前方块位置（格子坐标）
-var current_piece_type: String = "I"  # 当前方块类型（用于踢墙表）
 var current_original_shape: Array = []  # 当前方块的原始形状（用于Hold）
-var last_locked_cells: Array = []   # 最近一次落块占据的版面格子（Vector2i）；供 Spike 数字定位在落块处
+## 最近一次锁定的方块类型：消行时写进 TetrisClearLine 的「上次消行方块类型」，供 Allspin 重复惩罚预警比对
+## 手上方块是否会触发 Allspin_1 重复惩罚（1=会，则 next/手上用「原本颜色+灰色」显示）。
+## 由 TetrisClearLine.is_allspin_penalty_piece() 判定，每次重绘手上方块时刷新。
+var current_piece_penalty: bool = false
 
 # 暂存系统
 var hold_piece: Array = []         # 暂存的方块矩阵
 var hold_color: Color = Color.WHITE  # 暂存的方块颜色
-var hold_piece_type: String = ""   # 暂存的方块类型
 var hold_original_shape: Array = []  # 暂存方块的原始形状（用于Hold）
-var can_hold: bool = true          # 是否可以使用暂存（每回合只能使用一次）
-var no_hold: bool = false          # NoHold模式：禁用暂存（不读取Hold输入，也不执行交换）
+# NoHold 模式：读写公共数据区的公共开关（TetrisGlobalData.no_hold），不再各存一份
 
 # 运动延迟系统
 var move_das: float = 0.1
 var move_arr: float = 0
 var softdrop_delay: float = 0.02
 
-var allow_press_move: bool = true
 var keep_press_move: bool = false
 var direction_press: int = 0
 var double_press: bool = false
@@ -90,7 +82,6 @@ var _last_clear_did_clear: bool = false
 
 # ========== 统计系统 ==========
 # 全局计时
-var game_time: float = 0.0          # 游戏总时间（秒）
 
 # 回放输入覆盖模式：开启后，按键状态由 replay_player 直接驱动，而不是实时读取 Input（已注释 - 回放系统禁用）
 # var replay_input_override: bool = false
@@ -132,6 +123,14 @@ var last_stats_update_time: float = 0.0
 # 不再用固定 +0.1（Timer 抖动/掉帧会让固定步进与实际时间产生累积漂移）。
 var _last_stats_ticks: int = 0
 
+# ---- 游戏时钟（秒）：只累计「游戏内真正流逝」的时间 ----
+# _process 收到的 delta 已含 Engine.time_scale；快速模拟等决策期间把缩放压到近乎 0，
+# 于是这段等待**一点游戏时间都不算**，bot 的 pps 才能保持与正常对局一致（否则 20 倍速下
+# 一次 107ms 的决策会吃掉 2.1 秒游戏时间，每块 2.1s → PPS 掉到 0.5）。
+# 统计/落块延迟/bot 节奏归属全部改用这个时钟，不再用「真实时间戳 × 缩放倍数」估算。
+var _game_clock: float = 0.0
+var _stats_accum: float = 0.0      # 距上次 _update_stats() 累计的游戏时间
+
 # 单次统计间隔的累计上限（秒）：窗口拖动/系统卡顿造成的超长间隔不计入游戏时长，
 # 否则会把「没在操作」的时间也算进 APM / PPS 的分母。
 const STATS_MAX_DELTA: float = 1.0
@@ -145,9 +144,9 @@ var total_spins: int = 0  # 总Spin次数
 # ========== Bot 参数（控制文件见下方注释） ==========
 # ---------------------------------------------------------------------------
 # 【bot 参数的来源/控制文件】
-#  1) bot_mode 由 tower_controller.gd 控制：关卡配置里带 "BotMode":true 时，
-#     tower_controller._extra_data_deal() 会把 tetris_controller.bot_mode 置 true。
-#     "BotMode" 键来自 buff_chose_area.gd 的 tower_init_data（关卡 buff 配置）。
+#  1) bot_mode 由关卡配置控制：配置里带 "BotMode":true 时，
+#     TetrisGlobalData.apply_init_data() 会把 tetris_controller.bot_mode 置 true。
+#     "BotMode" 键来自 buff_chose_area.gd 写入 TetrisGlobalData.tower_init_data 的 buff 配置。
 #  2) 其余3个 @export 参数（bot_target_pps / bot_native_action_interval /
 #     bot_debug_log）直接在 tetris_controller.gd 的 Inspector 里调整。
 # ---------------------------------------------------------------------------
@@ -200,6 +199,70 @@ var bot_mode: bool = false
 # 在 tetris_controller.gd 的 Inspector 中调整（@export）。
 @export var bot_debug_log: bool = false
 
+# ---------------------------------------------------------------------------
+# 【快速模拟】（buff「快速模拟」，必须与 Bot 模式同时开启）
+#   做法就是「帧数换算」：把 Engine.time_scale 放大 fast_simulate_speed 倍。
+#   每一帧照常跑一遍**完整逻辑**（出块/消行/垃圾/爬塔/统计全都照原样走），
+#   只是这一帧被记作 fast_simulate_speed 帧的游戏时间 → bot 的全过程被原样跑完，
+#   而不是另写一套简化模型；因此结果与正常游玩一致，只是快 N 倍出结果。
+#   同时解除 vsync / 帧率上限，避免被垂直同步卡在 60fps（那会把上限压回 60 倍）。
+#   ⚠ 真正的瓶颈是 zzz worker 的思考时间（实测每块约 107ms 真实），
+#     所以 fast_simulate_speed 调到 30 以上真实收益会迅速饱和；
+#     想再快只能调低 fast_simulate_think_budget（用棋力换速度）。
+#   ⚠ 游戏时长一律用 _game_clock（累计的、含缩放的 delta）来算，
+#     不要用「真实时间戳 × 缩放倍数」估算 —— 冻结等决策期间那个估算会把等待也算成游戏时间。
+#   ⚠ 等 worker 决策期间**默认冻结游戏时钟**（fast_simulate_freeze_wait=true）：
+#     等决策不计入游戏时间，每块游戏时长才回到 bot 自己的 pps 节奏（约 0.33~0.48s），
+#     界面 PPS 才能保持与正常对局一致（约 3）。关掉它会退化成每块 2.1 秒游戏时间、PPS 掉到 0.5。
+#   ⚠ bot 的落块节奏走「理想时刻网格」：基准是上一块的**理想**锁定时刻而不是实际时刻，
+#     否则「实际总比理想晚半帧」的量化误差会逐块累积，每块变成 间隔+半帧，PPS 被稀释到 2.5。
+#     配合冻结等待后，快速模拟的每块游戏时长与正常对局同量级（约 0.35s，实测差 3% 以内）。
+#   ⚠ 动态变速（bot_dynamic_pps）在快速模拟下**照常生效**（所以 PPS 会随高度/消行在 2.6~2.9 浮动，
+#     与正常对局一致，不强行贴 3.0）。想让 PPS 恒定贴住 bot_target_pps 才打开 fast_simulate_fixed_pps。
+# ---------------------------------------------------------------------------
+var fast_simulate: bool = false
+@export var fast_simulate_speed: float = 20.0
+## 等 worker 决策期间**是否冻结游戏时钟**（true = 把时间缩放压到 0.001，等决策不计入游戏时间）。
+## ⚠ 默认已改为 **false：等决策期间游戏照常实时运行**，不再冻结。
+##   true 的代价：等决策时整个画面（重力/消行动画/计时器）都停住，看上去就是"一顿"；
+##   假期的停顿长度 = 决策耗时，所以 bot 越慢卡顿越明显。
+##   false 的代价：等决策这段时间算进游戏时间，快速模拟下 PPS 会被稀释
+##   （20 倍速下一次 100ms 决策 ≈ 2 秒游戏时间）；同时方块会在计划到手前继续受重力下落。
+##   —— 控制器里有对应的保护：等决策期间 _process() 会跳过 gravity_drop()，方块不会掉。
+@export var fast_simulate_freeze_wait: bool = false
+## 冻结时使用的极小时间缩放（等价于暂停；不用 0 是为了避开引擎内部除零）
+const DECISION_WAIT_TIME_SCALE: float = 0.001
+## 快速模拟下 bot 把「本手计划的剩余动作」在**同一帧**内跑完（不走每帧一步的节奏等待）。
+## 与逐步执行共用 _apply_bot_action()，所以落点、踢墙、消行、**spin 判定**
+## （spin 看的是「最后一次旋转发生的位置」）都与正常对局一致 —— 快而不失真，默认开启。
+@export var fast_simulate_whole_plan: bool = true
+## 快速模拟下 bot 走「直接放置」＝按决策给的落点/朝向把方块瞬移到位后锁定，
+## 不再执行「左移/右移/旋转/软降」。
+## ⚠ 默认关闭：它会把旋转记录写在**落点**上，而正常对局写的是「最后一次旋转真正发生的位置」，
+##   本作 spin 判定读的正是后者（四方向不可移动才判 Spin）→ 会造成 spin 误判（偏多：能平移/上抬的
+##   位置在正常对局不判 Spin，瞬移放置却会判）。只在「位置精确优先、可容忍 spin 记录偏差」时开启。
+##   瞬移本身比整段计划同帧执行只快约 6%（真正的瓶颈是 worker 思考时间），所以默认不用它。
+## 思考预算（逐 REQ 下发到 bridge.think_budget_now）：预算 = 本块间隔 × ratio，夹在 [min, max] ms。
+## ⚠ 现在默认**固定 100ms**（ratio=1.0 但被 max 夹住，且 min/max 都是 100）：
+##   先前是 20~300ms 的动态预算，实测会让"等决策的停顿"在 107~180ms 之间浮动，
+##   危险局面还会顶到 300ms → 每块节奏出现 300ms/450ms 的双峰，观感就是"一顿一顿"。
+##   改回恒定 100ms 后停顿可预测，节奏才稳。
+##   想恢复动态预算：把 ratio 调回 0.35、max 调回 300（min 保持 20）。
+@export var bot_think_budget_ratio: float = 1.0
+@export var bot_think_budget_min: int = 100
+@export var bot_think_budget_max: int = 100
+
+@export var fast_simulate_direct_place: bool = false## 快速模拟时把 zzz worker 的思考预算调低（0 = 不干预，沿用 zzz_bridge.think_budget）。
+## ⚠ 这会改变 bot 的决策质量（思考越少越弱），所以默认 0；只在「只想尽快拿到结果」时打开。
+## 实测：预算 100（当前默认）时每块决策约 107ms，是极速模拟真正的瓶颈（约 9 块/秒真实）。
+@export var fast_simulate_think_budget: int = 0
+## 快速模拟时是否改用固定 pps（忽略 bot_dynamic_pps 的高度/消行/垃圾变速）：
+## 默认 **false = 保留动态变速**，与正常对局同一套节奏（此时 PPS 显示会随变速在 2.6~2.9 浮动，不贴 3.0）。
+## 打开后忽略动态变速，界面 PPS 严格贴住 bot_target_pps（3.000）——只在需要「恒定 3pps 基准」时用。
+@export var fast_simulate_fixed_pps: bool = false
+var _fast_simulate_vsync_off: bool = false  # 记录是否是我们关掉的 vsync（退出时好还原）
+var _fast_simulate_prev_max_fps: int = 0    # 加速前的帧率上限（退出时还原）
+
 # --- 以下为 bot 内部状态（运行期维护，勿手改） ---
 var _zzz_bridge: ZzzBridge = null
 var _bot_piece_serial: int = 0
@@ -211,12 +274,25 @@ var _bot_piece_cooldown: float = 0.0
 # 否则间隔是在 lock 时用「刚锁定那一手」的 pps armed 的，减速会落到下一块
 # （实测表现就是"消行之后下一块才卡一下"）。
 var _bot_last_lock_ms: float = 0.0
+## 上一块锁定时的游戏时钟（秒）：bot 节奏归属用它算「本手已用掉多少游戏时间」
+var _bot_last_lock_game: float = 0.0
+## bot 落块节奏的「理想时刻网格」（游戏时钟，秒）：
+##   _bot_lock_base_game   = 上一块理想的锁定时刻（不跟随实际锁定时刻，避免量化误差累积）
+##   _bot_lock_target_game = 本手理想的锁定时刻（= base + 本手自己的 pps 间隔），-1 = 本手尚未定出
+var _bot_lock_base_game: float = -1.0
+var _bot_lock_target_game: float = -1.0
+## 最近一次锁定的游戏时钟（秒）：落块延迟用它算已过时间
+var _lock_game_time: float = 0.0
 # 决策参数签名：旋转系统 / 垃圾上限 / BTB / PC / NoSpin / hold / 180 等。
 # 关卡与 buff 可能在这些字段生效前 bot 就已经发出了第一份请求（实测：RotateSystem_3 关卡里
 # 第一次 CFG 是 kick=0(ASC)，第二次才是 kick=3(NONE)）——那样这份计划是按旧参数搜出来的，
 # 里面可能含游戏做不出的踢墙。这里检测到签名变化就把旧计划作废并重算。
 var _bot_cfg_signature: String = ""
 var _bot_cfg_stale: bool = false
+# 落块自检用：计划确认那一刻的版面高度，以及到锁定前累计被垃圾抬高的行数。
+# 垃圾上涨是「整版含当前方块一起上移」，所以实际落点 y 会比计划 y 小 _bot_check_rise。
+var _bot_check_plan_height: int = -1
+var _bot_check_rise: int = 0
 # 动态 PPS 用：本手决策是否消行（由计划落点预测），以及已按哪个方块序号算过
 var _bot_pps_plan_clears: bool = false
 var _bot_pps_plan_serial: int = -1
@@ -253,11 +329,9 @@ enum RotationSystemType { ASC = 0, SRS = 1, ARS = 2, NONE = 3 }
 
 ## 当前使用的旋转系统。可在 Inspector 里直接切换，也可由关卡/Buff 的
 ## extra_data_dict["rotation_system"]（0/1/2/3 或 "ASC"/"SRS"/"ARS"/"NONE"）覆盖。
-@export_enum("ASC", "SRS", "ARS", "NONE") var rotation_system: int = RotationSystemType.ASC
 
 ## 当前方块的旋转状态索引：0=初始(North) 1=顺时针90°(East) 2=180°(South) 3=逆时针90°(West)。
 ## 由 spawn / hold / 每次旋转成功时维护，用于 SRS 的 from→to 踢墙表选择。
-var current_rotation_index: int = 0
 
 # ========== 踢墙表配置 ==========
 # 现代踢墙表（ASC）
@@ -347,10 +421,10 @@ func _calc_rotation_index(from_index: int, direction: int) -> int:
 ##   NONE 模式（无旋转系统）：旋转照常进行，但只有原地候选——不踢墙。
 func get_kick_offsets_for(piece_type: String, from_index: int, to_index: int, direction: int) -> Array:
 	# 无旋转系统：不做任何踢墙，只允许原地旋转（新朝向在当前位置放得下才成功）
-	if rotation_system == RotationSystemType.NONE:
+	if TetrisGlobalData.piece_rotation_system == RotationSystemType.NONE:
 		return KICK_NONE
 
-	if rotation_system == RotationSystemType.ARS:
+	if TetrisGlobalData.piece_rotation_system == RotationSystemType.ARS:
 		if direction == 2:
 			return KICK_NONE                      # ARS 没有 180°：只允许原地转
 		if ARS_NO_KICK_PIECES.has(piece_type):
@@ -358,7 +432,7 @@ func get_kick_offsets_for(piece_type: String, from_index: int, to_index: int, di
 		return ARS_KICK_ORDER
 
 	# ASC / 其它模式：单表通吃（180 也用同一张表，保持历史手感）
-	if rotation_system != RotationSystemType.SRS:
+	if TetrisGlobalData.piece_rotation_system != RotationSystemType.SRS:
 		return get_kick_table()
 
 	# SRS 的 180°：规范无官方表，用本工程的 5 候选扩展（最多让开一格）
@@ -391,36 +465,35 @@ func get_kick_offsets_for(piece_type: String, from_index: int, to_index: int, di
 func set_rotation_system(system) -> void:
 	if system is String or system is StringName:
 		match str(system).to_upper():
-			"ASC": rotation_system = RotationSystemType.ASC
-			"SRS": rotation_system = RotationSystemType.SRS
-			"ARS": rotation_system = RotationSystemType.ARS
-			"NONE": rotation_system = RotationSystemType.NONE
+			"ASC": TetrisGlobalData.piece_rotation_system = RotationSystemType.ASC
+			"SRS": TetrisGlobalData.piece_rotation_system = RotationSystemType.SRS
+			"ARS": TetrisGlobalData.piece_rotation_system = RotationSystemType.ARS
+			"NONE": TetrisGlobalData.piece_rotation_system = RotationSystemType.NONE
 			_: push_warning("[旋转系统] 未知名称 \"%s\"，忽略（可用 ASC / SRS / ARS / NONE）" % str(system))
 		return
 	var value: int = int(system)
 	if value < RotationSystemType.ASC or value > RotationSystemType.NONE:
 		push_warning("[旋转系统] 未知编号 %d，忽略（0=ASC / 1=SRS / 2=ARS / 3=NONE）" % value)
 		return
-	rotation_system = value
+	TetrisGlobalData.piece_rotation_system = value
 
 ## 当前旋转系统名（日志/调试用）
 func get_rotation_system_name() -> String:
-	match rotation_system:
+	match TetrisGlobalData.piece_rotation_system:
 		RotationSystemType.SRS: return "SRS"
 		RotationSystemType.ARS: return "ARS"
 		RotationSystemType.NONE: return "NONE"
 		_: return "ASC"
 
+func _enter_tree() -> void:
+	# 自注册到公共数据区（整棵场景树的 _enter_tree 都先于任何 _ready 完成）
+	TetrisGlobalData.register_node(self)
+
 func _ready():
 	_game_started_emitted = false
 	# _replay_seed_override = 0
 	
-	_auto_finding()
 	# _prepare_replay_if_pending()  # 回放系统已禁用
-	
-	# 将消行控制器引用传递给board_drawer
-	if board_drawer:
-		board_drawer.set_clear_line_controller(clear_line_controller)
 	
 	#初始化随机数管理器
 	_initialize_random()
@@ -437,53 +510,76 @@ func _ready():
 		if bot_debug_log:
 			pass  # 已注释：print("[ColdClearBridge] 使用原生ColdClear决策（rust cold_clear.dll）")
 	
+	# 版面内容被改写（关卡/Buff 的初始版面印刷）→ 走公共事件，由本节点自己重算方块位置与影子
+	TetrisGlobalData.board_layout_changed.connect(refresh_after_board_change)
+	# 落块 → 消行判定 → 出块 的主链路：本节点只负责「锁定后发通知」与「收到结果/请求后结算」
+	#   1) 锁定后 emit piece_locked（消行控制器订阅；见 _lock_piece）
+	#   2) 消行控制器判定完成 → lines_judged（本节点做统计/抵消/涨垃圾）
+	#   3) 消行控制器请求出块 → spawn_requested（本节点统一结算出块时机）
+	TetrisGlobalData.lines_judged.connect(_on_lines_judged)
+	TetrisGlobalData.spawn_requested.connect(_on_spawn_requested)
+	# 垃圾行控制器的事件：整版上移的前后处理（方块跟着上移）、收到攻击、请求结束本局
+	TetrisGlobalData.board_shift_starting.connect(_on_board_shift_starting)
+	TetrisGlobalData.board_shifted_up.connect(_on_board_shifted_up)
+	TetrisGlobalData.garbage_attack_received.connect(record_received_damage)
+	TetrisGlobalData.game_over_requested.connect(_on_game_over_requested)
+	
 	# 生成第一个方块
 	spawn_new_piece()
+	
+	# 上报就绪：当场景内所有节点都就绪后，公共数据区会通知各节点读走自己的 buff 参数
+	TetrisGlobalData.notify_node_ready(self)
 
-func _auto_finding():
-	# 自动查找board_drawer（如果未设置）
-	if not board_drawer:
-		board_drawer = get_node_or_null("../TetrisBoardDrawer")
-		if not board_drawer:
-			push_error("TetrisController: 未找到TetrisBoardDrawer节点！")
-			return
+## 读取公共区域里属于方块控制器的关卡 / buff 参数（谁用谁读：公共区域不认这些键名）。
+func apply_init_params() -> void:
+	# ---- 落块延迟（BlockDelay）：锁定后到「下一块出现 / 消行判定开始」的间隔 ----
+	# 与消行控制器的 ClearDelay 同时存在时无需特殊处理：spawn_delay_time 让消行判定整体推迟，
+	# 而 clear_line_delay_time 只在真正判出消行时才启动，实际等待 = max(两者)，不会相加。
+	if TetrisGlobalData.init_has("BlockDelay"):
+		set_spawn_delay(TetrisGlobalData.get_init_float("BlockDelay", 0.0))
 	
-	# 自动查找bag_controller（如果未设置）
-	if not bag_controller:
-		bag_controller = get_node_or_null("../TetrisBagController")
-		if not bag_controller:
-			push_error("TetrisController: 未找到TetrisBagController节点！")
-			return
+	# ---- bot 参数覆盖（ExtraBotChange）：勾选的 buff → zzztoj AI 参数 ----
+	# 键名 = ai_zzz::IO::Param 字段名（另支持 repeat_penalty）。未列出的参数保持 worker 默认。
+	if TetrisGlobalData.init_has("ExtraBotChange"):
+		var extra_bot: Variant = TetrisGlobalData.get_init_value("ExtraBotChange")
+		if typeof(extra_bot) == TYPE_DICTIONARY:
+			set_bot_param_overrides(extra_bot)
 	
-	# 自动查找clear_line_controller（如果未设置）
-	if not clear_line_controller:
-		clear_line_controller = get_node_or_null("../TetrisClearLine")
-		if not clear_line_controller:
-			push_error("TetrisController: 未找到TetrisClearLine节点！")
-			return
+	# ---- NoHold（NoHold_1）：禁用暂存 ----
+	# 该类参数由本节点统一读取并写进公共数据区的公共开关（版面绘制器直接读它，不再各存一份）
+	var no_hold_value: Variant = TetrisGlobalData.get_init_value_any(["NoHold", "no_hold"], null)
+	if no_hold_value != null:
+		TetrisGlobalData.no_hold = bool(no_hold_value)
 	
-	# 自动查找garbage_line_controller（如果未设置）
-	if not garbage_line_controller:
-		garbage_line_controller = get_node_or_null("../TetrisGarbageLineController")
-		if not garbage_line_controller:
-			push_error("TetrisController: 未找到TetrisGarbageLineController节点！")
-			return
+	# ---- Bot 模式（BotMode）：必须排在快速模拟之前（快速模拟要求同时开着 Bot）----
+	if TetrisGlobalData.init_has("BotMode"):
+		bot_mode = true
 	
-	# 自动查找tower_controller（如果未设置）
-	if not tower_controller:
-		tower_controller = get_node_or_null("../../TowerController")
-		if not tower_controller:
-			push_error("TetrisController: 未找到TowerController节点！")
-			return
+	# ---- 快速模拟（FastSimulate）：帧数换算式加速 ----
+	#   开了 Bot → 直接开快速模拟（全过程照跑，只是快 N 倍出结果）；
+	#   没开 Bot → 按需求直接返回 buff 选择界面，不实际运行。
+	if TetrisGlobalData.init_has("FastSimulate"):
+		if not bot_mode:
+			push_warning("快速模拟需要同时开启 Bot 模式 → 返回 buff 选择界面（不实际运行）")
+			return_to_buff_scene()
+		else:
+			enable_fast_simulate()
 	
-	# ====== 回放系统相关（已禁用） ======
-	# if not replay_record:
-	# 	replay_record = get_node_or_null("../ReplayRecord")
-	# 
-	# if not replay_player:
-	# 	replay_player = get_node_or_null("../../ReplayPlayer")
-	# 	if not replay_player:
-	# 		replay_player = _find_replay_player(get_tree().root)
+	# ---- 旋转系统：关卡/Buff 可覆盖（0=ASC / 1=SRS / 2=ARS / 3=NONE 无旋转系统，
+	#      也接受 "ASC"/"SRS"/"ARS"/"NONE"）----
+	#   rotation_system / RotationSystem —— 既有键名；RotateSystem —— buff「旋转系统」的键名
+	var rs: Variant = TetrisGlobalData.get_init_value_any(
+		["rotation_system", "RotationSystem", "RotateSystem"], null)
+	if rs != null:
+		set_rotation_system(rs)
+		if bot_debug_log:
+			print("[旋转系统] 由关卡/Buff 切换为 ", get_rotation_system_name())
+
+## 阶段 2：所有节点的参数都就位后收尾。
+## 首块已在本节点 _ready 里生成（当时用的是默认 next_count），而「短见」buff 会改
+## 版面绘制器的 next_count / next_display_enabled → 这里按最终设置重建一次 Next 显示数据。
+func finalize_init_params() -> void:
+	_update_next_display()
 
 # ====== 回放系统相关函数（已禁用） ======
 # func _find_replay_player(node: Node) -> ReplayPlayer:
@@ -538,12 +634,6 @@ func _auto_finding():
 # 		push_error("未找到 ReplayPlayer 节点")
 # 	
 # 	GlobalData.clear_pending_replay_path()
-
-func _print_tree(node: Node, indent: int):
-	var spaces = "  ".repeat(indent)
-	print(spaces + node.name + " (" + node.get_class() + ")")
-	for child in node.get_children():
-		_print_tree(child, indent + 1)
 
 func _initialize_random():
 	# 优先使用回放提供的种子（已禁用 - 回放系统禁用）
@@ -663,7 +753,7 @@ func set_spawn_delay(value: float) -> void:
 
 ## 初始化统计系统
 func _init_stats():
-	game_time = 0.0
+	TetrisGlobalData.game_time = 0.0
 	total_pieces = 0
 	total_attacks = 0
 	pps_value = 0.0
@@ -681,22 +771,19 @@ func _init_stats():
 
 ## 更新统计信息（每0.1秒调用）
 func _update_stats():
-	# 游戏时长按真实经过时间累计（引擎时间戳差值），避免固定 +0.1 的累积漂移。
+	# 游戏时长按「游戏时钟」累计：_process 里的 delta 已含 Engine.time_scale，
+	# 快速模拟等决策期间缩放被压到近乎 0 → 那段等待不计入分母，PPS/APM 与正常对局同口径。
 	# 单次增量上限 STATS_MAX_DELTA：超长间隔视为「非游戏时间」，不计入分母。
-	var now_ticks: int = Time.get_ticks_msec()
-	var real_delta: float = 0.0
-	if _last_stats_ticks > 0:
-		real_delta = (now_ticks - _last_stats_ticks) / 1000.0
-	_last_stats_ticks = now_ticks
-	game_time += clampf(real_delta, 0.0, STATS_MAX_DELTA)
+	TetrisGlobalData.game_time += clampf(_stats_accum, 0.0, STATS_MAX_DELTA)
+	_stats_accum = 0.0
 	
 	# 计算PPS
-	if game_time > 0:
-		pps_value = total_pieces / game_time
+	if TetrisGlobalData.game_time > 0:
+		pps_value = total_pieces / TetrisGlobalData.game_time
 	
 	# 计算APM
-	if game_time > 0:
-		apm_value = (total_attacks / game_time) * 60.0
+	if TetrisGlobalData.game_time > 0:
+		apm_value = (total_attacks / TetrisGlobalData.game_time) * 60.0
 	
 	# 计算RPM / PPM / 短期APM（同一个滚动最近1分钟窗口）
 	_prune_window_events(_rpm_events)
@@ -707,26 +794,26 @@ func _update_stats():
 	apm_window_value = _window_rate(_apm_events, "damage")
 	
 	# 更新显示
-	if board_drawer:
-		board_drawer.update_stats(pps_value, apm_value, rpm_value)
-		board_drawer.update_window_stats(ppm_value, apm_window_value)
+	if TetrisGlobalData.board_drawer:
+		TetrisGlobalData.board_drawer.update_stats(pps_value, apm_value, rpm_value)
+		TetrisGlobalData.board_drawer.update_window_stats(ppm_value, apm_window_value)
 
 ## 记录放置方块（PPS统计 + PPM 滚动窗口）
 func _record_piece_placed():
 	total_pieces += 1
-	_ppm_events.append({"time": game_time, "count": 1})
+	_ppm_events.append({"time": TetrisGlobalData.game_time, "count": 1})
 
 ## 记录造成攻击（APM统计 + APM 滚动窗口）
 func _record_attack_damage(damage: int):
 	if damage > 0:
 		total_attacks += damage
-		_apm_events.append({"time": game_time, "damage": damage})
+		_apm_events.append({"time": TetrisGlobalData.game_time, "damage": damage})
 
 ## 记录接收攻击（RPM统计 — 基于最近1分钟滚动窗口）
-func _record_received_damage(damage: int):
+func record_received_damage(damage: int):
 	if damage > 0:
 		# 向滚动窗口添加事件（带当前游戏时间戳）
-		_rpm_events.append({"time": game_time, "damage": damage})
+		_rpm_events.append({"time": TetrisGlobalData.game_time, "damage": damage})
 
 # ========== 短期（滚动 60s 窗口）统计辅助 ==========
 # RPM（接收攻击）/ PPM（落块）/ APM（打出攻击）三者同口径：
@@ -734,7 +821,7 @@ func _record_received_damage(damage: int):
 
 ## 清理窗口中过期的早期事件（原地修改传入的数组）
 func _prune_window_events(events: Array) -> void:
-	var cutoff: float = game_time - RPM_WINDOW_SECONDS
+	var cutoff: float = TetrisGlobalData.game_time - RPM_WINDOW_SECONDS
 	var drop: int = 0
 	while drop < events.size() and float(events[drop]["time"]) < cutoff:
 		drop += 1
@@ -747,7 +834,7 @@ func _window_rate(events: Array, key: String) -> float:
 		return 0.0
 	
 	# 窗口内的实际时间跨度（取窗口大小与游戏时间中的较小值）
-	var window_span: float = min(RPM_WINDOW_SECONDS, game_time)
+	var window_span: float = min(RPM_WINDOW_SECONDS, TetrisGlobalData.game_time)
 	if window_span <= 0.0:
 		return 0.0
 	
@@ -760,7 +847,7 @@ func _window_rate(events: Array, key: String) -> float:
 ## 获取当前统计信息
 func get_stats() -> Dictionary:
 	return {
-		"game_time": game_time,
+		"game_time": TetrisGlobalData.game_time,
 		"total_pieces": total_pieces,
 		"total_attacks": total_attacks,
 		"pps": pps_value,
@@ -771,25 +858,25 @@ func get_stats() -> Dictionary:
 ## 重置统计信息
 func reset_stats():
 	_init_stats()
-	if board_drawer:
-		board_drawer.update_stats(pps_value, apm_value, rpm_value)
-		board_drawer.update_window_stats(ppm_value, apm_window_value)
+	if TetrisGlobalData.board_drawer:
+		TetrisGlobalData.board_drawer.update_stats(pps_value, apm_value, rpm_value)
+		TetrisGlobalData.board_drawer.update_window_stats(ppm_value, apm_window_value)
 
 ## 计算可用的出块 Y。
 ## allow_up_shift = true（clutch / 暂存换块）：出生点被占时向上寻找第一个不重叠位置。
 ## 返回可用的 y；返回 -1 表示从 base_y 一路到版面顶部（y = 0）都放不下 → 完全致死。
-## ⚠ 一律用 _check_collision_pure() 做纯查询：绝不能走 _check_collision() 的默认参数
+## ⚠ 一律用 collides_at() 做纯查询：绝不能走 _check_collision() 的默认参数
 ##   （ignore_current_piece=true 会先「清空候选位置」再检测，把那里的版面方块擦掉，
 ##   检测反而变成空位 → 方块直接覆盖原有版面出块）。
 func _resolve_spawn_y(spawn_x: int, shape: Array, base_y: int, allow_up_shift: bool) -> int:
-	if not _check_collision_pure(Vector2i(spawn_x, base_y), shape):
+	if not collides_at(Vector2i(spawn_x, base_y), shape):
 		return base_y
 	if not allow_up_shift:
 		return -1
 	var test_y: int = base_y
-	while test_y > 0 and _check_collision_pure(Vector2i(spawn_x, test_y), shape):
+	while test_y > 0 and collides_at(Vector2i(spawn_x, test_y), shape):
 		test_y -= 1
-	if _check_collision_pure(Vector2i(spawn_x, test_y), shape):
+	if collides_at(Vector2i(spawn_x, test_y), shape):
 		return -1
 	return test_y
 
@@ -803,10 +890,10 @@ func spawn_new_piece(clutch: bool = false):
 	# 任何出块路径（含开局/重开/消行后）都结束「已锁定但未出下一块」的窗口
 	locked = false
 	# 从Bag控制器获取下一个方块
-	var piece_data = bag_controller.get_next_piece()
-	var spawn_x = int((board_drawer.grid_width - piece_data["shape"][0].size()) / 2)
+	var piece_data = TetrisGlobalData.bag_controller.get_next_piece()
+	var spawn_x = int((TetrisGlobalData.board_grid_width - piece_data["shape"][0].size()) / 2)
 	# 生成Y坐标：从下往上数第22行
-	var spawn_y = max(0, board_drawer.grid_height + board_drawer.above_visible_rows - 22)
+	var spawn_y = max(0, TetrisGlobalData.board_grid_height + TetrisGlobalData.board_above_visible_rows - 22)
 	
 	# 出块位置（clutch 时允许向上寻找空位）；放不下才是完全致死
 	var resolved_y: int = _resolve_spawn_y(spawn_x, piece_data["shape"], spawn_y, clutch)
@@ -817,36 +904,33 @@ func spawn_new_piece(clutch: bool = false):
 			print("[Spawn] 游戏结束：无法生成新方块（已上移至版面顶部仍重叠）")
 		else:
 			print("[Spawn] 游戏结束：无法生成新方块（出生点重叠）")
-		_game_over("方块堆积到顶部")
+		trigger_game_over("方块堆积到顶部")
 		return false
 	if resolved_y != spawn_y:
 		print("[ClutchSpawn] 出块位置重叠 → 上移至 y=", resolved_y, "（原出生点 y=", spawn_y, "）")
 		spawn_y = resolved_y
 	
-	current_piece = piece_data["shape"]
+	TetrisGlobalData.piece_shape = piece_data["shape"]
 	current_color = piece_data["color"]
-	current_piece_type = piece_data["type"]
-	current_original_shape = bag_controller.get_original_shape(current_piece_type)
-	current_position = Vector2i(spawn_x, spawn_y)
-	current_rotation_index = 0
+	TetrisGlobalData.piece_type = piece_data["type"]
+	current_original_shape = TetrisGlobalData.bag_controller.get_original_shape(TetrisGlobalData.piece_type)
+	TetrisGlobalData.piece_position = Vector2i(spawn_x, spawn_y)
+	TetrisGlobalData.piece_rotation_index = 0
 	# 新方块必然是未旋转状态：清掉上一块的旋转判定记录
 	_invalidate_rotation_record()
 	_bot_piece_serial += 1
-	# 调试：记录方块 spawn 位置（矩阵左上角），用于对照 CC 决策与执行
-	if bot_debug_log:
-		print("[BotSpawn] piece=", current_piece_type, " spawn=(", current_position.x, ",", current_position.y, ")")
 	
-	_draw_current_piece()
+	redraw_current_piece()
 	
 	if gravity_drop_time != 0:
 		gravity_timer.start()
 	lock_timer.stop()
 	lock_times_limit = lock_times_limit_max
 	
-	can_hold = true
+	TetrisGlobalData.piece_can_hold = true
 	
 	_update_next_display()
-	_update_shadow()
+	refresh_shadow()
 	
 	_record_piece_placed()
 	
@@ -862,32 +946,32 @@ func spawn_new_piece(clutch: bool = false):
 ## 若这里按老规则直接判死/卡住，玩家一按暂存就死，clutch 机制等于白给。
 func spawn_new_piece_keep_hold():
 	# 从Bag控制器获取下一个方块
-	var piece_data = bag_controller.get_next_piece()
-	var spawn_x = int((board_drawer.grid_width - piece_data["shape"][0].size()) / 2)
+	var piece_data = TetrisGlobalData.bag_controller.get_next_piece()
+	var spawn_x = int((TetrisGlobalData.board_grid_width - piece_data["shape"][0].size()) / 2)
 	# 生成Y坐标：从下往上数第22行
-	var spawn_y = max(0, board_drawer.grid_height + board_drawer.above_visible_rows - 22)
+	var spawn_y = max(0, TetrisGlobalData.board_grid_height + TetrisGlobalData.board_above_visible_rows - 22)
 	
 	# 出块位置：出生点被占则向上寻找（最多到版面顶部 y = 0）
 	var resolved_y: int = _resolve_spawn_y(spawn_x, piece_data["shape"], spawn_y, true)
 	if resolved_y < 0:
 		# 正常游戏结束情形，用 print 而不是 push_error（避免误导性的红字报错）
 		print("[Spawn] 游戏结束：无法生成新方块（已上移至版面顶部仍重叠）")
-		_game_over("方块堆积到顶部")
+		trigger_game_over("方块堆积到顶部")
 		return false
 	spawn_y = resolved_y
 	
-	current_piece = piece_data["shape"]
+	TetrisGlobalData.piece_shape = piece_data["shape"]
 	current_color = piece_data["color"]
-	current_piece_type = piece_data["type"]
-	current_original_shape = bag_controller.get_original_shape(current_piece_type)
-	current_position = Vector2i(spawn_x, spawn_y)
-	current_rotation_index = 0
+	TetrisGlobalData.piece_type = piece_data["type"]
+	current_original_shape = TetrisGlobalData.bag_controller.get_original_shape(TetrisGlobalData.piece_type)
+	TetrisGlobalData.piece_position = Vector2i(spawn_x, spawn_y)
+	TetrisGlobalData.piece_rotation_index = 0
 	# 新方块必然是未旋转状态：清掉上一块的旋转判定记录
 	_invalidate_rotation_record()
 	_bot_piece_serial += 1
 	
 	# 绘制方块到版面
-	_draw_current_piece()
+	redraw_current_piece()
 	
 	# 重置锁定状态
 	if gravity_drop_time != 0:
@@ -896,7 +980,7 @@ func spawn_new_piece_keep_hold():
 	lock_times_limit = lock_times_limit_max
 	
 	_update_next_display()
-	_update_shadow()
+	refresh_shadow()
 	
 	# 记录放置方块（PPS）
 	_record_piece_placed()
@@ -904,7 +988,7 @@ func spawn_new_piece_keep_hold():
 	return true
 
 ## 游戏结束方法
-func _game_over(reason: String = "Game Over"):
+func trigger_game_over(reason: String = "Game Over"):
 	# 停止所有计时器
 	game_timer.stop()
 	gravity_timer.stop()
@@ -923,19 +1007,18 @@ func _game_over(reason: String = "Game Over"):
 	# 收集最终统计数据
 	var stats = get_stats()
 	
-	if clear_line_controller:
+	if TetrisGlobalData.clear_line_controller:
 		stats["max_combo"] = max_combo
 		stats["max_btb"] = max_btb
 		stats["total_lines_cleared"] = total_lines_cleared
 		stats["total_spins"] = total_spins
 	
-	# 获取塔控制器数据
-	var tower = get_node_or_null("../../TowerController")
-	if tower:
-		stats["tower_height"] = tower.tower_meter
-		stats["kill_count"] = tower.kill_count
-		stats["tower_average_speed"] = tower.tower_meter / maxf(game_time, 0.001)
-		stats["current_stage"] = tower.current_stage
+	# 获取塔数据（统一走公共数据区，不再自己按路径找 TowerController 节点）
+	if TetrisGlobalData.tower_controller != null:
+		stats["tower_height"] = TetrisGlobalData.tower_meter
+		stats["kill_count"] = TetrisGlobalData.tower_kill_count
+		stats["tower_average_speed"] = TetrisGlobalData.tower_meter / maxf(TetrisGlobalData.game_time, 0.001)
+		stats["current_stage"] = TetrisGlobalData.current_stage
 	
 	GlobalData.update_stats(stats)
 	GlobalData.set_game_over_reason(reason)
@@ -944,9 +1027,9 @@ func _game_over(reason: String = "Game Over"):
 	game_ended.emit()
 	
 	# 通知版面变黑
-	if board_drawer:
-		board_drawer.is_game_over = true
-		board_drawer.queue_redraw()
+	if TetrisGlobalData.board_drawer:
+		TetrisGlobalData.board_is_game_over = true
+		TetrisGlobalData.board_drawer.queue_redraw()
 	
 	# 延迟切换到游戏结束场景
 	await get_tree().create_timer(0.5).timeout
@@ -954,48 +1037,97 @@ func _game_over(reason: String = "Game Over"):
 
 ## 更新Next显示
 func _update_next_display():
-	if board_drawer and bag_controller:
+	if TetrisGlobalData.board_drawer and TetrisGlobalData.bag_controller:
 		var next_pieces = []
 		# 从board_drawer读取配置的next_count
-		var next_count = board_drawer.next_count
-		var piece_types = bag_controller.peek_next_pieces(next_count)
+		var next_count = TetrisGlobalData.board_next_count
+		var piece_types = TetrisGlobalData.bag_controller.peek_next_pieces(next_count)
 		
 		for piece_type in piece_types:
-			var shape = bag_controller.get_original_shape(piece_type)
-			var color = bag_controller.get_piece_color(piece_type)
+			var shape = TetrisGlobalData.bag_controller.get_original_shape(piece_type)
+			var color = TetrisGlobalData.bag_controller.get_piece_color(piece_type)
 			next_pieces.append({
 				"shape": shape,
-				"color": color
+				"color": color,
+				"type": String(piece_type),
+				# Allspin_1 重复惩罚预警：这块会触发惩罚时用「原本颜色+灰色」显示
+				"penalty": _is_penalty_piece(String(piece_type))
 			})
 		
-		board_drawer.set_next_pieces(next_pieces)
+		TetrisGlobalData.board_drawer.set_next_pieces(next_pieces)
+		# 顺手刷新手上 / 暂存块的惩罚预警标记：出块、暂存交换、消行后都走这里，保证三者同步
+		_refresh_penalty_flags()
+
+
+## 刷新「手上 / 暂存」两个惩罚预警标记（next 列表在 _update_next_display 里逐项带标记）
+func _refresh_penalty_flags() -> void:
+	if TetrisGlobalData.board_drawer == null:
+		return
+	current_piece_penalty = _is_penalty_piece(TetrisGlobalData.piece_type)
+	TetrisGlobalData.board_hold_piece_penalty = _is_penalty_piece(TetrisGlobalData.piece_hold_type)
+	# 手上方块要按新标记重画（颜色变了）
+	if not TetrisGlobalData.piece_shape.is_empty():
+		redraw_current_piece()
+
+
+## 供 TetrisClearLine 在消行结算后立刻调用：不等下一块出块就刷新惩罚预警显示。
+## （消行动画有延迟，若只在出块时刷新，玩家会看到「预警比实际状态晚一手」）
+func refresh_penalty_warning() -> void:
+	_refresh_penalty_flags()
+	if TetrisGlobalData.board_drawer == null:
+		return
+	# 只更新 next 列表里每一项的 penalty 字段（不重建列表，避免影响 bag 读取顺序）
+	for entry: Dictionary in TetrisGlobalData.board_next_pieces_data:
+		entry["penalty"] = _is_penalty_piece(String(entry.get("type", "")))
+	TetrisGlobalData.board_drawer.queue_redraw()
+
+
+## 这块方块是否会触发 Allspin_1 的重复惩罚（由 TetrisClearLine 判定；未开 Allspin 时恒为 false）
+func _is_penalty_piece(piece_type: String) -> bool:
+	if TetrisGlobalData.clear_line_controller == null or piece_type.is_empty():
+		return false
+	return TetrisGlobalData.clear_line_controller.is_allspin_penalty_piece(piece_type)
+
+
+## 手上方块（当前活动块）的实际显示色：触发惩罚预警时 = 原本颜色 + 灰色
+func get_current_piece_display_color() -> Color:
+	if TetrisGlobalData.board_drawer == null:
+		return current_color
+	if not TetrisGlobalData.board_drawer.should_tint(current_piece_penalty):
+		return current_color
+	return TetrisGlobalData.board_drawer.penalty_display_color(current_color)
 
 ## 绘制当前方块到版面
-func _draw_current_piece():
+## use_penalty_color=false 时强制用原本颜色（锁定那一刻调，避免锁进版面的格子被灰化留在场上）
+func redraw_current_piece(use_penalty_color: bool = true):
 	# 清除当前方块（重新绘制时会覆盖，但为了安全先清除）
-	_clear_current_piece()
+	clear_current_piece()
+	
+	# 每次重绘顺手刷新惩罚预警标记（只依赖「上一手消行信息 + 本块类型」，开销极小）
+	current_piece_penalty = use_penalty_color and _is_penalty_piece(TetrisGlobalData.piece_type)
+	var draw_color: Color = get_current_piece_display_color() if use_penalty_color else current_color
 	
 	# 绘制新位置的方块
-	for y in range(current_piece.size()):
-		for x in range(current_piece[y].size()):
-			if current_piece[y][x] == 1:
-				var board_x = current_position.x + x
-				var board_y = current_position.y + y
-				board_drawer.set_cell_color(board_x, board_y, current_color)
+	for y in range(TetrisGlobalData.piece_shape.size()):
+		for x in range(TetrisGlobalData.piece_shape[y].size()):
+			if TetrisGlobalData.piece_shape[y][x] == 1:
+				var board_x = TetrisGlobalData.piece_position.x + x
+				var board_y = TetrisGlobalData.piece_position.y + y
+				TetrisGlobalData.board_set_cell(board_x, board_y, draw_color)
 
 ## 清除当前方块
-func _clear_current_piece():
-	for y in range(current_piece.size()):
-		for x in range(current_piece[y].size()):
-			if current_piece[y][x] == 1:
-				var board_x = current_position.x + x
-				var board_y = current_position.y + y
-				board_drawer.set_cell_color(board_x, board_y, null)
+func clear_current_piece():
+	for y in range(TetrisGlobalData.piece_shape.size()):
+		for x in range(TetrisGlobalData.piece_shape[y].size()):
+			if TetrisGlobalData.piece_shape[y][x] == 1:
+				var board_x = TetrisGlobalData.piece_position.x + x
+				var board_y = TetrisGlobalData.piece_position.y + y
+				TetrisGlobalData.board_set_cell(board_x, board_y, null)
 
 ## 检查碰撞
-func _check_collision(pos: Vector2i, piece: Array = current_piece, ignore_current_piece: bool = true) -> bool:
+func _check_collision(pos: Vector2i, piece: Array = TetrisGlobalData.piece_shape, ignore_current_piece: bool = true) -> bool:
 	if ignore_current_piece:
-		_clear_current_piece()
+		clear_current_piece()
 	
 	var is_not_allow : bool = false
 	
@@ -1006,23 +1138,23 @@ func _check_collision(pos: Vector2i, piece: Array = current_piece, ignore_curren
 				var board_y = pos.y + y
 				
 				# 边界检查
-				if board_x < 0 or board_x >= board_drawer.grid_width:
+				if board_x < 0 or board_x >= TetrisGlobalData.board_grid_width:
 					is_not_allow = true
-				if board_y >= board_drawer.grid_height + board_drawer.above_visible_rows:
+				if board_y >= TetrisGlobalData.board_grid_height + TetrisGlobalData.board_above_visible_rows:
 					is_not_allow = true
 				
 				# 检查与其他格子的碰撞（只检查非空格子）
-				if board_y >= 0 and board_drawer.get_cell_color(board_x, board_y) != null:
+				if board_y >= 0 and TetrisGlobalData.board_get_cell(board_x, board_y) != null:
 					is_not_allow = true
 		if is_not_allow:
 			break
 	
 	if ignore_current_piece:
-		_draw_current_piece()
+		redraw_current_piece()
 	return is_not_allow
 
 ## 取某个形状在指定位置上占据的版面格子坐标（用于碰撞查询时排除自身）
-func _get_piece_cells(piece: Array, pos: Vector2i) -> Array:
+func get_piece_cells(piece: Array, pos: Vector2i) -> Array:
 	var cells: Array = []
 	if piece == null or piece.is_empty():
 		return cells
@@ -1032,10 +1164,10 @@ func _get_piece_cells(piece: Array, pos: Vector2i) -> Array:
 				cells.append(Vector2i(pos.x + x, pos.y + y))
 	return cells
 
-## 纯查询碰撞检测：不修改版面数据、不触发重绘（无副作用）。
+## 纯查询碰撞检测（返回 true = **会碰撞/越界**，不是「能放下」）：不修改版面数据、不触发重绘。
 ## ignore_cells 中的格子（通常是自身方块占据的格子）视为空，用于排除自身（避免与自己重叠误判）。
 ## 语义与 _check_collision 完全一致：左右不可越界、下方不可越界、顶部之上不算碰撞、已占用格子为碰撞。
-func _check_collision_pure(pos: Vector2i, piece: Array, ignore_cells: Array = []) -> bool:
+func collides_at(pos: Vector2i, piece: Array, ignore_cells: Array = []) -> bool:
 	if piece == null or piece.is_empty():
 		return false
 	for y in range(piece.size()):
@@ -1044,51 +1176,51 @@ func _check_collision_pure(pos: Vector2i, piece: Array, ignore_cells: Array = []
 				continue
 			var board_x: int = pos.x + x
 			var board_y: int = pos.y + y
-			if board_x < 0 or board_x >= board_drawer.grid_width:
+			if board_x < 0 or board_x >= TetrisGlobalData.board_grid_width:
 				return true
-			if board_y >= board_drawer.grid_height + board_drawer.above_visible_rows:
+			if board_y >= TetrisGlobalData.board_grid_height + TetrisGlobalData.board_above_visible_rows:
 				return true
 			if board_y < 0:
 				continue
 			if ignore_cells.has(Vector2i(board_x, board_y)):
 				continue
-			if board_drawer.get_cell_color(board_x, board_y) != null:
+			if TetrisGlobalData.board_get_cell(board_x, board_y) != null:
 				return true
 	return false
 
 ## 纯查询：当前方块能否向 (dx,dy) 移动（自身格子视为空，无副作用）
 func _can_move(dx: int, dy: int) -> bool:
-	if current_piece.is_empty():
+	if TetrisGlobalData.piece_shape.is_empty():
 		return false
-	var ignore_cells: Array = _get_piece_cells(current_piece, current_position)
-	var new_pos = Vector2i(current_position.x + dx, current_position.y + dy)
-	return not _check_collision_pure(new_pos, current_piece, ignore_cells)
+	var ignore_cells: Array = get_piece_cells(TetrisGlobalData.piece_shape, TetrisGlobalData.piece_position)
+	var new_pos = Vector2i(TetrisGlobalData.piece_position.x + dx, TetrisGlobalData.piece_position.y + dy)
+	return not collides_at(new_pos, TetrisGlobalData.piece_shape, ignore_cells)
 
 ## 方块位置发生任何改变（移动/下落/暂存/换块/版面整体上移）后调用：
 ## 使旋转判定记录失效——spin 的前提是「最后一次成功动作是旋转」，移动过就不该再判 spin。
 func _invalidate_rotation_record() -> void:
-	if clear_line_controller:
-		clear_line_controller.reset_rotation_record()
+	if TetrisGlobalData.clear_line_controller:
+		TetrisGlobalData.clear_line_controller.reset_rotation_record()
 
 ## 版面整体位移（垃圾行上涨）后，方块与旋转记录一起位移：
 ## 此时方块相对堆叠的位置未变，仅需把记录里的位置同步到方块的实际位置，避免 spin 判定用陈旧坐标。
 func sync_rotation_record_position() -> void:
-	if clear_line_controller:
-		clear_line_controller.sync_rotation_record_position(current_position)
+	if TetrisGlobalData.clear_line_controller:
+		TetrisGlobalData.clear_line_controller.sync_rotation_record_position(TetrisGlobalData.piece_position)
 
 ## 尝试移动方块
 func _try_move(delta_x: int, delta_y: int) -> bool:
 	# 手上无方块（生成/消行延迟期间）：不移动，避免空方块在 while 循环里无限下落导致卡死
-	if current_piece.is_empty():
+	if TetrisGlobalData.piece_shape.is_empty():
 		return false
-	var new_pos = Vector2i(current_position.x + delta_x, current_position.y + delta_y)
+	var new_pos = Vector2i(TetrisGlobalData.piece_position.x + delta_x, TetrisGlobalData.piece_position.y + delta_y)
 	_check_underground_touch()
 	
 	if _can_move(delta_x, delta_y):
 		# 移动成功
-		_clear_current_piece()
-		current_position = new_pos
-		_draw_current_piece()
+		clear_current_piece()
+		TetrisGlobalData.piece_position = new_pos
+		redraw_current_piece()
 		
 		# 位置发生改变 → 旋转判定记录失效（spin 要求「最后一次成功动作为旋转」）
 		_invalidate_rotation_record()
@@ -1099,7 +1231,7 @@ func _try_move(delta_x: int, delta_y: int) -> bool:
 			lock_timer.start()
 			lock_times_limit -= 1
 		
-		_update_shadow()
+		refresh_shadow()
 		return true
 	else:
 		
@@ -1112,8 +1244,8 @@ func _check_underground_touch():
 	if bot_mode and _zzz_bridge != null and _zzz_bridge.is_plan_active():
 		lock_timer.stop()
 		return
-	var new_pos = Vector2i(current_position.x, current_position.y + 1)
-	if not _check_collision_pure(new_pos, current_piece, _get_piece_cells(current_piece, current_position)):
+	var new_pos = Vector2i(TetrisGlobalData.piece_position.x, TetrisGlobalData.piece_position.y + 1)
+	if not collides_at(new_pos, TetrisGlobalData.piece_shape, get_piece_cells(TetrisGlobalData.piece_shape, TetrisGlobalData.piece_position)):
 		lock_timer.stop()
 	elif lock_timer.is_stopped():
 		lock_timer.start()
@@ -1124,7 +1256,7 @@ func _check_underground_touch():
 ## 由 _try_spawn_after_delays() 在出块前结算（见下方说明），不在锁定前计时。
 func _lock_piece():
 	# 已在等待生成新方块时避免重复触发
-	if current_piece.is_empty():
+	if TetrisGlobalData.piece_shape.is_empty():
 		return
 	# PPS 兜底：任何锁定（不止 bot 的 hard_drop）都要保证「每块最小间隔」生效，
 	# 否则重力/锁延造成的锁定会让 PPS 超过 bot_target_pps。
@@ -1132,55 +1264,57 @@ func _lock_piece():
 	# 下一手自己的计划到手后会用「下一手自己的 pps」按 _bot_last_lock_ms 重算（见 _process_bot_control），
 	# 这样减速才归属到会消行的那一手，而不是被推迟到它后面那块。
 	if bot_mode:
+		# 理想时刻链：本手锁定后，基准推进到「本手的理想锁定时刻」（而不是实际锁定时刻）。
+		# 实际锁定总会比理想晚最多一帧的游戏时长（量化误差），若基准跟着实际走，这个误差会逐块累积
+		# → 每块实际占用变成「间隔 + 半帧」→ PPS 被稀释（快速模拟下 20 倍速时实测掉到 2.5）。
+		# 让基准保持在理想网格上，长期平均就严格等于 bot 自己的 pps 间隔（与攻击余数处理的思路一致）。
+		if _bot_lock_target_game >= 0.0:
+			_bot_lock_base_game = _bot_lock_target_game
+		else:
+			_bot_lock_base_game = _game_clock
+		_bot_lock_target_game = -1.0
 		_bot_piece_cooldown = max(_bot_piece_cooldown, _get_bot_piece_interval())
-		_bot_last_lock_ms = float(Time.get_ticks_msec())
+		_bot_last_lock_ms = float(Time.get_ticks_msec())   # 仅用于 [BotLock] 日志的「上块间隔」真实耗时
+		_bot_last_lock_game = _game_clock                  # 节奏归属按游戏时钟算
 	# 锁定瞬间刷新落块渐隐时间戳（隐形模式下按该时间戳做淡出）。
 	# 碰撞检测已改为无副作用的纯查询，不再顺带刷新，故在此显式刷新一次。
-	_draw_current_piece()
+	# use_penalty_color=false：惩罚预警只影响「手上」的显示，锁进版面的格子仍用原本颜色。
+	redraw_current_piece(false)
 	# 记录本次落块占据的版面格子（消行时的 Spike 数字要显示在落块位置；current_piece 下面就会被清空）
-	last_locked_cells = _get_piece_cells(current_piece, current_position)
+	TetrisGlobalData.piece_last_locked_cells = get_piece_cells(TetrisGlobalData.piece_shape, TetrisGlobalData.piece_position)
+	# 记录本块类型：消行时写进 TetrisClearLine 的「上次消行方块类型」，供 Allspin 重复惩罚预警比对
+	TetrisGlobalData.piece_last_locked_type = TetrisGlobalData.piece_type
 	# 逻辑上清除当前方块（保留 board_data 中已锁定的格子）
-	current_piece = []
+	TetrisGlobalData.piece_shape = []
 	# 落块延迟从「锁定」这一刻起算；已锁定、尚未出下一块
 	locked = true
 	lock_time_ms = Time.get_ticks_msec()
-	# 立刻开始消行判定（消行延迟由 TetrisClearLine 自己负责）
-	_process_after_spawn_delay()
+	_lock_game_time = _game_clock        # 落块延迟按游戏时钟算（快速模拟下不受真实耗时干扰）
+	# 落块结束 → 发通知，由消行控制器订阅后做判定（判定结果与出块请求会以事件回来）
+	TetrisGlobalData.piece_locked.emit()
 
-## 锁定后的处理：消行判定（消行 + 统计 + 垃圾处理）
-## 函数名沿用 spawn_delay_timer 的回调（该计时器现在专用于「落块延迟」的到点通知）。
-func _process_after_spawn_delay():
-	# 先检测是否有消行
-	var cleared = _check_and_clear_lines()
-	
-	# 只有在没有消行的情况下才触发垃圾行增长
-	if cleared == 0 and garbage_line_controller:
-		garbage_line_controller.process_garbage_after_lock()
-	# 出块前结算落块延迟（消行延迟需要更久时，由 TetrisClearLine 先等完它再走这里）
-	_try_spawn_after_delays()
-
-## 从锁定时刻起、落块延迟还差多少秒（已过时返回 0）；供 TetrisClearLine 在消行延迟结束时询问。
-func get_block_delay_remaining() -> float:
+## 落块延迟还剩多少秒（已过时返回 0）。内部使用：出块结算时判断要不要再等。
+func _block_delay_remaining() -> float:
 	if spawn_delay_time <= 0.0 or not locked:
 		return 0.0
-	var elapsed: float = float(Time.get_ticks_msec() - lock_time_ms) / 1000.0
+	var elapsed: float = maxf(_game_clock - _lock_game_time, 0.0)
 	return maxf(spawn_delay_time - elapsed, 0.0)
 
 ## 出块前的延迟结算：锁定后的实际出块时刻 = 锁定时刻 + max(落块延迟, 消行延迟)。
 ## 三个调用点都收敛到本函数，保证只出块一次：
-##   1) 锁定后的消行判定结束（_process_after_spawn_delay）
-##   2) 消行延迟计时结束（由 TetrisClearLine 调用 request_spawn_after_clear）
-##   3) 落块延迟计时到点（_on_spawn_delay_timeout）
+##   1) 收到 spawn_requested（消行控制器在「判定 + 全部版面变化」完成后发来，见 _on_lines_judged）
+##   2) 落块延迟计时到点（_on_spawn_delay_timeout）
+##   3) spawn_requested 到得比落块延迟早时，先起计时器等 2)
 ## 规则：
-##   · 消行延迟还没结束（正在播消行动画）→ 让位给 2)，不在这里出块
-##   · 距锁定还差一段落块延迟 → 起计时器等 3)
+##   · 消行延迟/动画还没结束（TetrisGlobalData.clear_animating_active）→ 不出块，等消行控制器再请求
+##   · 距锁定还差一段落块延迟 → 起计时器等
 ##   · 两者都已满足 → 出块（clutch 取本次是否消行）
 func _try_spawn_after_delays() -> void:
 	if not locked:
 		return
-	if clear_line_controller and clear_line_controller.is_clear_animating_active():
+	if TetrisGlobalData.clear_animating_active:
 		return
-	var remaining: float = get_block_delay_remaining()
+	var remaining: float = _block_delay_remaining()
 	if remaining > 0.0:
 		if spawn_delay_timer.is_stopped():
 			spawn_delay_timer.wait_time = remaining
@@ -1194,98 +1328,120 @@ func _try_spawn_after_delays() -> void:
 func _on_spawn_delay_timeout() -> void:
 	_try_spawn_after_delays()
 
-## 供 TetrisClearLine 在消行延迟/消行动画结束时调用：继续做出块结算。
-## 若落块延迟更长，这里会接着等剩余时间；否则立即出块。
-func request_spawn_after_clear() -> void:
+## 收到「请求出块」（TetrisClearLine 在判定 + 全部版面变化完成后发出）：
+## 这里只是**请求**，实际出块时机仍由 _try_spawn_after_delays() 统一结算
+## （locked 门 + 实际出块时刻 = 锁定时刻 + max(落块延迟, 消行延迟)）。
+func _on_spawn_requested() -> void:
 	_try_spawn_after_delays()
 
-## 由 TetrisClearLine 在消行处理完成（消行位移已执行）时调用：记录本次是否消了行，供出块时决定 clutch。
-func note_clear_result(did_clear: bool) -> void:
+## 收到「消行判定结果」（TetrisClearLine 发出，语义：本次判定的版面变化已全部完成）。
+## 这里做原先 _check_and_clear_lines() 里的统计与抵消，以及「没消行才涨垃圾」的决策。
+## ⚠ cleared == 0 时不计入任何统计（与旧口径一致：Spin0 的伤害不进 APM/总消行）。
+func _on_lines_judged(cleared: int, did_clear: bool, damage: int, spin_text: String,
+		btb: int, combo: int) -> void:
+	# 本次是否消了行 → 出块时的 clutch 容错（spawn_new_piece(clutch)）
 	_last_clear_did_clear = did_clear
+	if cleared <= 0:
+		# 没有消行 → 请求垃圾行上涨（本节点不再直接调用垃圾行控制器）。
+		# 放在这里 = 版面变化先于出块（有/无消行延迟两条路径顺序统一）。
+		TetrisGlobalData.garbage_rise_requested.emit()
+		return
+	
+	# 更新总消行数
+	total_lines_cleared += cleared
+	
+	# 更新最大连击 / 最大 BTB
+	if combo > max_combo:
+		max_combo = combo
+	if btb > max_btb:
+		max_btb = btb
+	
+	# 检测是否有 Spin
+	if not spin_text.is_empty():
+		total_spins += 1
+	
+	# 记录造成攻击（APM）
+	if damage > 0:
+		_record_attack_damage(damage)
+		# 请求用本次伤害抵消垃圾行（队列是否为空的判断与「防御奖励」都由垃圾行控制器负责）
+		TetrisGlobalData.garbage_offset_requested.emit(damage)
 
+## 收到「整版上移即将开始」（垃圾/实心行上涨）：先把手上方块从版面缓冲里清掉，
+## 否则它会被一起搬进新行（新行数据里会带上旧方块格子）。
+func _on_board_shift_starting(sync_piece: bool) -> void:
+	if not sync_piece or TetrisGlobalData.piece_shape.is_empty():
+		return
+	clear_current_piece()
 
+## 收到「整版上移已完成」：把手上方块按新位置重画。
+## 规则与旧实现一致（原先这段写在垃圾行控制器里）：
+##   1) 位置 = 原位置 - rows，且不低于顶部（y >= 0）
+##   2) 若与新版面碰撞 → 逐格向上找第一个合法位置
+##   3) 都找不到 → 方块被卡死，结束本局
+##   4) 重画方块 → 同步旋转记录位置（spin 判定不能用陈旧坐标）→ 刷新影子
+## ⚠ 位置计算用纯查询 collides_at()：_check_collision() 默认会先擦掉候选位置的版面方块，
+##   会让检测误判为空位，随后重绘就把方块画在那里覆盖原有版面。
+func _on_board_shifted_up(rows: int, sync_piece: bool) -> void:
+	if not sync_piece or TetrisGlobalData.piece_shape.is_empty():
+		return
+	var new_pos := Vector2i(TetrisGlobalData.piece_position.x,
+		maxi(TetrisGlobalData.piece_position.y - rows, 0))
+	TetrisGlobalData.piece_position = new_pos
+	if collides_at(new_pos, TetrisGlobalData.piece_shape):
+		var test_pos: Vector2i = new_pos
+		while test_pos.y > 0 and collides_at(test_pos, TetrisGlobalData.piece_shape):
+			test_pos.y -= 1
+		if test_pos.y >= 0 and not collides_at(test_pos, TetrisGlobalData.piece_shape):
+			TetrisGlobalData.piece_position = test_pos
+		else:
+			push_error("方块被卡死，游戏结束")
+			trigger_game_over("方块被卡死")
+			return
+	redraw_current_piece()
+	# 整版上移时方块被一并上移：旋转记录里的位置要同步到方块实际位置，
+	# 否则 spin 判定会拿陈旧坐标探测（位置整体偏下 rows 行）
+	sync_rotation_record_position()
+	refresh_shadow()
 
-## 检测并消除完整的行，并处理垃圾行抵消
-func _check_and_clear_lines() -> int:
-	if clear_line_controller:
-		var cleared = clear_line_controller.check_and_clear_lines()
-		if cleared > 0:
-			#print("消除了 ", cleared, " 行")
-			
-			# 更新总消行数
-			total_lines_cleared += cleared
-			
-			# 更新最大连击
-			var combo = clear_line_controller.get_combo_count()
-			if combo > max_combo:
-				max_combo = combo
-			
-			# 更新最大BTB
-			var btb = clear_line_controller.get_btb_count()
-			if btb > max_btb:
-				max_btb = btb
-			
-			# 检测是否有Spin
-			var spin_text = clear_line_controller.get_current_spin_text()
-			if not spin_text.is_empty():
-				total_spins += 1
-			
-			# 获取攻击伤害值
-			var damage = clear_line_controller.get_current_damage()
-			
-			# 记录消行事件
-				# 回放系统仅保留用户输入和垃圾行输入，派生事件不再记录
-			
-			# 记录造成攻击（APM）
-			if damage > 0:
-				_record_attack_damage(damage)
-			
-			# 如果有伤害且垃圾槽不为空，执行抵消
-			if damage > 0 and garbage_line_controller and garbage_line_controller.get_enter_queue_size() > 0:
-				var offset_count: int = garbage_line_controller.offset_garbage(damage)
-				# 抵消的部分作为奖励也输入给塔；is_defence=true 让飘字用红色，
-				# 与普通攻击奖励（绿色）区分：红色=抵消垃圾行得到的防御收益
-				if offset_count > 0 and tower_controller:
-					tower_controller.attack_increase_tower(offset_count, true)
-		
-		return cleared
-	return 0
+## 收到「本局应结束」的请求（垃圾上涨失败 / 方块堆积过高 / 方块被卡死等）
+func _on_game_over_requested(reason: String) -> void:
+	trigger_game_over(reason)
 
-## 添加攻击（由外部调用）
+## 添加攻击（由外部调用；实际入队与 RPM 记录由垃圾行控制器处理）
 func add_garbage_attack(attack_count: int):
-	if garbage_line_controller:
-		garbage_line_controller.add_attack(attack_count)
-		# 记录接收攻击（RPM）
-		_record_received_damage(attack_count)
+	TetrisGlobalData.garbage_attack_requested.emit(attack_count)
 
 # ========== 旋转系统 ==========
 
 ## 左旋（逆时针旋转90度）
 func rotate_left():
+	@warning_ignore("return_value_discarded")
 	_rotate_piece(-1)
 
 ## 右旋（顺时针旋转90度）
 func rotate_right():
+	@warning_ignore("return_value_discarded")
 	_rotate_piece(1)
 
 ## 180度旋转
 func rotate_180():
+	@warning_ignore("return_value_discarded")
 	_rotate_piece(2)
 
 ## 旋转方块核心逻辑（返回是否旋转成功；失败时方块状态不变）
 ## 无旋转系统（NONE）：旋转照常判定，但请踢墙表只给原地候选（见 get_kick_offsets_for），
 ## 因此需要被踢开才能放下的旋转会失败。
 func _rotate_piece(direction: int) -> bool:
-	if current_piece.is_empty():
+	if TetrisGlobalData.piece_shape.is_empty():
 		return false  # 手上无方块（延迟期间）：不旋转
 	
 	match direction:
 		1:  # 顺时针旋转 90度
-			return _apply_rotation_with_kick(_get_rotated_matrix(current_piece, 1), 1)
+			return _apply_rotation_with_kick(_get_rotated_matrix(TetrisGlobalData.piece_shape, 1), 1)
 		-1:  # 逆时针旋转 90度
-			return _apply_rotation_with_kick(_get_rotated_matrix(current_piece, -1), -1)
+			return _apply_rotation_with_kick(_get_rotated_matrix(TetrisGlobalData.piece_shape, -1), -1)
 		2:  # 180度旋转
-			return _apply_rotation_with_kick(_get_rotated_matrix(current_piece, 2), 2)
+			return _apply_rotation_with_kick(_get_rotated_matrix(TetrisGlobalData.piece_shape, 2), 2)
 		_:
 			return false
 
@@ -1294,33 +1450,37 @@ func _apply_rotation_with_kick(rotated_piece: Array, direction: int) -> bool:
 	if direction != 1 and direction != -1 and direction != 2:
 		return false
 	
-	var from_index: int = current_rotation_index
+	var from_index: int = TetrisGlobalData.piece_rotation_index
 	var to_index: int = _calc_rotation_index(from_index, direction)
 	
 	# 踢墙候选：ASC = 单表（CCW 由 X 取反镜像）；SRS = 按方块类型与 from→to 状态对取表
-	var kicks: Array = get_kick_offsets_for(current_piece_type, from_index, to_index, direction)
+	var kicks: Array = get_kick_offsets_for(TetrisGlobalData.piece_type, from_index, to_index, direction)
 	
 	# ASC 的「单表 + 逆时针 X 取反」约定；SRS 表内已含方向信息，乘数恒为 1
-	var kick_multiplier: int = -1 if (rotation_system == RotationSystemType.ASC and direction == -1) else 1
+	var kick_multiplier: int = -1 if (TetrisGlobalData.piece_rotation_system == RotationSystemType.ASC and direction == -1) else 1
 	
 	# 自身格子（旋转前位置）：踢墙查询时视为空，避免与自己重叠
-	var self_cells: Array = _get_piece_cells(current_piece, current_position)
+	var self_cells: Array = get_piece_cells(TetrisGlobalData.piece_shape, TetrisGlobalData.piece_position)
 	
 	for kick in kicks:
-		var new_pos = Vector2i(current_position.x + kick[0] * kick_multiplier, current_position.y + kick[1])
+		var new_pos = Vector2i(TetrisGlobalData.piece_position.x + kick[0] * kick_multiplier, TetrisGlobalData.piece_position.y + kick[1])
 		
-		if not _check_collision_pure(new_pos, rotated_piece, self_cells):
+		if not collides_at(new_pos, rotated_piece, self_cells):
 			# 旋转成功
-			_clear_current_piece()
-			current_piece = rotated_piece
-			current_position = new_pos
-			current_rotation_index = to_index
-			_draw_current_piece()
+			clear_current_piece()
+			TetrisGlobalData.piece_shape = rotated_piece
+			TetrisGlobalData.piece_position = new_pos
+			TetrisGlobalData.piece_rotation_index = to_index
+			redraw_current_piece()
 			
 			# 记录旋转事件（用于Spin检测），传递方块颜色
 			# 注意：O 块旋转是几何空操作，其旋转记录不参与 spin 判定（见 TetrisClearLine._detect_spin_type）
-			if clear_line_controller:
-				clear_line_controller.record_rotation(current_piece_type, current_piece, current_position, current_color)
+			if TetrisGlobalData.clear_line_controller:
+				TetrisGlobalData.clear_line_controller.record_rotation(TetrisGlobalData.piece_type, TetrisGlobalData.piece_shape, TetrisGlobalData.piece_position, current_color)
+			
+			# Spin 达成反馈：旋转后判定到 Spin（不可移动条件成立）→ 操控中的方块闪一下光；
+			# 若本局是惩罚模式且这次 Spin「直接消行」会触发重复惩罚 → 闪红光
+			_trigger_spin_flash()
 			
 			_check_underground_touch()
 			
@@ -1330,7 +1490,7 @@ func _apply_rotation_with_kick(rotated_piece: Array, direction: int) -> bool:
 				lock_timer.start()
 				lock_times_limit -= 1
 			
-			_update_shadow()
+			refresh_shadow()
 			return true
 	
 	# 所有踢墙尝试都失败
@@ -1371,83 +1531,83 @@ func _get_rotated_matrix(piece: Array, direction: int) -> Array:
 
 ## 暂存当前方块
 func hold_current_piece():
-	if current_piece.is_empty():
+	if TetrisGlobalData.piece_shape.is_empty():
 		return false  # 手上无方块（延迟期间）：不可暂存
-	if no_hold:
+	if TetrisGlobalData.no_hold:
 		return false  # NoHold模式：禁用暂存
-	if not can_hold:
+	if not TetrisGlobalData.piece_can_hold:
 		return false  # 本回合已使用过暂存
 	
 	# 清除当前方块
-	_clear_current_piece()
+	clear_current_piece()
 	
 	# 如果暂存区为空，将当前方块存入暂存，然后生成新方块
 	if hold_piece.is_empty():
 		# 保存当前方块的原始形状（未旋转状态）
-		hold_piece = bag_controller.get_original_shape(current_piece_type)
+		hold_piece = TetrisGlobalData.bag_controller.get_original_shape(TetrisGlobalData.piece_type)
 		hold_color = current_color
-		hold_piece_type = current_piece_type
-		hold_original_shape = bag_controller.get_original_shape(current_piece_type)
+		TetrisGlobalData.piece_hold_type = TetrisGlobalData.piece_type
+		hold_original_shape = TetrisGlobalData.bag_controller.get_original_shape(TetrisGlobalData.piece_type)
 		
-		# 更新Hold显示
-		board_drawer.set_hold_piece(hold_piece, hold_color)
+		# 更新Hold显示（penalty：暂存块会触发 Allspin 重复惩罚时用「原色+灰」显示）
+		TetrisGlobalData.board_drawer.set_hold_piece(hold_piece, hold_color, _is_penalty_piece(TetrisGlobalData.piece_hold_type))
 		
 		# 生成新方块（保持hold状态）
 		spawn_new_piece_keep_hold()
 	else:
 		# 暂存区有方块时，进行交换
 		# 先保存当前方块的完整信息（位置也要存：失败恢复时要放回原处，否则方块会瞬移并压住版面）
-		var temp_piece = current_piece
+		var temp_piece = TetrisGlobalData.piece_shape
 		var temp_color = current_color
-		var temp_type = current_piece_type
+		var temp_type = TetrisGlobalData.piece_type
 		var temp_original = current_original_shape
-		var temp_rotation_index: int = current_rotation_index
-		var temp_position: Vector2i = current_position
+		var temp_rotation_index: int = TetrisGlobalData.piece_rotation_index
+		var temp_position: Vector2i = TetrisGlobalData.piece_position
 		
 		# 从暂存区取出方块
-		current_piece = bag_controller.get_original_shape(hold_piece_type)
+		TetrisGlobalData.piece_shape = TetrisGlobalData.bag_controller.get_original_shape(TetrisGlobalData.piece_hold_type)
 		current_color = hold_color
-		current_piece_type = hold_piece_type
+		TetrisGlobalData.piece_type = TetrisGlobalData.piece_hold_type
 		current_original_shape = hold_original_shape
-		current_rotation_index = 0  # 取出的方块是原始形状（未旋转）
+		TetrisGlobalData.piece_rotation_index = 0  # 取出的方块是原始形状（未旋转）
 		
 		# 将当前方块存入暂存区
-		hold_piece = bag_controller.get_original_shape(temp_type)
+		hold_piece = TetrisGlobalData.bag_controller.get_original_shape(temp_type)
 		hold_color = temp_color
-		hold_piece_type = temp_type
+		TetrisGlobalData.piece_hold_type = temp_type
 		hold_original_shape = temp_original
 		
-		# 更新Hold显示
-		board_drawer.set_hold_piece(hold_piece, hold_color)
+		# 更新Hold显示（penalty：暂存块会触发 Allspin 重复惩罚时用「原色+灰」显示）
+		TetrisGlobalData.board_drawer.set_hold_piece(hold_piece, hold_color, _is_penalty_piece(TetrisGlobalData.piece_hold_type))
 		
 		# 出块位置（从下往上数第22行）；出生点被占时与 clutch 一样向上寻找空位。
-		# ⚠ 必须用 _resolve_spawn_y()/_check_collision_pure()：
+		# ⚠ 必须用 _resolve_spawn_y()/collides_at()：
 		#   旧写法 _check_collision(current_position) 默认 ignore_current_piece=true，
 		#   会先把候选位置清空再检测 → 把那里的版面方块擦掉且检测不出碰撞，
-		#   接着 _draw_current_piece() 就把方块画上去 → 「直接覆盖原有版面出块」。
-		var spawn_x = int((board_drawer.grid_width - current_piece[0].size()) / 2)
-		var spawn_y = max(0, board_drawer.grid_height + board_drawer.above_visible_rows - 22)
-		var resolved_y: int = _resolve_spawn_y(spawn_x, current_piece, spawn_y, true)
+		#   接着 redraw_current_piece() 就把方块画上去 → 「直接覆盖原有版面出块」。
+		var spawn_x = int((TetrisGlobalData.board_grid_width - TetrisGlobalData.piece_shape[0].size()) / 2)
+		var spawn_y = max(0, TetrisGlobalData.board_grid_height + TetrisGlobalData.board_above_visible_rows - 22)
+		var resolved_y: int = _resolve_spawn_y(spawn_x, TetrisGlobalData.piece_shape, spawn_y, true)
 		if resolved_y < 0:
 			# 连版面顶部都放不下：本次暂存交换作废，整体恢复原状（含位置）
 			# 属于正常可发生的情形（版面已满），用 print 而不是 push_error
 			print("[Hold] 暂存交换失败：版面已满，无法生成方块（已恢复原状）")
-			current_piece = temp_piece
+			TetrisGlobalData.piece_shape = temp_piece
 			current_color = temp_color
-			current_piece_type = temp_type
+			TetrisGlobalData.piece_type = temp_type
 			current_original_shape = temp_original
-			current_rotation_index = temp_rotation_index
-			current_position = temp_position
-			hold_piece = bag_controller.get_original_shape(hold_piece_type)
+			TetrisGlobalData.piece_rotation_index = temp_rotation_index
+			TetrisGlobalData.piece_position = temp_position
+			hold_piece = TetrisGlobalData.bag_controller.get_original_shape(TetrisGlobalData.piece_hold_type)
 			hold_color = temp_color  # 恢复hold颜色
-			board_drawer.set_hold_piece(hold_piece, hold_color)
-			_draw_current_piece()
+			TetrisGlobalData.board_drawer.set_hold_piece(hold_piece, hold_color, _is_penalty_piece(TetrisGlobalData.piece_hold_type))
+			redraw_current_piece()
 			return false
-		current_position = Vector2i(spawn_x, resolved_y)
+		TetrisGlobalData.piece_position = Vector2i(spawn_x, resolved_y)
 		
 		# 绘制方块到版面
-		_draw_current_piece()
-		_update_shadow()
+		redraw_current_piece()
+		refresh_shadow()
 		
 		# 重置锁定状态
 		lock_timer.stop()
@@ -1457,7 +1617,7 @@ func hold_current_piece():
 	_invalidate_rotation_record()
 	
 	# 标记暂存已使用
-	can_hold = false
+	TetrisGlobalData.piece_can_hold = false
 	return true
 
 ## 获取当前暂存的方块（用于显示）
@@ -1472,107 +1632,171 @@ func get_hold_color() -> Color:
 func clear_hold():
 	hold_piece = []
 	hold_color = Color.WHITE
-	hold_piece_type = ""
+	TetrisGlobalData.piece_hold_type = ""
 	hold_original_shape = []
 
 # ========== 公共控制方法 ==========
 ## 计算影子位置（硬降到底的位置）
 func _calculate_shadow_position() -> Vector2i:
-	if current_piece.is_empty():
+	if TetrisGlobalData.piece_shape.is_empty():
 		return Vector2i.ZERO
 	
-	var shadow_pos = current_position
+	var shadow_pos = TetrisGlobalData.piece_position
 	# 用纯查询逐格下探：自身格子视为空，且不产生清绘/重绘副作用
 	# （原实现每个候选位置都会清空+重绘当前方块，一块从高处落下要跑几十次）
-	var self_cells: Array = _get_piece_cells(current_piece, current_position)
+	var self_cells: Array = get_piece_cells(TetrisGlobalData.piece_shape, TetrisGlobalData.piece_position)
 	
 	# 一直向下移动直到碰撞
 	while true:
 		var test_pos = Vector2i(shadow_pos.x, shadow_pos.y + 1)
-		if _check_collision_pure(test_pos, current_piece, self_cells):
+		if collides_at(test_pos, TetrisGlobalData.piece_shape, self_cells):
 			break
 		shadow_pos = test_pos
 	
 	return shadow_pos
 
 ## 更新影子显示
-func _update_shadow():
-	if board_drawer:
-		if current_piece.is_empty():
-			board_drawer.clear_shadow()
+func refresh_shadow():
+	if TetrisGlobalData.board_drawer:
+		if TetrisGlobalData.piece_shape.is_empty():
+			TetrisGlobalData.board_drawer.clear_shadow()
 		else:
 			var shadow_pos = _calculate_shadow_position()
-			board_drawer.update_shadow(current_piece, shadow_pos, current_color)
+			TetrisGlobalData.board_drawer.update_shadow(TetrisGlobalData.piece_shape, shadow_pos, current_color)
+
+# ========== Spin 闪光反馈 ==========
+
+## 旋转成功后调用：判定到 Spin 就给操控中的方块闪一下光。
+##   白光 = 达成 Spin；
+##   红光 = 本局处于惩罚模式（Allspin_1~5），且这一手会触发重复惩罚。
+## 判定口径（与真实结算同一套判据，只查询、不推进轮状态）：
+##   · 按**硬降落点**预测会消几行（真正的消行数要等落块才知道）；
+##   · 会消行 → 按该行数判：行数轮内重复 / 与上一手有效行数相同 / 落块件与上一手相同 都算；
+##   · **消 0 行（Spin0）同样要判**：Spin0 的有效行数是 0、也属于行数轮成员，
+##     所以「0 已在轮内」或「上一手也是 0 行」时同样闪红光；类型相关的惩罚也一起判。
+## bot 操作时同样闪光（保留反馈；想关掉把 spin_flash_enabled 设为 false）。
+func _trigger_spin_flash() -> void:
+	var cl = TetrisGlobalData.clear_line_controller
+	var bd = TetrisGlobalData.board_drawer
+	if cl == null or bd == null or TetrisGlobalData.piece_shape.is_empty():
+		return
+	var spin_type: String = cl.get_current_spin_type()
+	if spin_type.is_empty():
+		return
+	var penalized: bool = false
+	if TetrisGlobalData.clear_allspin >= 1:
+		# rows == 0 表示这一手是 Spin0（有 Spin 但消 0 行）—— 同样参与重复判定，不能跳过
+		var land: Vector2i = _calculate_shadow_position()
+		var rows: int = _count_lines_if_locked_at(land)
+		penalized = cl.would_allspin_penalize(spin_type, rows, TetrisGlobalData.piece_type)
+	bd.flash_spin(penalized)
+
+
+## 预测：把当前方块放到 land_pos（硬降落点）时会消掉几行。
+## 当前方块自身的格子已经写进 board_data（画面上那块），所以先把自身视为空、再把落点格子叠上去。
+func _count_lines_if_locked_at(land_pos: Vector2i) -> int:
+	var shape: Array = TetrisGlobalData.piece_shape
+	if shape.is_empty():
+		return 0
+	var self_cells: Array = get_piece_cells(shape, TetrisGlobalData.piece_position)
+	var landing: Array = get_piece_cells(shape, land_pos)
+	var land_set := {}
+	for c: Vector2i in landing:
+		land_set[c] = true
+	var rows: int = 0
+	for y in range(TetrisGlobalData.board_data.size()):
+		var full: bool = true
+		for x in range(TetrisGlobalData.board_grid_width):
+			var cell := Vector2i(x, y)
+			if land_set.has(cell):
+				continue
+			if self_cells.has(cell):
+				continue
+			if TetrisGlobalData.board_get_cell(x, y) == null:
+				full = false
+				break
+		if full:
+			rows += 1
+	return rows
 
 ## 版面被外部改写（关卡/Buff 的初始版面 StartBoard / StartGarbage 印刷）后调用。
-## 出块与影子是在节点 _ready 时按「当时的空版面」算好的，而初始版面是 TowerController._ready
-## 才印上去的（_ready 顺序先子后父）—— 不刷新的话开局影子会停在按空版面算出的最底层，
+## 出块与影子是在节点 _ready 时按「当时的空版面」算好的，而初始版面是在所有节点就绪之后
+## 才由 TetrisGlobalData.apply_init_data() 印上去的 —— 不刷新的话开局影子会停在按空版面算出的最底层，
 ## 方块也可能正好压在刚印出来的初始版面上。这里按当前版面重算一次：
 ##   1) 当前方块若与新版面重叠 → 用与出块相同的纯查询向上找第一个不重叠位置；
 ##   2) 刷新影子。
 func refresh_after_board_change() -> void:
-	if board_drawer == null:
+	if TetrisGlobalData.board_drawer == null:
 		return
-	if not current_piece.is_empty():
+	if not TetrisGlobalData.piece_shape.is_empty():
 		# ⚠ 当前方块自身的格子此刻就在 board_data 里（出块/移动都会写进去），
 		#   所以纯查询必须把「自身格子」作为 ignore 传入；否则会把自己判成碰撞、把方块一路往上顶。
-		var self_cells: Array = _get_piece_cells(current_piece, current_position)
-		var fixed_y: int = current_position.y
-		while fixed_y > 0 and _check_collision_pure(
-				Vector2i(current_position.x, fixed_y), current_piece, self_cells):
+		var self_cells: Array = get_piece_cells(TetrisGlobalData.piece_shape, TetrisGlobalData.piece_position)
+		var fixed_y: int = TetrisGlobalData.piece_position.y
+		while fixed_y > 0 and collides_at(
+				Vector2i(TetrisGlobalData.piece_position.x, fixed_y), TetrisGlobalData.piece_shape, self_cells):
 			fixed_y -= 1
-		if fixed_y != current_position.y:
-			_clear_current_piece()
-			current_position = Vector2i(current_position.x, fixed_y)
-			_draw_current_piece()
-	_update_shadow()
-	board_drawer.queue_redraw()
+		if fixed_y != TetrisGlobalData.piece_position.y:
+			clear_current_piece()
+			TetrisGlobalData.piece_position = Vector2i(TetrisGlobalData.piece_position.x, fixed_y)
+			redraw_current_piece()
+	refresh_shadow()
+	TetrisGlobalData.board_drawer.queue_redraw()
 
 ## 左移
 func move_left():
+	@warning_ignore("return_value_discarded")
 	_try_move(-1, 0)
 
 ## 右移
 func move_right():
+	@warning_ignore("return_value_discarded")
 	_try_move(1, 0)
 
 ## 软降（单步向下）
 func soft_drop():
+	@warning_ignore("return_value_discarded")
 	_try_move(0, 1)
 
 ## 软降到底（不锁定）：bot 路径中的 "soft_drop" 动作（ColdClear SonicDrop）使用本方法，
 ## 对应将当前方块一直下落到触底位置，但不像 hard_drop 那样立即锁定，等待后续 hard_drop 锁定。
 func soft_drop_to_bottom():
-	if current_piece.is_empty():
+	if TetrisGlobalData.piece_shape.is_empty():
 		return  # 手上无方块（延迟期间）：不下落
 	while _try_move(0, 1):
 		pass
 
 ## 硬降（直接落底）
 func hard_drop():
-	if current_piece.is_empty():
+	if TetrisGlobalData.piece_shape.is_empty():
 		return  # 手上无方块（延迟期间）：不硬降
 	# 一直向下移动直到碰撞
 	while _try_move(0, 1):
 		pass  # 继续移动
 	
-	# 调试：打印锁定前的最终位置（与决策落点对照，用于核对「决策 ↔ 实际落块」是否一致）
-	# 坐标口径：x = 最左格，y = 最低格（与 worker 返回的落点口径一致）
-	if bot_debug_log:
-		var cells: Array = _get_piece_cells(current_piece, current_position)
+	# 落块自检：实际落点 vs bot 决策落点。
+	# 坐标口径：x = 最左格，y = 最低格（与 worker 返回的落点口径一致）。
+	# ⚠ 必须补偿垃圾上涨：上涨会把整个版面（连同当前方块）一起上移 k 行，
+	#   所以「计划确认后版面被抬高了多少」就是实际 y 合法偏移量（记在 _bot_check_rise）。
+	#   旋转态故意不比较：worker 与游戏对 I/S/Z 这类对称块的旋转编号存在 ±2 的等价标签差异。
+	if bot_mode and _zzz_bridge != null and not TetrisGlobalData.piece_shape.is_empty():
+		var cells: Array = get_piece_cells(TetrisGlobalData.piece_shape, TetrisGlobalData.piece_position)
 		var minx := 99
 		var maxy := -99
 		for c in cells:
 			minx = mini(minx, c.x)
 			maxy = maxi(maxy, c.y)
-		var tgt: Dictionary = _zzz_bridge.get_plan_target() if _zzz_bridge != null else {}
-		var tgt_txt := "?"
-		if not tgt.is_empty() and tgt["valid"]:
-			tgt_txt = "%s(%d,%d) rot=%d" % [tgt["piece"], tgt["x"], tgt["y"], tgt["rot"]]
-		print("[BotLock] piece=", current_piece_type, " 实际落点=(", minx, ",", maxy, ") rot=",
-			current_rotation_index, " 上块间隔=", Time.get_ticks_msec() - _bot_t_lock_ms, "ms",
-			" 本手消行=", _bot_pps_plan_clears, " pps=", _bot_current_pps(),
-			" / 决策落点=", tgt_txt)
+		var tgt: Dictionary = _zzz_bridge.get_plan_target()
+		if not tgt.is_empty() and bool(tgt.get("valid", false)):
+			var plan_x: int = int(tgt["x"])
+			var plan_y: int = int(tgt["y"]) - _bot_check_rise
+			# ⚠ 抬升补偿只有在"方块确实随整版一起上移"时才成立；实测存在抬升已发生、
+			#   但本手方块并未位移的情形（例如抬升落在这块锁定之后），此时比 y 就是误报。
+			#   所以：x 始终比较；y 只在没有抬升的那一手比较（有抬升时只记录信息）。
+			if minx != plan_x or (_bot_check_rise == 0 and maxy != plan_y):
+				push_warning("[BotCheck] 落点与决策不一致：piece=%s 实际=(%d,%d) 决策=(%d,%d)（垃圾抬升补偿 %d 行）rot 实际=%d 决策=%d" % [
+					TetrisGlobalData.piece_type, minx, maxy, plan_x, int(tgt["y"]), _bot_check_rise,
+					TetrisGlobalData.piece_rotation_index, int(tgt["rot"])])
 		_bot_t_lock_ms = Time.get_ticks_msec()
 	
 	# 触底后立即锁定
@@ -1615,15 +1839,83 @@ func return_to_buff_scene() -> void:
 	if _leaving_to_buff:
 		return
 	_leaving_to_buff = true
+	# 先把时间缩放还原，避免把 20 倍速带到 buff 界面/主菜单
+	_restore_time_scale()
 	# 显式停掉 zzz worker：场景销毁时也会停，这里保证返回瞬间就释放子进程
 	if _zzz_bridge != null:
 		_zzz_bridge.stop()
 		_zzz_bridge = null
-	GlobalData.restore_buffs = true
+	TetrisGlobalData.restore_buffs = true
 	get_tree().change_scene_to_file(buff_scene_path)
 
 
+## 开启快速模拟：帧数换算式加速（Engine.time_scale），并把 vsync/帧率上限解除。
+## 由 TetrisGlobalData.apply_init_data() 在「FastSimulate 且 BotMode」时调用。
+func enable_fast_simulate() -> void:
+	fast_simulate = true
+	# 桥可能在本函数之前就已经建好了（bot 在 apply_init_data 里就开始跑）→ 这里补一次思考预算
+	if fast_simulate_think_budget > 0 and _zzz_bridge != null:
+		_zzz_bridge.think_budget = fast_simulate_think_budget
+	Engine.time_scale = maxf(fast_simulate_speed, 0.01)
+	# 垂直同步会把实际帧率钉在 60，进而把加速倍数压回 60 → 关掉并放开帧率上限
+	_fast_simulate_prev_max_fps = Engine.max_fps
+	Engine.max_fps = 0
+	if DisplayServer.window_get_vsync_mode() != DisplayServer.VSYNC_DISABLED:
+		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+		_fast_simulate_vsync_off = true
+	print("[FastSim] 快速模拟开启：time_scale=%.1f（一帧 = %.1f 帧游戏时间），vsync=%s"
+		% [Engine.time_scale, Engine.time_scale,
+		"关闭" if _fast_simulate_vsync_off else "原本已关闭"])
+
+
+## 还原时间缩放与垂直同步（退出场景 / 返回 buff 界面 / 结算时都要调）
+func _restore_time_scale() -> void:
+	if not fast_simulate:
+		return
+	fast_simulate = false
+	Engine.time_scale = 1.0
+	Engine.max_fps = _fast_simulate_prev_max_fps
+	if _fast_simulate_vsync_off:
+		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED)
+		_fast_simulate_vsync_off = false
+
+
+## 等决策期间的时间缩放：
+##   fast_simulate_freeze_wait = true  → 0.001（冻结，等决策不计入游戏时间）
+##   fast_simulate_freeze_wait = false → 1.0（**实时**，游戏照常跑，等决策计入游戏时间）
+## 注意这里刻意**不用 fast_simulate_speed**：实时模式下我们没有"在等"，不该把时间加速，
+## 否则等决策的 100ms 会被放大成 2 秒游戏时间，方块会在计划到手前就冲到底。
+func _decision_wait_time_scale() -> float:
+	if fast_simulate_freeze_wait:
+		return DECISION_WAIT_TIME_SCALE
+	return 1.0
+
+
+## 快速模拟下，等待外部 zzz worker 决策期间调整时间缩放。
+## 默认（fast_simulate_freeze_wait=false）改为**实时运行**：不再冻结，避免"一顿一顿"。
+## 打开 fast_simulate_freeze_wait 才退回冻结行为（快速模拟下能贴住 3pps，但会有可见停顿）。
+func _set_decision_wait_scale(waiting: bool) -> void:
+	if not fast_simulate:
+		return
+	# 用很小的正数而不是 0：Engine.time_scale = 0 容易在某些内部除法里出问题，
+	# 0.001 已等价于冻结（一帧只推进千分之一帧的游戏时间）。
+	var want: float = _decision_wait_time_scale() if waiting else maxf(fast_simulate_speed, 0.01)
+	if not is_equal_approx(Engine.time_scale, want):
+		Engine.time_scale = want
+
+
+func _exit_tree() -> void:
+	# 切场景（结算 / 返回 buff / 退出）时务必还原，否则会把 20 倍速带到别的界面
+	_restore_time_scale()
+	# 从公共数据区注销，避免它继续持有本节点（场景切换后引用必须清空）
+	TetrisGlobalData.unregister_node(self)
+
+
 func _process(delta):
+	# 游戏时钟：只累计「游戏内真正流逝」的时间（delta 已含 Engine.time_scale；
+	# 快速模拟等决策期间缩放被压到 0.001 → 那段等待不计入，PPS 才能保持 3pps）。
+	_game_clock += delta
+	_stats_accum += delta
 	if bot_mode:
 		_process_bot_control(delta)
 		# 原生决策等待期间 **以及计划执行期间** 都暂停重力下落：
@@ -1644,8 +1936,8 @@ func _process(delta):
 
 ## 由 buff 下发的 zzz AI 参数覆盖（ExtraBotChange：Param 字段名 → 值）
 var bot_param_overrides: Dictionary = {}
-## 等待 worker 决策的累计时间；超过 BOT_WAIT_TIMEOUT 就复位（防止 worker 卡死时整局冻结）
-var _bot_waiting_time: float = 0.0
+## 等待 worker 决策的起始真实时间戳（ms），0 = 当前没在等；看门狗用它判断超时
+var _bot_wait_start_ms: int = 0
 const BOT_WAIT_TIMEOUT := 3.0
 ## bot 决策日志次数上限
 ## （原先按步打印计划时会用这个预算限流；现在改成「每块只打印一次计划」，预算已无用，故删除）
@@ -1671,6 +1963,10 @@ func _ensure_zzz_bridge() -> void:
 	_zzz_bridge = script.new()
 	# 桥的「启动/信息」日志跟随本节点的 bot_debug_log（默认关闭，避免刷屏）
 	_zzz_bridge.verbose = bot_debug_log
+	# 快速模拟：可把 worker 思考预算调低（0 = 不干预）。
+	# CFG 在每次 request_plan() 里重建并比对，所以这里改完下一块就会带上新的预算。
+	if fast_simulate and fast_simulate_think_budget > 0:
+		_zzz_bridge.think_budget = fast_simulate_think_budget
 	add_child(_zzz_bridge)
 	# 把已收集的参数覆盖补发给新桥（buff 可能在本节点之前就已处理）
 	if not bot_param_overrides.is_empty():
@@ -1691,18 +1987,29 @@ func _process_bot_control(delta: float) -> void:
 		push_error("[ZzzBridge] zzztoj worker 未就绪 → bot 会退化为「每块直接硬降」（请看上面的 ZzzBridge 报错定位 worker 路径）")
 	if bot_debug_log and not _bot_loop_logged:
 		_bot_loop_logged = true
+		# 规则摘要：排查「同一套 bot 在不同模式表现差异很大」时，先看这一行确认当时生效的规则。
+		var _cl_sum = TetrisGlobalData.clear_line_controller
+		var _gc_sum = TetrisGlobalData.garbage_line_controller
 		print("[BotLoop] bot_mode=", bot_mode, " native=", _zzz_bridge.using_native_cc(),
 			" 变速=", bot_dynamic_pps, " pps=", bot_target_pps, "(基础) 高度=", _bot_board_height(),
 			" 缓冲垃圾=", _bot_buffered_garbage_rows(),
 			" 当前pps=", _bot_current_pps(),
 			" 每块间隔=", _get_bot_piece_interval(),
 			" 每步间隔=", _get_bot_action_interval(), " 原生每步间隔=", bot_native_action_interval)
-	if current_piece.is_empty():
-		# 无活动方块时 bot 不会请求决策：把这种情况明确打出来（否则表现为「已启动但毫无反应」）
+		print("[BotRule] 旋转系统=", int(TetrisGlobalData.piece_rotation_system), " no_spin=", (int(TetrisGlobalData.clear_no_spin) if _cl_sum else -1),
+			" tetris_allspin=", (int(TetrisGlobalData.clear_allspin) if _cl_sum else -1),
+			" btb_system=", (int(TetrisGlobalData.clear_btb_system_use) if _cl_sum else -1),
+			" pc_damage=", (int(TetrisGlobalData.clear_pc_damage) if _cl_sum else -1),
+			" gcap=", (int(TetrisGlobalData.garbage_cap) if _gc_sum else -1),
+			" 可见next=", (_zzz_bridge.visible_next_count(self) if _zzz_bridge else -1),
+			" think=", (_zzz_bridge.think_budget if _zzz_bridge else -1),
+			" hold=", (_zzz_bridge.allow_hold if _zzz_bridge else true),
+			" 快速模拟=", fast_simulate, " 整段计划同帧=", fast_simulate_whole_plan,
+			" 直接放置=", fast_simulate_direct_place,
+			" 时间缩放=", Engine.time_scale)
+	if TetrisGlobalData.piece_shape.is_empty():
+		# 无活动方块时 bot 不会请求决策
 		_bot_idle_log_time += delta
-		if bot_debug_log and _bot_idle_log_time >= 1.0:
-			_bot_idle_log_time = 0.0
-			print("[BotIdle] 当前无活动方块 → 未请求决策（检查 spawn/消行/锁定流程）")
 		return
 	_bot_idle_log_time = 0.0
 
@@ -1718,6 +2025,7 @@ func _process_bot_control(delta: float) -> void:
 		_bot_tracking_piece_serial = _bot_piece_serial
 		if _zzz_bridge.using_native_cc():
 			_bot_t_req_ms = Time.get_ticks_msec()
+			_bot_note_plan_request()
 			_zzz_bridge.request_plan(self)
 
 	# 垃圾行抬升期间版面已变化（force_raise_rows 已递增 board_version）。
@@ -1726,22 +2034,41 @@ func _process_bot_control(delta: float) -> void:
 	# 若在此打断并重新规划，新计划按“方块在 spawn 位”生成，而方块实际已移动/已按旧计划走了
 	# 若干步，会导致当前块 missdrop。所以仅当本块完全没有计划（如首次请求失败）时，才基于
 	# 新版面重试；否则继续执行旧计划，待本块锁定后由“新块开始”逻辑按新版面请求。
-	if garbage_line_controller != null and _bot_tracking_board_version != garbage_line_controller.board_version:
-		_bot_tracking_board_version = garbage_line_controller.board_version
+	if TetrisGlobalData.garbage_line_controller != null and _bot_tracking_board_version != TetrisGlobalData.garbage_board_version:
+		_bot_tracking_board_version = TetrisGlobalData.garbage_board_version
 		# 避免请求堆积：若已有在途决策（正在等待），交给其完成后自然对账；否则才重新请求。
 		if _zzz_bridge.using_native_cc() and not _zzz_bridge.is_waiting_decision():
 			if _zzz_bridge.is_plan_empty():
+				_bot_note_plan_request()
 				_zzz_bridge.request_plan(self)
 
 	# 等待原生 zzz 异步决策期间，暂停动作（带看门狗：worker 卡死时复位，避免整局冻结）
 	if _zzz_bridge.using_native_cc() and _zzz_bridge.is_waiting_decision():
-		_bot_waiting_time += delta
-		if _bot_waiting_time >= BOT_WAIT_TIMEOUT:
-			_bot_waiting_time = 0.0
+		# 时间缩放按 fast_simulate_freeze_wait 决定：false（默认）= 实时运行不冻结，
+		# true = 压到 0.001，等决策不计入游戏时间。
+		# ⚠ 这里不能再用 fast_simulate_freeze_wait 做外层守卫：关掉冻结时也需要把缩放从
+		#   fast_simulate_speed 拉回 1.0，否则等决策的 100ms 会被放大成 2 秒游戏时间。
+		_set_decision_wait_scale(true)
+		# 看门狗等的是**外部进程**，所以直接用真实时间戳判断：
+		# 不受 Engine.time_scale / delta 语义影响（时钟冻结时 delta≈0，拿 delta 计时会失真）。
+		if _bot_wait_start_ms == 0:
+			_bot_wait_start_ms = Time.get_ticks_msec()
+		if Time.get_ticks_msec() - _bot_wait_start_ms >= int(BOT_WAIT_TIMEOUT * 1000.0):
+			_bot_wait_start_ms = 0
 			_zzz_bridge.reset_for_stall()
 			push_warning("[ZzzBridge] 等待决策超过 %.1fs → 复位桥状态（本块直接硬降）" % BOT_WAIT_TIMEOUT)
 		return
-	_bot_waiting_time = 0.0
+	_bot_wait_start_ms = 0
+	_set_decision_wait_scale(false)
+
+	# 落块自检用：垃圾抬升补偿量 = 计划确认后版面高度增加的行数。
+	# 抬升会把整版（含当前方块）一起上移，所以高度差就等于「实际 y 应比计划 y 小多少」。
+	# 只在本块有计划时统计（_bot_check_plan_height >= 0），避免把上一块的消行算进来。
+	if _bot_check_plan_height >= 0:
+		var h_now: int = _bot_board_height()
+		if h_now > _bot_check_plan_height:
+			_bot_check_rise += h_now - _bot_check_plan_height
+		_bot_check_plan_height = h_now
 
 	# 决策参数签名变化（旋转系统 / 垃圾上限 / BTB / PC / NoSpin / hold / 180…）：
 	# 关卡或 buff 的字段可能在 bot 已发出第一份请求之后才生效，那份计划是按旧参数搜的，
@@ -1761,6 +2088,7 @@ func _process_bot_control(delta: float) -> void:
 			_zzz_bridge.clear_plan()
 			if _zzz_bridge.using_native_cc():
 				_bot_t_req_ms = Time.get_ticks_msec()
+				_bot_note_plan_request()
 				_zzz_bridge.request_plan(self)
 				return
 
@@ -1777,22 +2105,28 @@ func _process_bot_control(delta: float) -> void:
 	if _bot_pps_plan_serial != _bot_piece_serial:
 		_bot_pps_plan_serial = _bot_piece_serial
 		_bot_pps_plan_clears = _plan_target_will_clear(_zzz_bridge.get_plan_target())
-		# 节奏归属：用**本手自己的 pps** 重算本手剩余的最小间隔（自上一块锁定起算）。
-		# 这样「会消行的这一手」当场就慢下来，而不是等它锁定后才把间隔加到下一块身上。
-		# 因为以 _bot_last_lock_ms 为基准，锁定时刻不会早于「上一块锁定 + 本手间隔」，速率仍受控。
-		var elapsed: float = maxf(0.0, (float(Time.get_ticks_msec()) - _bot_last_lock_ms) / 1000.0)
-		_bot_piece_cooldown = maxf(0.0, _get_bot_piece_interval() - elapsed)
-		# [BotPlan] 每块只打印一次（放在这里 = 计划到手的第一时间，steps 是完整步数）。
-		# 原来放在每步动作前打印，一份计划要打 N 行，还得靠日志预算限流，
-		# 结果一局后半段的决策完全没有日志 —— 排查「某手选点奇怪」时看不到现场。
-		if bot_debug_log:
-			var tgt: Dictionary = _zzz_bridge.get_plan_target()
-			print("[BotPlan] piece=", _bot_piece_serial, " steps=", _zzz_bridge.remaining_movements(),
-				" hold=", _zzz_bridge.plan_wants_hold(),
-				" 决策耗时=", Time.get_ticks_msec() - _bot_t_req_ms, "ms",
-				" 高度=", _bot_board_height(), " 缓冲垃圾=", _bot_buffered_garbage_rows(),
-				" 本手消行=", _bot_pps_plan_clears, " pps=", _bot_current_pps(),
-				" 决策落点=", ("%s(%d,%d) rot=%d" % [tgt["piece"], tgt["x"], tgt["y"], tgt["rot"]]) if tgt["valid"] else "?")
+		# 节奏归属：用**本手自己的 pps** 定出本手的「理想锁定时刻」。
+		# 基准取「上一块的理想锁定时刻」（_bot_lock_base_game），不取实际锁定时刻：
+		# 实际锁定比理想晚最多一帧的游戏时长，若按实际时刻往后排，误差会逐块累积 → PPS 被稀释。
+		# 落在理想网格上后，长期平均严格等于 bot_target_pps（快速模拟下也能贴住 3pps）。
+		var base: float = _bot_lock_base_game if _bot_lock_base_game >= 0.0 else _game_clock
+		_bot_lock_target_game = base + _get_bot_piece_interval()
+		_bot_piece_cooldown = maxf(0.0, _bot_lock_target_game - _game_clock)
+
+	# 快速模拟专用：把「本手剩下的全部动作」在一帧内跑完（不走每帧一步的节奏等待）。
+	# 与逐步执行走的是同一套 _apply_bot_action()，所以位置/朝向/旋转记录与正常对局完全一致
+	# （spin 判定看的是「最后一次旋转的位置」，逐步操作是每帧转一次、这里是同帧连续转，
+	#   两者的旋转发生位置相同 → 判定结果相同）。
+	if fast_simulate and fast_simulate_whole_plan:
+		_fast_sim_run_whole_plan()
+		return
+
+	# 快速模拟专用：拿到计划后直接按决策落点放置（不走逐步操作）。
+	# ⚠ 默认关闭：它把旋转记录写在**落点**上，而正常对局写的是「最后一次旋转真正发生的位置」，
+	#   本作 spin 判定读的正是后者（四方向不可移动才判 Spin）→ 会造成 spin 误判（偏多）。
+	#   需要「位置精确但能容忍 spin 记录偏差」的极速场景才打开它。
+	if fast_simulate and fast_simulate_direct_place and _fast_sim_try_direct_place():
+		return
 
 	# 执行计划中的下一个动作
 	var decided_action: BotAction = _zzz_bridge.next_plan_action()
@@ -1813,13 +2147,104 @@ func _process_bot_control(delta: float) -> void:
 	if action_interval > 0.0:
 		_bot_next_action_time = min(action_interval, bot_native_action_interval) if action_interval > 0.0 else bot_native_action_interval
 
+
+## 快速模拟：把当前计划的剩余动作在**同一帧**里全部执行完（含最后的硬降）。
+## · 与逐步执行共用 _apply_bot_action()，因此踢墙、消行、spin 记录（最后一次旋转的位置）
+##   都与正常对局一致 —— 这也是它比「直接放置」更还原的原因；
+## · 仍然遵守 PPS 节奏：未到本手的理想锁定时刻时，先只做「移动/旋转」不硬降，
+##   到点了才硬降锁定（移动/旋转不产生新块，不影响 pps）。
+func _fast_sim_run_whole_plan() -> void:
+	if _zzz_bridge == null:
+		return
+	# 每块最多执行的动作数（防御：计划异常时不要在一帧里死循环）
+	var guard: int = 0
+	while _zzz_bridge.has_plan() and guard < 200:
+		guard += 1
+		var action: BotAction = _zzz_bridge.next_plan_action()
+		if action == null or String(action.move).is_empty():
+			break
+		if String(action.move) == "hard_drop":
+			# 硬降受 pps 节奏约束：没到点就把这一步留着（计划已消费，改为直接等待）
+			if _bot_piece_cooldown > 0.0:
+				_bot_next_action_time = min(_bot_piece_cooldown, 0.05)
+				return
+			hard_drop()
+			_bot_piece_cooldown = _get_bot_piece_interval()
+			return
+		_apply_bot_action(action)
+	# 计划走完但没有 hard_drop：按 pps 节奏收尾（等冷却结束再硬降）
+	if _bot_piece_cooldown > 0.0:
+		_bot_next_action_time = min(_bot_piece_cooldown, 0.05)
+		return
+	hard_drop()
+	_bot_piece_cooldown = _get_bot_piece_interval()
+
+## 快速模拟专用落块：直接把当前方块放到决策给的落点/朝向，然后立刻锁定，返回 true。
+## 落点口径与 worker 回复一致（见 zzz_bridge._parse_reply）：
+##   x = 方块占用格的最左列，y = 最低行，rot = 本游戏旋转系统下的旋转索引。
+## 返回 false = 这次不能用直接放置（目标无效 / 块不符 / 目标处放不下），交回原有逐步流程。
+func _fast_sim_try_direct_place() -> bool:
+	if _zzz_bridge == null or TetrisGlobalData.piece_shape.is_empty():
+		return false
+	var tgt: Dictionary = _zzz_bridge.get_plan_target()
+	if tgt.is_empty() or not bool(tgt.get("valid", false)):
+		return false
+	var tgt_piece: String = String(tgt.get("piece", ""))
+	# 目标块不是手上这块（典型是计划带 hold）：先按原流程把 hold 这一步做掉，
+	# 下一帧手上就是目标块了，再走直接放置。
+	if not tgt_piece.is_empty() and tgt_piece != TetrisGlobalData.piece_type:
+		if _zzz_bridge.plan_wants_hold() and TetrisGlobalData.piece_can_hold and not TetrisGlobalData.no_hold:
+			hold_current_piece()
+			return true
+		return false
+	# PPS 节奏：与逐步流程里的 hard_drop 一致，未到每块最小间隔就先等
+	if _bot_piece_cooldown > 0.0:
+		_bot_next_action_time = min(_bot_piece_cooldown, 0.05)
+		return true
+	# 1) 按计划的旋转序列推出目标朝向（踢墙只改位置、不改形状，所以与逐步执行的朝向一致）。
+	#    旋转索引也按游戏自己的 _calc_rotation_index 推 —— worker 回报的 rot 编号与游戏不一致
+	#    （实测同一落点会出现 0 vs 2 这种 ±2 偏差），所以绝不能拿它直接覆盖 current_rotation_index。
+	var rots: Array = _zzz_bridge.plan_rotation_directions()
+	var shape: Array = TetrisGlobalData.piece_shape.duplicate(true)
+	var rot_index: int = TetrisGlobalData.piece_rotation_index
+	for dir: int in rots:
+		shape = _get_rotated_matrix(shape, dir)
+		rot_index = _calc_rotation_index(rot_index, dir)
+	var cells: Array = get_piece_cells(shape, Vector2i.ZERO)
+	if cells.is_empty():
+		return false
+	var min_x: int = 999
+	var max_y: int = -999
+	for c: Vector2i in cells:
+		min_x = mini(min_x, c.x)
+		max_y = maxi(max_y, c.y)
+	var new_pos := Vector2i(int(tgt["x"]) - min_x, int(tgt["y"]) - max_y)
+	# 2) 目标处必须放得下（自身旧格子视为空）——放不下说明口径对不上，交回逐步流程，避免直接放置出非法局面
+	var self_cells: Array = get_piece_cells(TetrisGlobalData.piece_shape, TetrisGlobalData.piece_position)
+	if collides_at(new_pos, shape, self_cells):
+		return false
+	# 3) 瞬移到目标朝向/位置，并补记一次旋转事件：
+	#    spin 判定看的是「最后一次旋转的位置」，直接放置等价于「在落点处完成最后一次旋转」；
+	#    不补记的话 T-spin 之类判定会全部丢失（这部分是直接放置与逐步执行唯一的语义差异）。
+	clear_current_piece()
+	TetrisGlobalData.piece_shape = shape
+	TetrisGlobalData.piece_position = new_pos
+	TetrisGlobalData.piece_rotation_index = rot_index
+	redraw_current_piece()
+	if not rots.is_empty() and TetrisGlobalData.clear_line_controller:
+		TetrisGlobalData.clear_line_controller.record_rotation(TetrisGlobalData.piece_type, TetrisGlobalData.piece_shape, TetrisGlobalData.piece_position, current_color)
+	_check_underground_touch()
+	refresh_shadow()
+	# 4) 触底锁定：复用原有锁定 / 消行 / 统计 / 垃圾 / 出块流程
+	hard_drop()
+	_bot_piece_cooldown = _get_bot_piece_interval()
+	return true
+
+
 ## 把 CC 决策出的动作（BotAction）映射到游戏内直接调用
 func _apply_bot_action(action: BotAction) -> void:
 	if action == null:
 		return
-	# 调试：打印每步动作执行前的方块位置，用于对照 CC 决策 movements
-	if bot_debug_log:
-		print("[BotStep] ", String(action.move), " before=(", current_position.x, ",", current_position.y, ")")
 	match String(action.move):
 		"left":
 			move_left()
@@ -1834,6 +2259,7 @@ func _apply_bot_action(action: BotAction) -> void:
 				pass
 		"down_one":
 			# zzztoj 的 'd'：下移一格
+			@warning_ignore("return_value_discarded")
 			_try_move(0, 1)
 		"rotate_left":
 			rotate_left()
@@ -1872,20 +2298,20 @@ func _get_bot_piece_interval() -> float:
 ## 而 board_version 只在垃圾抬升时递增 —— 两者一起覆盖「堆叠发生变化」的所有时机；
 ## 活动方块自身的移动/旋转不改变堆叠高度，无需失效。
 func _bot_board_height() -> int:
-	var ver: int = int(garbage_line_controller.board_version) if garbage_line_controller != null else 0
+	var ver: int = int(TetrisGlobalData.garbage_board_version) if TetrisGlobalData.garbage_line_controller != null else 0
 	if _bot_height_cache >= 0 and _bot_height_cache_ver == ver and _bot_height_cache_serial == _bot_piece_serial:
 		return _bot_height_cache
-	var play_h: int = int(board_drawer.get_playable_height())
+	var play_h: int = int(TetrisGlobalData.board_playable_height)
 	var self_cells := {}
-	if not current_piece.is_empty():
-		for c in _get_piece_cells(current_piece, current_position):
+	if not TetrisGlobalData.piece_shape.is_empty():
+		for c in get_piece_cells(TetrisGlobalData.piece_shape, TetrisGlobalData.piece_position):
 			self_cells[c] = true
 	var height := 0
 	for y in range(play_h):
-		for x in range(int(board_drawer.grid_width)):
+		for x in range(int(TetrisGlobalData.board_grid_width)):
 			if self_cells.has(Vector2i(x, y)):
 				continue
-			if board_drawer.get_cell_color(x, y) != null:
+			if TetrisGlobalData.board_get_cell(x, y) != null:
 				height = play_h - y          # 行 89 → 高度 1，空版面 → 0
 				break
 		if height > 0:
@@ -1897,9 +2323,25 @@ func _bot_board_height() -> int:
 
 ## 缓冲中的垃圾行数（动态 PPS 用）；没有垃圾控制器时为 0
 func _bot_buffered_garbage_rows() -> int:
-	if garbage_line_controller == null:
+	if TetrisGlobalData.garbage_line_controller == null:
 		return 0
-	return int(garbage_line_controller.get_buffered_garbage_rows())
+	return int(TetrisGlobalData.garbage_line_controller.get_buffered_garbage_rows())
+
+## 发出一次决策请求前调用：记录落块自检的基准。
+## 基准必须是「请求那一刻」的版面高度 —— worker 思考期间垃圾可能已经上涨，
+## 那段抬升发生在请求之后，计划落点自然不含它，锁定自检时要补偿掉
+## （垃圾上涨是整版含当前方块一起上移，所以实际落点 y 会正好小这么多）。
+func _bot_note_plan_request() -> void:
+	_bot_check_plan_height = _bot_board_height()
+	_bot_check_rise = 0
+	# 思考预算逐 REQ 下发到 bridge.think_budget_now。
+	# 默认已经固定成 100ms（ratio=1.0、min=max=100），所以这里的计算事实上是恒等的；
+	# 保留计算逻辑是为了还能用 ratio/max 切回动态预算（见上面 @export 的说明）。
+	if _zzz_bridge != null:
+		var interval_ms: float = 1000.0 / maxf(0.1, _bot_current_pps())
+		_zzz_bridge.think_budget_now = clampi(
+			int(interval_ms * bot_think_budget_ratio), bot_think_budget_min, bot_think_budget_max)
+
 
 ## 影响 worker 决策的参数签名（与 zzz_bridge._build_cfg 下发的字段一一对应）。
 ## 只要这份签名变了，之前算出的计划就必须作废：踢墙表/伤害模型/Spin 规则都可能已经不同。
@@ -1907,34 +2349,52 @@ func _bot_buffered_garbage_rows() -> int:
 ## 控制器本身只有 no_hold，别在这里直接写 allow_hold / allow_180。
 func _bot_cfg_signature_now() -> String:
 	var gcap := 0
-	if garbage_line_controller != null:
-		gcap = int(garbage_line_controller.garbage_cap)
+	if TetrisGlobalData.garbage_line_controller != null:
+		gcap = int(TetrisGlobalData.garbage_cap)
 	var btb := 0
 	var pc := 0
 	var nospin := 0
 	var nospin_rows := 0
-	if clear_line_controller != null:
-		btb = int(clear_line_controller.btb_system_use)
-		pc = int(clear_line_controller.pc_damage)
-		nospin = int(clear_line_controller.no_spin)
-		nospin_rows = int(clear_line_controller.no_spin4_solid_rows)
+	if TetrisGlobalData.clear_line_controller != null:
+		btb = int(TetrisGlobalData.clear_btb_system_use)
+		pc = int(TetrisGlobalData.clear_pc_damage)
+		nospin = int(TetrisGlobalData.clear_no_spin)
+		nospin_rows = int(TetrisGlobalData.clear_no_spin4_solid_rows)
 	var hold_flag := 1
 	var allow180_flag := 1
 	var think := 0
 	if _zzz_bridge != null:
-		hold_flag = 1 if (_zzz_bridge.allow_hold and not no_hold) else 0
+		hold_flag = 1 if (_zzz_bridge.allow_hold and not TetrisGlobalData.no_hold) else 0
 		allow180_flag = 1 if _zzz_bridge.allow_180 else 0
 		think = int(_zzz_bridge.think_budget)
-	# bot 可用的 next 个数：默认 = 自身全部可知（14）；只有短见 buff 下发限制时才收敛。
-	# 口径与 zzz_bridge.visible_next_count 一致；变了 → 旧计划作废（信息量变了）。
-	var next_vis := 14
+	# bot 可用的 next 个数：现行策略是**恒定全部可知**，不再随短见收敛。
+	# ⚠ 单一来源是 ZzzBridge.bot_next_max()（常量本体在 bot_play/zzz_bridge.gd 的 NEXT_MAX）：
+	#   以前这里写死字面量 14，一旦桥的上限被调整，签名就会和实际下发的 next_visible 不一致，
+	#   而签名的作用正是「参数一变就作废旧计划」——不一致等于签名失效。
+	#   这里优先问实例，实例还没建时退回静态方法（bot_next_max 是 static，不需要实例）。
+	var next_vis := 0
 	if _zzz_bridge != null:
 		next_vis = int(_zzz_bridge.visible_next_count(self))
-	elif board_drawer != null and bool(board_drawer.next_limited_by_buff):
-		next_vis = 0 if not bool(board_drawer.next_display_enabled) else clampi(int(board_drawer.next_count), 0, 14)
-	return "%d|%d|%d|%d|%d|%d|%d|%d|%d|%d" % [
-		int(rotation_system), gcap, btb, pc, nospin, nospin_rows,
-		hold_flag, allow180_flag, think, next_vis,
+	else:
+		next_vis = ZzzBridge.bot_next_max()
+	# ⚠ think 不再进入签名：思考预算现在按 PPS 逐 REQ 动态规划（bridge.think_budget_now），
+	#   若留在签名里，每块预算一变就会作废旧计划、陷入"重算循环"。
+	think = 0
+	# Allspin 模式（0/1/2）与 Allspin_2 的实心行数：都会改变评估口径
+	# （void 断 BTB、Spin0 续 BTB、重复惩罚只比行数、罚多少行实心垃圾）→ 变了要重算
+	var allspin_mode := 0
+	var allspin2_rows := 20
+	if TetrisGlobalData.clear_line_controller != null:
+		allspin_mode = int(TetrisGlobalData.clear_allspin)
+		allspin2_rows = int(TetrisGlobalData.clear_allspin2_solid_rows)
+	# 快速模拟的执行路径也影响 worker 口径（直接放置会在落点补记旋转）→ 变了要重算。
+	# 用「实际生效的路径」编码：0=非直接放置（含整段计划同帧 / 非快速模拟），1=直接放置。
+	var place_mode := 0
+	if fast_simulate and not fast_simulate_whole_plan and fast_simulate_direct_place:
+		place_mode = 1
+	return "%d|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d" % [
+		int(TetrisGlobalData.piece_rotation_system), gcap, btb, pc, nospin, nospin_rows,
+		hold_flag, allow180_flag, think, next_vis, allspin_mode, allspin2_rows, place_mode,
 	]
 
 ## 当前生效的 bot PPS
@@ -1942,6 +2402,10 @@ func _bot_cfg_signature_now() -> String:
 ##   bot_dynamic_pps = false 时不做任何变速，直接返回基础 bot_target_pps。
 func _bot_current_pps() -> float:
 	if not bot_dynamic_pps:
+		return bot_target_pps
+	# 快速模拟：默认保留动态变速（与正常对局同一套节奏）。
+	# 只有显式打开 fast_simulate_fixed_pps 时才忽略变速、走固定 bot_target_pps。
+	if fast_simulate and fast_simulate_fixed_pps:
 		return bot_target_pps
 	var h: int = _bot_board_height()
 	var pps: float = bot_target_pps + float(h - bot_pps_height_ref) * bot_pps_height_step
@@ -1959,9 +2423,9 @@ func _plan_target_will_clear(tgt: Dictionary) -> bool:
 	if tgt.is_empty() or not tgt.get("valid", false):
 		return false
 	var ptype: String = str(tgt.get("piece", ""))
-	if ptype.is_empty() or bag_controller == null:
+	if ptype.is_empty() or TetrisGlobalData.bag_controller == null:
 		return false
-	var m: Array = bag_controller.get_original_shape(ptype)
+	var m: Array = TetrisGlobalData.bag_controller.get_original_shape(ptype)
 	if m.is_empty():
 		return false
 	for _i in range(int(tgt.get("rot", 0)) % 4):
@@ -1988,16 +2452,16 @@ func _plan_target_will_clear(tgt: Dictionary) -> bool:
 		rows[p.y] = true
 	# 当前活动方块所在格视为空（与 _check_perfect_clear 的口径一致）
 	var self_cells := {}
-	if not current_piece.is_empty():
-		for c in _get_piece_cells(current_piece, current_position):
+	if not TetrisGlobalData.piece_shape.is_empty():
+		for c in get_piece_cells(TetrisGlobalData.piece_shape, TetrisGlobalData.piece_position):
 			self_cells[c] = true
 	for ry in rows.keys():
 		var full := true
-		for x in range(int(board_drawer.grid_width)):
+		for x in range(int(TetrisGlobalData.board_grid_width)):
 			var p := Vector2i(x, ry)
 			if placed.has(p) or self_cells.has(p):
 				continue
-			if board_drawer.get_cell_color(x, ry) == null:
+			if TetrisGlobalData.board_get_cell(x, ry) == null:
 				full = false
 				break
 		if full:
@@ -2007,7 +2471,7 @@ func _plan_target_will_clear(tgt: Dictionary) -> bool:
 ## 处理键盘输入
 func _process_input():
 	# 手上无方块（生成/消行延迟期间）：不处理输入，避免对空方块执行旋转/暂存/硬降
-	if current_piece.is_empty():
+	if TetrisGlobalData.piece_shape.is_empty():
 		return
 	#arr和das判定
 	if press_key["LeftMove"] == 1 and press_key["RightMove"] == 1:
@@ -2037,10 +2501,12 @@ func _process_input():
 	if direction_press != 0:
 		if move_arr != 0:
 			if move_start_timer.is_stopped() and move_keep_timer.is_stopped():
+				@warning_ignore("return_value_discarded")
 				_try_move(direction_press, 0)
 				move_keep_timer.start()
 		else:
 				if move_start_timer.is_stopped() and not keep_press_move:
+					@warning_ignore("return_value_discarded")
 					_try_move(direction_press, 0)
 				elif move_start_timer.is_stopped() and keep_press_move and _can_move(direction_press, 0):
 					var one_drop : bool = true
@@ -2089,7 +2555,7 @@ func _process_input():
 		rotate_180()
 	
 	# 暂存（NoHold模式下不读取Hold输入）
-	if press_key["HoldBlock"] == 1 and check_for_single_press["HoldBlock"] != 1 and not no_hold:
+	if press_key["HoldBlock"] == 1 and check_for_single_press["HoldBlock"] != 1 and not TetrisGlobalData.no_hold:
 		hold_current_piece()
 	
 	# 硬降
@@ -2137,9 +2603,10 @@ func replay_set_keyvar_input():
 
 func gravity_drop():
 	# 手上无方块（生成/消行延迟期间）：跳过下落逻辑
-	if current_piece.is_empty():
+	if TetrisGlobalData.piece_shape.is_empty():
 		return
 	if gravity_timer.is_stopped() and gravity_drop_time != 0:
+		@warning_ignore("return_value_discarded")
 		_try_move(0,1)
 		#garbage_line_controller.add_attack(5)
 		gravity_timer.start()
@@ -2152,18 +2619,18 @@ func gravity_drop():
 
 ## 获取当前方块的宽度
 func get_current_piece_width() -> int:
-	if current_piece.is_empty():
+	if TetrisGlobalData.piece_shape.is_empty():
 		return 0
-	return current_piece[0].size()
+	return TetrisGlobalData.piece_shape[0].size()
 
 ## 获取当前方块的高度
 func get_current_piece_height() -> int:
-	return current_piece.size()
+	return TetrisGlobalData.piece_shape.size()
 
 ## 手动设置方块（用于扩展）
 func set_piece(piece: Array, color: Color, piece_type: String = "I"):
-	current_piece = piece
+	TetrisGlobalData.piece_shape = piece
 	current_color = color
-	current_piece_type = piece_type
-	current_original_shape = bag_controller.get_original_shape(piece_type)
+	TetrisGlobalData.piece_type = piece_type
+	current_original_shape = TetrisGlobalData.bag_controller.get_original_shape(piece_type)
 	spawn_new_piece()

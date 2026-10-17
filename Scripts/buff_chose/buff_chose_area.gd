@@ -5,8 +5,8 @@ class_name BuffChoseArea
 ## 负责Back返回主菜单和Start开始游戏的功能
 ## 管理 ToggleBox 列表，支持批量读取切换状态
 ## 所有 buff 都通过参数传递（界面对任何键都不做特判）：
-##   buff 参数的键名是 TowerController 成员变量 → 写进顶层（数值相乘、数组等直接替换）
-##   buff 参数的键名不是 → 进 extra_data_dict，由 tower_controller._extra_data_deal() 处理
+##   勾选的 buff → 参数键值对写进 TetrisGlobalData.tower_init_data（顶层键 / extra_data_dict）；
+##   进游戏后由**各节点自己**从公共区域读走需要的键（谁用谁读），界面只负责传数据。
 ## 界面只显示「勾了什么 buff」的介绍文本，不显示任何参数/倍率变化。
 
 
@@ -25,8 +25,15 @@ class_name BuffChoseArea
 # Buff配置数据文件路径（读取互斥组/显示文本/倍率配置）
 const BUFF_DATA_PATH: String = "res://GameSaveData/BuffChoseData.json"
 
+# 快速模拟相关：需要与 Bot 模式同时勾选（见 _on_start_button_pressed）
+const BOT_BOX_ID: String = "BotPlay"
+const FAST_SIMULATE_BOX_ID: String = "FastSimulate_1"
+
 # 已勾选框对应的 Label 字典（box_id -> Label）
 var _label_by_id: Dictionary = {}
+
+# 最近一次套用换行时使用的列表宽度：宽度变化后需要按新宽度重新换行（见 _process）
+var _wrapped_list_width: float = -1.0
 
 ## 互斥选框组配置：同一组内的选框互斥，选中一个则其他自动取消
 ## 组名 -> [box_id1, box_id2, ...]
@@ -49,21 +56,24 @@ var _combination_label: Label = null
 
 # ========== Buff/Debuff 倍率配置 ==========
 
-## 关卡初始数据：**已清空**，留空即代表「数值/数组一律以 TowerController 的默认值为准」。
+## 关卡初始数据：**已清空**，留空即代表「数值/数组一律以各游戏内节点的默认值为准」。
 ##
-## 为什么留空：这份字典只是 TowerController 默认值的副本，唯一的用途是「点 START 时覆盖对应变量」。
+## 为什么留空：这份字典只是各节点默认值的副本，唯一的用途是「点 START 时覆盖对应变量」。
 ## 两边各存一份时，改关卡数值必须同时改两处，且键名写错只会在运行时 push_warning（例如
 ## killer_spike → base_killer_spike 的重命名就漏改过这里）。留空后：
-##   · TowerController 直接用自身默认值（在 tower_controller.gd 里改，改一处即生效）
+##   · 各节点直接用自身默认值（例如塔的数值在 tower_controller.gd 里改，改一处即生效）
 ##   · 想由 buff 覆盖某个参数时，仍照常写进 BuffChoseData.json 的 BuffChange：
-##       键在 TowerController 里存在 → 由 get_buffed_tower_data 写进这里（顶层键）后覆盖；
-##       键不存在（NoSpin/BagType/RotateSystem/BtbBonus…）→ 进 extra_data_dict 由 _extra_data_deal 处理。
+##       键名对应某个节点的成员 → 由 get_buffed_tower_data 写进顶层键（数值相乘）；
+##       键名不对应（NoSpin/BagType/RotateSystem/BtbBonus…）→ 进 extra_data_dict。
+##       两种写法对节点侧没有区别：节点用 TetrisGlobalData.get_init_* 取值，不需要知道在哪一层。
+##       新增参数只需改 BuffChoseData.json + 用它的那个节点，不用改公共数据区。
 ## 注意：本轮及以后都走「buff 参数 → 顶层键 / extra_data_dict」通道，本字典不需要预留任何键。
+## 这里保留的 @export 只是给「不做 buff 选择、直接指定关卡初始值」的场景留的入口。
 @export var tower_init_data: Dictionary = {}
 
 ## Buff/Debuff 配置（从 BuffChoseData.json 的 BuffChange 读入）
-## 值即「要传给 TowerController 的参数」：数值与控制器当前值相乘，数组等直接替换
-## 键名对不上 TowerController 成员时，整个键值对进 extra_data_dict
+## 值即「要传给游戏内节点的参数」：数值与控制器当前值相乘，数组等直接替换
+## 键名对不上任何节点成员时，整个键值对进 extra_data_dict
 var _buff_config_map: Dictionary = {}
 
 # ToggleBox 节点引用（可在编辑器中拖入或由代码动态添加）
@@ -78,18 +88,19 @@ var _buff_config_map: Dictionary = {}
 
 # ========== 返回时恢复勾选 ==========
 
-## 当从游戏结束界面（BACK 按钮）返回时，读取 GlobalData.selected_buffs 并预勾选对应的 ToggleBox
+## 当从游戏结束界面（BACK 按钮）返回时，读取 TetrisGlobalData.selected_buffs 并预勾选对应的 ToggleBox
 ## 读取后立刻复位 restore_buffs 标志，避免从主菜单进入时误恢复
 func _restore_previous_selection() -> void:
-	if not GlobalData.restore_buffs:
+	if not TetrisGlobalData.restore_buffs:
 		return
-	GlobalData.restore_buffs = false
+	TetrisGlobalData.restore_buffs = false
 	
-	var buffs: Array = GlobalData.selected_buffs
+	var buffs: Array = TetrisGlobalData.selected_buffs
 	for buff in buffs:
 		var bid: String = str(buff.get("id", ""))
 		if bid.is_empty():
 			continue
+		@warning_ignore("return_value_discarded")
 		set_toggle_checked(bid, true)
 	# 显式强制互斥：每个互斥组只保留一个勾选，确保返回后状态一致
 	_enforce_mutual_exclusivity()
@@ -190,6 +201,10 @@ func _apply_builtin_fallbacks() -> void:
 # ========== 生命周期 ==========
 
 func _ready():
+	# 保险：从快速模拟（Engine.time_scale 放大）返回时若没还原，这里兜一次，
+	# 避免 20 倍速被带到 buff 界面/主菜单（正常路径由 TetrisController._exit_tree() 还原）
+	if not is_equal_approx(Engine.time_scale, 1.0):
+		Engine.time_scale = 1.0
 	# 先读取BuffChoseData.json覆盖默认配置
 	_load_buff_data_from_json()
 	# 内置兜底配置（Talentless无才能，不依赖JSON）
@@ -213,11 +228,48 @@ func _ready():
 	# 其 _ready 会在 ToggleBox._ready 之前运行，导致勾选状态被 default_checked 覆盖）
 	_restore_previous_selection.call_deferred()
 	
+	_wrapped_list_width = _get_wrap_available_width()
+	
 	# Demo: 打印初始状态
 	#print("ToggleBox 数量: ", toggle_boxes.size())
 	for tb in toggle_boxes:
 		pass
 		#print("  [%s] checked=%s value=%s" % [tb.box_id, tb.is_checked_state(), tb.value])
+
+
+## 列表可用宽度变化时刷新换行宽度（窗口缩放、出现/消失滚动条都会改这个宽度）。
+## 宽度没变就直接返回，避免每帧遍历标签。
+func _process(_delta: float) -> void:
+	if not is_node_ready():
+		return
+	var available: float = _get_wrap_available_width()
+	if is_equal_approx(available, _wrapped_list_width):
+		return
+	_wrapped_list_width = available
+	_refresh_label_wrap_widths()
+
+
+## 计算换行可用宽度（像素）。
+## 优先取左侧列表滚动容器的宽度；容器还没布局好（宽为 0）时退回按窗口宽度估算。
+func _get_wrap_available_width() -> float:
+	var available: float = 0.0
+	if middle_scroll_container:
+		available = middle_scroll_container.size.x
+	if available <= 0.0 and buff_list:
+		available = buff_list.size.x
+	if available <= 0.0:
+		available = get_viewport().get_visible_rect().size.x * 0.73
+	return available
+
+
+## 用当前容器宽度重新套用所有动态标签的换行
+func _refresh_label_wrap_widths() -> void:
+	for box_id: String in _label_by_id:
+		var label: Label = _label_by_id[box_id] as Label
+		if label:
+			_apply_text_wrap(label)
+	if _combination_label:
+		_apply_text_wrap(_combination_label)
 
 
 ## 应用 UI 缩放：Panel 居中缩放，子区域内容自适应
@@ -303,16 +355,18 @@ func _connect_toggle_boxes():
 
 # ========== Buff/Debuff 计算核心 ==========
 
-## 获取应用了所有已勾选框参数后的数据字典（交给 GlobalData.tower_init_data）。
+## 获取应用了所有已勾选框参数后的数据字典（写入 TetrisGlobalData.tower_init_data）。
 ## 所有 buff 走同一条通用通道，界面对任何键都不做特判：
-##   键名是 TowerController 的成员变量 → 写进顶层，数值相乘、数组/布尔等直接替换；
-##   其它键 → 整个键值对进 extra_data_dict，由 tower_controller._extra_data_deal() 处理。
-## 由于本文件的 tower_init_data 已清空，数值相乘时需要在**选中时**重算：
+##   键名是本文件 tower_init_data（基字典）里已有的键 → 写进顶层，数值相乘 / 数组等直接替换；
+##   其它键 → 整个键值对进 extra_data_dict。
+## 两种写法对节点侧没有区别（节点用 TetrisGlobalData.get_init_* 取值，不管在哪一层），
+## 因此新增 buff 参数不需要改公共数据区，也不需要改本文件。
+## 由于基字典已清空，数值相乘时需要在**选中时**重算：
 ## 例：默认 extra_pressure_mult=1.0，勾 Pressure3 得 1.5；若同时勾 Pressure1 与 Pressure3
 ## （互斥组会拦掉，这里仅示语义），则按 1.0×1.2×1.5 叠加。
 func get_buffed_tower_data() -> Dictionary:
 	var result: Dictionary = tower_init_data.duplicate(true)
-	# extra_data_dict 必须存在（即使空），TowerController 与 TetrisBagController 都会读它
+	# extra_data_dict 必须存在（即使空）：它承载「键名不在基字典里」的那些参数
 	if not result.has("extra_data_dict"):
 		result["extra_data_dict"] = {}
 	
@@ -334,7 +388,7 @@ func get_buffed_tower_data() -> Dictionary:
 					else:
 						result[key] = buff_value                          # 其它（数组等）：直接替换
 					continue
-				# 键不在顶层（即 TowerController 没这个成员）→ 交给 _extra_data_deal 处理
+				# 键不在基字典里 → 进 extra_data_dict（节点侧取值时同样能读到，不分层）
 				result["extra_data_dict"][key] = buff_value
 	
 	# Step 2: 勾选的 buff → ExtraBotChange（zzztoj AI 参数覆盖：Param 字段名 → 值）
@@ -355,6 +409,20 @@ func get_buffed_tower_data() -> Dictionary:
 ## 值是否为数值（int/float，可参与 buff 倍率相乘）
 static func _is_numeric_value(v) -> bool:
 	return typeof(v) == TYPE_INT or typeof(v) == TYPE_FLOAT
+
+
+## 让 buff 列表里的文本在过长时自动换行。
+## 宽度按「左侧列表（MiddleScrollContainer / BuffList）的可用宽度」显式给定：
+## ScrollContainer 的 horizontal_scroll_mode = 0 不会限制子节点宽度，Label 拿不到可用宽度，
+## autowrap 就不会生效，所以这里直接算出宽度并用 minimum_size 约束。
+## 文本变化后可重复调用，同步刷新换行结果。
+func _apply_text_wrap(label: Label) -> void:
+	if not label:
+		return
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	# 留出滚动条/内边距的余量，避免刚好压到右边界
+	var wrap_w: int = maxi(int(_get_wrap_available_width()) - 16, 80)
+	label.custom_minimum_size = Vector2(wrap_w, 0)
 
 
 ## 生成指定 box 的显示文本（只有介绍文本，不含任何参数/倍率数据）
@@ -473,9 +541,12 @@ func _update_combination_label() -> void:
 	if not _combination_label:
 		_combination_label = Label.new()
 		_combination_label.add_theme_font_size_override("font_size", max(12, int(20 * 1.0)))
+		_apply_text_wrap(_combination_label)
 		buff_list.add_child(_combination_label)
 	
 	_combination_label.text = "挑战组合：" + "\n".join(matched_texts)
+	# 文本变化后重新套用换行（文本更长时同步 2D 尺寸，避免首帧还按旧文本排布）
+	_apply_text_wrap(_combination_label)
 	if has_color:
 		_combination_label.add_theme_color_override("font_color", matched_color)
 	else:
@@ -536,6 +607,8 @@ func _add_label_for_box(box_id: String) -> void:
 	label.add_theme_color_override("font_color", Color(0.7, 0.9, 0.7, 1))   # 统一绿色调
 	
 	label.add_theme_font_size_override("font_size", max(12, int(20 * 1.0)))
+	# 简介过长时自动换行（宽度取左侧列表可用宽度）
+	_apply_text_wrap(label)
 	
 	_label_by_id[box_id] = label
 	buff_list.add_child(label)
@@ -629,10 +702,17 @@ func _on_back_button_pressed():
 func _on_start_button_pressed():
 	#print("开始游戏 - 进入俄罗斯方块")
 	
-	# 将应用了所有 buff/debuff 倍率的数据存入 GlobalData
+	# 快速模拟必须配合 Bot 模式：只勾了快速模拟就直接返回（留在 buff 界面，不进入游戏）
+	var checked_now: Array[String] = get_checked_toggle_ids()
+	if FAST_SIMULATE_BOX_ID in checked_now and not BOT_BOX_ID in checked_now:
+		push_warning("快速模拟需要同时开启「启用bot」→ 已取消开始，返回 buff 界面")
+		_flash_start_button_hint("快速模拟需要同时开启「启用bot」")
+		return
+	
+	# 将应用了所有 buff/debuff 倍率的数据存入公共数据区（游戏内各节点统一从这里读取）
 	var buffed_data: Dictionary = get_buffed_tower_data()
-	GlobalData.tower_init_data = buffed_data
-	#print("TowerController 数据（含 buff/debuff 倍率累加）已存入 GlobalData: ", GlobalData.tower_init_data)
+	TetrisGlobalData.tower_init_data = buffed_data
+	#print("关卡数据（含 buff/debuff 倍率累加）已存入 TetrisGlobalData: ", TetrisGlobalData.tower_init_data)
 	
 	# 记录已选取的 buff（供结束界面右侧列表展示）
 	var checked_ids: Array[String] = get_checked_toggle_ids()
@@ -642,7 +722,21 @@ func _on_start_button_pressed():
 			"id": bid,
 			"text": _get_enhanced_label_text(bid),
 		})
-	GlobalData.selected_buffs = buff_display
+	TetrisGlobalData.selected_buffs = buff_display
 	
 	GlobalData.reset_stats()
 	get_tree().change_scene_to_file(game_scene_path)
+
+
+## 在开始按钮上闪一条提示（几秒后恢复原文案），用于「快速模拟缺少 Bot 模式」这类拦截提示
+func _flash_start_button_hint(hint: String) -> void:
+	if start_button == null:
+		return
+	var original: String = start_button.text
+	start_button.text = hint
+	start_button.modulate = Color(1.0, 0.6, 0.6)
+	# 用计时器恢复（重复点击时以最后一次为准）
+	await get_tree().create_timer(2.0).timeout
+	if is_instance_valid(start_button) and start_button.text == hint:
+		start_button.text = original
+		start_button.modulate = Color.WHITE

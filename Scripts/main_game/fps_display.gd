@@ -1,7 +1,7 @@
 extends Label
 class_name FPSDisplay
 
-@onready var tower_controller: TowerController = %TowerController
+# 阶段 / APM 取自公共数据区（TetrisGlobalData），不再用 %TowerController 直接抓节点
 
 func _ready() -> void:
 	# 设置文字样式
@@ -14,4 +14,4 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
 	var fps: float = Engine.get_frames_per_second()
-	text = "FPS: %d\nStage: %d  APM: %.1f" % [fps, tower_controller.current_stage, tower_controller.current_apm]
+	text = "FPS: %d\nStage: %d  APM: %.1f" % [fps, TetrisGlobalData.current_stage, TetrisGlobalData.current_apm]

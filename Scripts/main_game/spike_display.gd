@@ -25,7 +25,7 @@ class SpikeEntry:
 	var font_size: float = 24.0
 	var elapsed: float = 0.0                 # 已存在时间（同时用于淡出与 spike 重置判定）
 
-@export var board_drawer: TetrisBoardDrawer      # 用于取 cell_size（未连时自动查找 ../TetrisBoardDrawer）
+# 用于取 cell_size 的版面绘制器通过公共数据区 TetrisGlobalData 取用
 @export var enabled: bool = true
 @export var text_format: String = "%d"           # 数字文本格式
 @export var font_size_ratio: float = 0.9         # 基础字号（相对 cell_size）
@@ -37,21 +37,27 @@ class SpikeEntry:
 @export var outline_size_ratio: float = 0.18     # 白边厚度（相对字号）
 @export var outline_size_min: int = 2            # 白边最小像素厚度
 @export var fade_duration: float = 2.0           # 淡出总时长（秒），全程持续渐出
-@export var reset_time: float = 1.0              # 累加窗口（秒）：淡出进行到此即 spike 重置（TetrisClearLine 会把它同步成自己的 Attack 累积窗口 damage_display_duration，两者默认都是 1s）
 @export var drift_speed: float = 60.0            # 漂移初速度（像素/秒）
 @export var drift_decay: float = 5.5             # 速度衰减速率（/秒）：越大越快停 → 先快后慢
 @export var spread: float = 18.0                 # 初始位置随机偏移（像素）
 @export var rotate_deg: float = 10.0             # 旋转角度上限（±度）
 
 var _entries: Array = []                         # 在场条目（含正在累加的那条）
-var _active: SpikeEntry = null                   # 仍在 reset_time 窗口内、可续接的条目
+var _active: SpikeEntry = null                   # 仍在 TetrisGlobalData.spike_reset_time 窗口内、可续接的条目
 
 @onready var _rng: RandomNumberGenerator = RandomManager.get_random("SPIKE")
 
 
+func _enter_tree() -> void:
+	# 自注册到公共数据区（整棵场景树的 _enter_tree 都先于任何 _ready 完成）
+	TetrisGlobalData.register_node(self)
+
+func _exit_tree() -> void:
+	TetrisGlobalData.unregister_node(self)
+
 func _ready() -> void:
-	if not board_drawer:
-		board_drawer = get_node_or_null("../TetrisBoardDrawer")
+	# 上报就绪：当场景内所有节点都就绪后，公共数据区会一次性分发 buff / 关卡初始化数据
+	TetrisGlobalData.notify_node_ready(self)
 
 
 ## 新增一次 spike（本次消行打出的攻击）。amount <= 0 时忽略。
@@ -65,7 +71,7 @@ func add_spike(amount: int, anchor_pos: Vector2) -> void:
 	#   - 透明度与淡出计时：elapsed 归零 → 回到 100% 不透明、fade_duration 淡出重新开始（1s 累加窗口随之续上）
 	#   - 位置 / 旋转 / 漂移初速度：重新落到这次攻击的落块点，并按 drift_speed 重新起速
 	#     （否则会沿用已经衰减到接近 0 的旧速度，续接时看起来弹出去却不动）
-	if _active != null and _active.elapsed < reset_time:
+	if _active != null and _active.elapsed < TetrisGlobalData.spike_reset_time:
 		_active.value += amount
 		_active.elapsed = 0.0
 		_randomize_placement(_active, anchor_pos)
@@ -98,13 +104,6 @@ func clear_all() -> void:
 	queue_redraw()
 
 
-## 当前仍在累加窗口内的数字（无则 0），供调试/外部查询
-func get_active_value() -> int:
-	if _active != null and _active.elapsed < reset_time:
-		return _active.value
-	return 0
-
-
 func _process(delta: float) -> void:
 	if _entries.is_empty():
 		return
@@ -114,7 +113,7 @@ func _process(delta: float) -> void:
 		if drift_decay > 0.0:
 			entry.drift *= exp(-drift_decay * delta)     # 指数衰减：先快后慢
 	# 淡出进度到达 reset_time → spike 重置（这条之后只能自然淡出，不再接受累加）
-	if _active != null and _active.elapsed >= reset_time:
+	if _active != null and _active.elapsed >= TetrisGlobalData.spike_reset_time:
 		_active = null
 	_prune_expired()
 	queue_redraw()
@@ -142,7 +141,7 @@ func _update_entry_text(entry: SpikeEntry) -> void:
 
 ## 字号：随 spike 数值变大而变大，但增长逐渐变缓（对数），并有上限
 func _font_size_for(value: int) -> float:
-	var cell: float = float(board_drawer.cell_size) if board_drawer else 24.0
+	var cell: float = float(TetrisGlobalData.board_cell_size) if TetrisGlobalData.board_drawer else 24.0
 	var ref: float = maxf(grow_ref, 0.001)
 	var t: float = log(1.0 + maxf(float(value), 0.0) / ref)
 	return cell * font_size_ratio * clampf(1.0 + font_grow * t, 1.0, maxf(max_font_scale, 1.0))

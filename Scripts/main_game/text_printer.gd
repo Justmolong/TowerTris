@@ -218,6 +218,18 @@ func get_text(key: String) -> String:
 	return list[list.size() - 1].text
 
 
+func _enter_tree() -> void:
+	# 自注册到公共数据区（整棵场景树的 _enter_tree 都先于任何 _ready 完成）：
+	# 其它节点（塔控制器 / 消行控制器）都通过 TetrisGlobalData 取本节点，不直接连线
+	TetrisGlobalData.register_node(self)
+
+func _exit_tree() -> void:
+	TetrisGlobalData.unregister_node(self)
+
+func _ready() -> void:
+	TetrisGlobalData.notify_node_ready(self)
+
+
 func _process(delta: float) -> void:
 	if _entries.is_empty():
 		return

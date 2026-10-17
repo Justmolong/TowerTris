@@ -319,6 +319,34 @@ box_id = "Allspin_1"
 box_size = 32
 default_checked = false
 
+[node name="Allspin_2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List7" unique_id=2000000028]
+layout_mode = 2
+script = ExtResource("2_7sx2r")
+box_id = "Allspin_2"
+box_size = 32
+default_checked = false
+
+[node name="Allspin_3" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List7" unique_id=2000000029]
+layout_mode = 2
+script = ExtResource("2_7sx2r")
+box_id = "Allspin_3"
+box_size = 32
+default_checked = false
+
+[node name="Allspin_4" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List7" unique_id=2000000030]
+layout_mode = 2
+script = ExtResource("2_7sx2r")
+box_id = "Allspin_4"
+box_size = 32
+default_checked = false
+
+[node name="Allspin_5" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List7" unique_id=2000000031]
+layout_mode = 2
+script = ExtResource("2_7sx2r")
+box_id = "Allspin_5"
+box_size = 32
+default_checked = false
+
 [node name="List8" type="HBoxContainer" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid" unique_id=202804398]
 layout_mode = 2
 
@@ -403,6 +431,21 @@ script = ExtResource("3_7sx2r")
 layout_mode = 2
 script = ExtResource("2_7sx2r")
 box_id = "BotPlay"
+box_size = 32
+default_checked = false
+
+[node name="FastSimulateLabel" type="Label" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List10" unique_id=2000000025]
+layout_mode = 2
+text = "快速模拟："
+
+[node name="ConnectorLine2" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List10" unique_id=2000000026]
+layout_mode = 2
+script = ExtResource("3_7sx2r")
+
+[node name="FastSimulate_1" type="Control" parent="CanvasLayer/TopArea/TopScrollContainer/ToggleGrid/List10" unique_id=2000000027]
+layout_mode = 2
+script = ExtResource("2_7sx2r")
+box_id = "FastSimulate_1"
 box_size = 32
 default_checked = false
 

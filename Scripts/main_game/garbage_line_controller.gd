@@ -3,27 +3,18 @@ class_name TetrisGarbageLineController
 
 ## 俄罗斯方块垃圾行控制器
 ## 负责垃圾行的生成、管理和增长逻辑
-
-# 节点引用
-@export var board_drawer: TetrisBoardDrawer  # 版面绘制器节点
-@export var tetris_controller: TetrisController  # 方块控制器引用（用于清除当前方块）
-@export var clear_line_controller: TetrisClearLine  # 消行控制器引用（用于检测消行延迟）
+## 需要其它节点时一律通过公共数据区 TetrisGlobalData 取用（见 tetris_global_data.gd）。
 
 # 垃圾行配置
-@export var garbage_cap: int = 3                      # 每次锁定最多增长的垃圾行数量（也用于版面garbage_cap线）
-@export var garbage_messy: float = 0.9               # 垃圾行更换洞口的概率（0-1）
 @export var garbage_hole_count: int = 1              # DoubleHole：每行洞口数量（默认 1）
 @export var garbage_hole_wide_count: int = 1         # DoubleHole：每个洞口的宽度（默认 1，>1 = 连续多格宽的洞口）
 ## DoubleHole（随机档，buff「双洞V」）：每行随机洞口数量的范围 [min, max]。
 ## 模板长度固定为 2；[min,max] 有效（min>=1 且 max>=min）时，每行独立随机取一个数量，
 ## 由 _apply_hole_settings() 按该数量裁剪/补足。与上面两个参数互斥（同为「双洞」档位）。
 @export var garbage_hole_count_random: Array = []
-@export var garbage_color: Color = Color(0.5, 0.5, 0.5, 1.0)  # 垃圾行颜色（浅灰色）
-@export var solid_garbage_color: Color = Color(0.3, 0.3, 0.3, 1.0)  # 实心垃圾行颜色（深灰色）
 @export var garbage_empty_color: Color = Color(0.08, 0.08, 0.08, 1.0)  # 垃圾行洞口颜色（与版面背景一致）
 
 # 垃圾缓冲配置
-@export var buffer_duration: float = 3.0             # 垃圾缓冲时间（秒）
 
 # 抵消倍率：每 1 行攻击可抵消 mult_defend 行垃圾
 @export var mult_defend: float = 1.0                 # 抵消倍率（默认 1.0）
@@ -58,7 +49,6 @@ var _deferred_solid_raises: Array = []
 ## 逐行上涨计时器
 var _rise_timer: Timer = null
 
-@export var buffered_garbage_color: Color = Color(0.5, 0.0, 0.0, 0.7)  # 缓冲垃圾颜色（半透明暗红色）
 @export var buffered_garbage_empty_color: Color = Color(0.2, 0.0, 0.0, 0.5)  # 缓冲垃圾洞口颜色
 
 # 垃圾行数据
@@ -69,7 +59,6 @@ var garbage_output_array: Array = []                 # 储存垃圾行洞口位�
 var garbage_buffer: Array = []                       # 缓冲中的垃圾数据 [{count: int, holes: Array, timer: float, is_buffered: bool}]
 
 # 实心垃圾行数据（不可消除）
-var solid_garbage_rows: Dictionary = {}              # 记录实心垃圾行的行索引 {row_index: true}
 
 # 内部状态
 var pending_garbage_data: Array = []                # 待处理的垃圾行数据 [{count: int, holes: Array}, ...]
@@ -78,25 +67,14 @@ var garbage_rows_data: Dictionary = {}              # 记录每行垃圾行的�
 var current_active_hole: Array = []                 # 当前活跃的洞口位置（用于溢出保留）
 var has_overflow: bool = false                      # 是否有溢出的垃圾行
 
+func _enter_tree() -> void:
+	# 自注册到公共数据区（整棵场景树的 _enter_tree 都先于任何 _ready 完成）
+	TetrisGlobalData.register_node(self)
+
+func _exit_tree() -> void:
+	TetrisGlobalData.unregister_node(self)
+
 func _ready():
-	# 自动查找board_drawer（如果未设置）
-	if not board_drawer:
-		board_drawer = get_node_or_null("../TetrisBoardDrawer")
-		if not board_drawer:
-			push_error("TetrisGarbageLineController: 未找到TetrisBoardDrawer节点！")
-			return
-	
-	# 自动查找tetris_controller（如果未设置）
-	if not tetris_controller:
-		tetris_controller = get_node_or_null("../TetrisController")
-		if not tetris_controller:
-			push_error("TetrisGarbageLineController: 未找到TetrisController节点！")
-			# 不是致命错误，继续运行
-	
-	# 自动查找clear_line_controller（如果未设置）
-	if not clear_line_controller:
-		clear_line_controller = get_node_or_null("../TetrisClearLine")
-	
 	# 初始化逐行上涨计时器
 	_rise_timer = Timer.new()
 	_rise_timer.one_shot = false
@@ -105,6 +83,85 @@ func _ready():
 	
 	# 初始化垃圾行输出队列
 	_refill_garbage_output()
+	
+	# 订阅公共事件：本节点不再被其它节点直接调用，改为「谁需要就发请求，本节点自己处理」
+	#   方块控制器：抵消结算 / 没消行时上涨 / 追加攻击
+	TetrisGlobalData.garbage_offset_requested.connect(_on_garbage_offset_requested)
+	TetrisGlobalData.garbage_rise_requested.connect(process_garbage_after_lock)
+	TetrisGlobalData.garbage_attack_requested.connect(_on_garbage_attack_requested)
+	#   消行控制器：实心行惩罚 / Allspin 直接插入 / 恢复被暂缓的上涨
+	TetrisGlobalData.solid_garbage_requested.connect(_on_solid_garbage_requested)
+	TetrisGlobalData.allspin_garbage_requested.connect(_on_allspin_garbage_requested)
+	TetrisGlobalData.garbage_rise_resume_requested.connect(resume_rise_if_pending)
+	
+	# 上报就绪：当场景内所有节点都就绪后，公共数据区会通知各节点读走自己的 buff 参数
+	TetrisGlobalData.notify_node_ready(self)
+
+## 请求抵消：本次攻击伤害用于抵消垃圾行；抵消成功则由本节点直接发「防御奖励」给塔。
+## （原先由方块控制器先查队列长度、再调用 offset_garbage 并自己发奖励，现在队列判断在本地做）
+func _on_garbage_offset_requested(damage: int) -> void:
+	if damage <= 0 or get_enter_queue_size() <= 0:
+		return
+	var offset_count: int = offset_garbage(damage)
+	# 抵消的部分作为奖励也输入给塔；is_defence=true 让飘字用红色（防御收益，与普通攻击奖励区分）
+	if offset_count > 0:
+		TetrisGlobalData.tower_damage_dealt.emit(offset_count, true)
+
+## 请求追加攻击（方块控制器对外的 add_garbage_attack 入口）
+func _on_garbage_attack_requested(rows: int) -> void:
+	add_attack(rows)
+
+## 请求上涨实心垃圾行（Allspin_2 / NoSpin4 惩罚）
+func _on_solid_garbage_requested(rows: int, ignore_cap: bool) -> void:
+	add_solid_garbage(rows, ignore_cap)
+
+## 请求直接插入 Allspin 惩罚垃圾行（默认 1 行，不走缓冲队列）
+func _on_allspin_garbage_requested() -> void:
+	insert_allspin_garbage_directly()
+
+## 读取公共区域里属于垃圾行控制器的关卡 / buff 参数（谁用谁读：公共区域不认这些键名）。
+func apply_init_params() -> void:
+	# ---- 抵消倍率 / 缓冲 / 上涨模式 ----
+	if TetrisGlobalData.init_has("mult_defend"):
+		mult_defend = TetrisGlobalData.get_init_float("mult_defend", mult_defend)
+	if TetrisGlobalData.init_has("garbage_rise_time_delay"):
+		garbage_rise_time_delay = TetrisGlobalData.get_init_float(
+			"garbage_rise_time_delay", garbage_rise_time_delay)
+	if TetrisGlobalData.init_has("garbage_cap"):
+		TetrisGlobalData.garbage_cap = TetrisGlobalData.get_init_int("garbage_cap", TetrisGlobalData.garbage_cap)
+	if TetrisGlobalData.init_has("buffer_duration"):
+		TetrisGlobalData.garbage_buffer_duration = TetrisGlobalData.get_init_float("buffer_duration", TetrisGlobalData.garbage_buffer_duration)
+	if TetrisGlobalData.init_has("suddenly_death_mode"):
+		suddenly_death_mode = TetrisGlobalData.get_init_bool("suddenly_death_mode", suddenly_death_mode)
+	if TetrisGlobalData.init_has("drop_limit_cancel"):
+		drop_limit_cancel = TetrisGlobalData.get_init_bool("drop_limit_cancel", drop_limit_cancel)
+	
+	# ---- DoubleHole：垃圾行洞口形态 ----
+	# garbage_hole_wide_count    = X宽（每行一组紧邻连续洞口）
+	# garbage_hole_count         = 每行洞口数量
+	# garbage_hole_count_random  = [min,max]（每行随机洞口数量，buff「双洞V」）
+	# 三者互斥（同为「双洞」档位，JSON 里由 BuffConflick 的 DoubleHole 组保证；
+	# 若被同时覆盖则报错并不应用，避免出现「又宽又多」的歧义形态）。
+	if TetrisGlobalData.init_has("garbage_hole_wide_count") \
+			or TetrisGlobalData.init_has("garbage_hole_count") \
+			or TetrisGlobalData.init_has("garbage_hole_count_random"):
+		var dh_wide: int = TetrisGlobalData.get_init_int("garbage_hole_wide_count", 1)
+		var dh_holes: int = TetrisGlobalData.get_init_int("garbage_hole_count", 1)
+		var dh_random: Array = TetrisGlobalData.get_init_array("garbage_hole_count_random", [])
+		var dh_has_random: bool = dh_random.size() >= 2
+		var dh_effective: int = 0
+		if dh_wide > 1:
+			dh_effective += 1
+		if dh_holes > 1:
+			dh_effective += 1
+		if dh_has_random:
+			dh_effective += 1
+		if dh_effective > 1:
+			push_error("DoubleHole参数冲突：garbage_hole_wide_count / garbage_hole_count / garbage_hole_count_random 互斥，不能同时生效")
+		else:
+			garbage_hole_wide_count = dh_wide
+			garbage_hole_count = dh_holes
+			garbage_hole_count_random = dh_random if dh_has_random else []
 
 func _process(delta):
 	# 更新缓冲垃圾计时器
@@ -139,8 +196,8 @@ func _update_buffer_timers(delta: float):
 					if is_clear_delay_active():
 						continue
 					var success = process_garbage_after_lock()
-					if success <= 0 and tetris_controller:
-						tetris_controller._game_over("垃圾上涨失败")
+					if success <= 0 and TetrisGlobalData.tetris_controller:
+						TetrisGlobalData.game_over_requested.emit("垃圾上涨失败")
 			
 			##print("缓冲垃圾已就绪: ", converted_count, " 行，当前队列: ", garbage_enter_array)
 		else:
@@ -148,9 +205,15 @@ func _update_buffer_timers(delta: float):
 
 ## 补充垃圾行输出队列（默认生成garbage_cap大小）
 func _refill_garbage_output():
-	while garbage_output_array.size() < garbage_cap:
+	while garbage_output_array.size() < TetrisGlobalData.garbage_cap:
 		var new_hole = _generate_single_hole()
 		garbage_output_array.append(new_hole)
+
+## 生成「一行垃圾行」的洞口位置（公开 API：印刷初始版面等外部用途）。
+## 内部按当前 DoubleHole 设置（garbage_hole_count / wide_count / count_random）随机生成，
+## 与游戏中上涨的垃圾行同一套规则 —— 外部不需要了解 _generate_single_hole / _apply_hole_settings。
+func build_garbage_row_holes() -> Array:
+	return _apply_hole_settings(_generate_single_hole())
 
 ## 为单个垃圾行生成所有洞口位置（基于基础洞口 + 随机额外挖洞）
 ## @param base_hole: [int] 基础洞口x坐标（所有行共享）
@@ -179,7 +242,7 @@ func _apply_hole_settings(holes: Array) -> Array:
 	if garbage_hole_count <= 1 and garbage_hole_wide_count <= 1 and random_range.is_empty():
 		return holes
 
-	var width: int = board_drawer.grid_width if board_drawer else 10
+	var width: int = TetrisGlobalData.board_grid_width if TetrisGlobalData.board_drawer else 10
 	if width <= 0:
 		width = 10
 	var result: Array = holes.duplicate()
@@ -249,11 +312,11 @@ func _generate_single_hole() -> Array:
 func _get_random_hole_position(rng: RandomNumberGenerator, exclude_x: int) -> int:
 	var max_attempts = 100
 	for _i in range(max_attempts):
-		var hole_x = rng.randi_range(0, board_drawer.grid_width - 1)
+		var hole_x = rng.randi_range(0, TetrisGlobalData.board_grid_width - 1)
 		if hole_x != exclude_x:
 			return hole_x
 	# 如果无法生成不同的位置，返回默认值
-	return (exclude_x + 1) % board_drawer.grid_width
+	return (exclude_x + 1) % TetrisGlobalData.board_grid_width
 
 ## 添加攻击到进入队列（不限制单次攻击量）
 ## @param attack_count: 攻击行数
@@ -277,16 +340,14 @@ func add_attack(attack_count: int, add_extra_hole: int = 0):
 		"holes": base_hole,
 		"base_hole": base_hole,
 		"extra_hole_count": add_extra_hole,
-		"timer": buffer_duration,
-		"timer_total": buffer_duration,
+		"timer": TetrisGlobalData.garbage_buffer_duration,
+		"timer_total": TetrisGlobalData.garbage_buffer_duration,
 		"is_buffered": true
 	}
 	garbage_buffer.append(buffer_entry)
 	
-	# 关联到TetrisController的RPM统计
-	if tetris_controller:
-		# 使用record_received_damage方法记录接收攻击
-		tetris_controller._record_received_damage(attack_count)
+	# 通知方块控制器记入 RPM 统计（收到攻击）
+	TetrisGlobalData.garbage_attack_received.emit(attack_count)
 	
 	###print("添加攻击: ", attack_count, " 行，额外挖洞: ", add_extra_hole, "，洞口: ", holes, "（缓冲中），当前缓冲: ", garbage_buffer)
 
@@ -311,12 +372,11 @@ func get_buffered_garbage_rows() -> int:
 ## 强制上涨行数（通用功能，支持自定义行数据生成器）
 ## 版面版本号：每次垃圾行成功上涨（force_raise_rows 真正上移了行）时 +1。
 ## 用于让 bot 感知“垃圾行抬升期间版面已变化”，从而重新请求决策，避免执行过期计划。
-var board_version: int = 0
 
 ## 计算新垃圾行应插入的起始行索引：紧贴底部实心块上方；无实心块时为版面底部。
 ## 与 force_raise_rows 的版面构建逻辑保持一致，供各调用方记录新行洞口位置。
 func _get_new_rows_start(row_count: int) -> int:
-	var H: int = board_drawer.get_playable_height()
+	var H: int = TetrisGlobalData.board_playable_height
 	var bottom_solid: int = 0
 	for y in range(H - 1, -1, -1):
 		if is_solid_garbage_row(y):
@@ -336,33 +396,30 @@ func force_raise_rows(row_count: int, row_generator: Callable, skip_piece_handli
 	
 	# 限制单次上涨数量
 	if not ignore_row_cap:
-		row_count = min(row_count, garbage_cap)
+		row_count = min(row_count, TetrisGlobalData.garbage_cap)
 	
-	# 如果tetris_controller存在，先清除当前方块并记录其位置
-	var current_pos = null
-	if tetris_controller and not skip_piece_handling:
-		# 保存当前方块位置
-		current_pos = tetris_controller.current_position
-		# 清除当前方块（从版面上移除）
-		tetris_controller._clear_current_piece()
+	# 整版上移即将开始 → 通知方块控制器把手上方块先从版面缓冲里清掉（避免被一起搬进新行）。
+	# 方块控制器订阅 board_shift_starting 后自己 clear_current_piece()，本节点不再碰它。
+	if not skip_piece_handling:
+		TetrisGlobalData.board_shift_starting.emit(true)
 	
 	# 收集当前版面所有数据（颜色 + 每个格子的锁定时间戳）
 	# 时间戳必须一起搬：整版上涨只是把已有格子挪到新行，若用 set_cell_color() 写回，
 	# 时间戳会被刷成「刚刚落下」→ 隐形模式（tetris_invisible==1）下整片版面突然显形。
 	var board_data = []
 	var lock_data = []
-	for y in range(board_drawer.get_playable_height()):
+	for y in range(TetrisGlobalData.board_playable_height):
 		var row = []
 		var lock_row = []
-		for x in range(board_drawer.grid_width):
-			row.append(board_drawer.get_cell_color(x, y))
-			lock_row.append(board_drawer.get_cell_lock_time(x, y))
+		for x in range(TetrisGlobalData.board_grid_width):
+			row.append(TetrisGlobalData.board_get_cell(x, y))
+			lock_row.append(TetrisGlobalData.board_get_cell_lock_time(x, y))
 		board_data.append(row)
 		lock_data.append(lock_row)
 	
 	# 计算需要上移的行数
 	var shift_amount = row_count
-	var H: int = board_drawer.get_playable_height()
+	var H: int = TetrisGlobalData.board_playable_height
 	
 	# 计算底部实心垃圾行块的高度（实心行必定处于最底层，不可被顶起）
 	var bottom_solid: int = 0
@@ -386,11 +443,11 @@ func force_raise_rows(row_count: int, row_generator: Callable, skip_piece_handli
 		var lock_row = []
 		var source_y = y + shift_amount
 		if source_y < board_data.size():
-			for x in range(board_drawer.grid_width):
+			for x in range(TetrisGlobalData.board_grid_width):
 				row_data.append(board_data[source_y][x])
 				lock_row.append(lock_data[source_y][x])
 		else:
-			for x in range(board_drawer.grid_width):
+			for x in range(TetrisGlobalData.board_grid_width):
 				row_data.append(null)
 				lock_row.append(0)
 		new_board_data.append(row_data)
@@ -401,7 +458,7 @@ func force_raise_rows(row_count: int, row_generator: Callable, skip_piece_handli
 		var row_data = row_generator.call(i, shift_amount)
 		new_board_data.append(row_data)
 		var lock_row = []
-		for x in range(board_drawer.grid_width):
+		for x in range(TetrisGlobalData.board_grid_width):
 			lock_row.append(0)
 		new_lock_data.append(lock_row)
 	
@@ -409,83 +466,46 @@ func force_raise_rows(row_count: int, row_generator: Callable, skip_piece_handli
 	for y in range(solid_start, H):
 		var row_data = []
 		var lock_row = []
-		for x in range(board_drawer.grid_width):
+		for x in range(TetrisGlobalData.board_grid_width):
 			row_data.append(board_data[y][x])
 			lock_row.append(lock_data[y][x])
 		new_board_data.append(row_data)
 		new_lock_data.append(lock_row)
 	
 	# 清空版面
-	for y in range(board_drawer.get_playable_height()):
-		for x in range(board_drawer.grid_width):
-			board_drawer.set_cell_color(x, y, null)
+	for y in range(TetrisGlobalData.board_playable_height):
+		for x in range(TetrisGlobalData.board_grid_width):
+			TetrisGlobalData.board_set_cell(x, y, null)
 	
 	# 写入新数据（连时间戳一起写回，不刷新）
-	for y in range(min(new_board_data.size(), board_drawer.get_playable_height())):
-		for x in range(board_drawer.grid_width):
+	for y in range(min(new_board_data.size(), TetrisGlobalData.board_playable_height)):
+		for x in range(TetrisGlobalData.board_grid_width):
 			if y < new_board_data.size() and x < new_board_data[y].size():
 				var color = new_board_data[y][x]
 				var lock_time: int = new_lock_data[y][x] if y < new_lock_data.size() else 0
-				board_drawer.set_cell_color_with_lock_time(x, y, color, lock_time)
+				TetrisGlobalData.board_set_cell_with_lock_time(x, y, color, lock_time)
 	
 	# 检查是否有任何非空方块超过第50行（y < 50，高于第50行即触发游戏结束）
 	# 隐藏区域共70行（0-69），第0-49行为禁止区，第50-69行为安全缓冲
 	var has_block_above_50: bool = false
-	for y in range(0, min(50, board_drawer.grid_max_height)):
-		for x in range(board_drawer.grid_width):
-			if board_drawer.get_cell_color(x, y) != null:
+	for y in range(0, min(50, TetrisGlobalData.board_grid_max_height)):
+		for x in range(TetrisGlobalData.board_grid_width):
+			if TetrisGlobalData.board_get_cell(x, y) != null:
 				has_block_above_50 = true
 				break
 		if has_block_above_50:
 			break
 	if has_block_above_50:
-		if tetris_controller:
-			tetris_controller._game_over("方块堆积过高")
+		TetrisGlobalData.game_over_requested.emit("方块堆积过高")
 		return false
 	
-	# 如果tetris_controller存在且需要处理当前方块，恢复当前方块（位置向上移动row_count行）
-	if tetris_controller and not skip_piece_handling and current_pos != null:
-		# 计算新位置：Y坐标向上移动row_count行（减小）
-		var new_pos = Vector2i(current_pos.x, current_pos.y - row_count)
-		
-		# 确保位置不超出顶部
-		if new_pos.y < 0:
-			new_pos.y = 0
-		
-		# 更新方块位置
-		tetris_controller.current_position = new_pos
-		
-		# 检查新位置是否碰撞（如果碰撞，说明方块被卡死，可能需要游戏结束处理）。
-		# ⚠ 必须用纯查询 _check_collision_pure()：_check_collision() 默认 ignore_current_piece=true，
-		#   会先把候选位置清空再检测（擦掉那里的版面方块，并让检测误判为空位），
-		#   随后重绘就把方块画在那，造成「方块直接覆盖原有版面」。
-		var piece: Array = tetris_controller.current_piece
-		if tetris_controller._check_collision_pure(new_pos, piece):
-			# 如果碰撞，尝试逐步上移直到找到有效位置
-			var test_pos = new_pos
-			while test_pos.y > 0 and tetris_controller._check_collision_pure(test_pos, piece):
-				test_pos.y -= 1
-			if test_pos.y >= 0 and not tetris_controller._check_collision_pure(test_pos, piece):
-				tetris_controller.current_position = test_pos
-			else:
-				# 无法找到有效位置，游戏结束
-				push_error("方块被卡死，游戏结束")
-				if tetris_controller:
-					tetris_controller._game_over("方块被卡死")
-				return false
-		
-		# 重新绘制当前方块
-		tetris_controller._draw_current_piece()
-		
-		# 整版上移时当前方块被一并上移：旋转判定记录里的位置要同步到方块实际位置，
-		# 否则 spin 判定会拿陈旧坐标探测（位置整体偏下 row_count 行）
-		tetris_controller.sync_rotation_record_position()
-		
-		# 更新影子
-		tetris_controller._update_shadow()
+	# 整版上移完成 → 通知方块控制器把手上方块按新位置重画。
+	# （位置计算、碰撞修正、重画、影子刷新、旋转记录同步都在方块控制器自己的订阅回调里做，
+	#   本节点不再认识方块；sync_piece=false 表示本次不需要动方块）
+	TetrisGlobalData.board_shifted_up.emit(row_count, not skip_piece_handling)
 	
 	# 请求重绘
-	board_drawer.queue_redraw()
+	TetrisGlobalData.board_drawer.queue_redraw()
 	
 	# 垃圾行洞口记录随版面上移：整版上移 row_count 行后，已有垃圾行的实际行索引
 	# 减小 row_count（y=0 为顶部），被挤出顶部的记录应删除；底部新增行的洞口由调用方
@@ -505,7 +525,7 @@ func force_raise_rows(row_count: int, row_generator: Callable, skip_piece_handli
 	# （若新增行本身是实心行，add_solid_garbage 会重新扫描整个版面重建该记录。）
 	
 	# 版面已因垃圾行上涨而改变：递增版本号，通知 bot 重新决策
-	board_version += 1
+	TetrisGlobalData.garbage_board_version += 1
 	
 	##print("强制上涨了 ", row_count, " 行")
 	return true
@@ -514,7 +534,7 @@ func force_raise_rows(row_count: int, row_generator: Callable, skip_piece_handli
 func _generate_garbage_row_generator(holes: Array, is_buffered: bool = false) -> Callable:
 	return func(_i: int, _total: int) -> Array:
 		var row_data = []
-		for x in range(board_drawer.grid_width):
+		for x in range(TetrisGlobalData.board_grid_width):
 			var is_hole = false
 			for hole_x in holes:
 				if x == hole_x:
@@ -528,17 +548,17 @@ func _generate_garbage_row_generator(holes: Array, is_buffered: bool = false) ->
 					row_data.append(null)
 			else:
 				if is_buffered:
-					row_data.append(buffered_garbage_color)
+					row_data.append(TetrisGlobalData.garbage_buffered_color)
 				else:
-					row_data.append(garbage_color)
+					row_data.append(TetrisGlobalData.garbage_color)
 		return row_data
 
 ## 生成实心垃圾行数据（全深灰色）
 func _generate_solid_row_generator() -> Callable:
 	return func(_i: int, _total: int) -> Array:
 		var row_data = []
-		for x in range(board_drawer.grid_width):
-			row_data.append(solid_garbage_color)
+		for x in range(TetrisGlobalData.board_grid_width):
+			row_data.append(TetrisGlobalData.garbage_solid_color)
 		return row_data
 
 ## 上涨X行实心垃圾行（无法消除）
@@ -557,19 +577,19 @@ func add_solid_garbage(row_count: int, ignore_row_cap: bool = false):
 	var success = force_raise_rows(row_count, _generate_solid_row_generator(), false, ignore_row_cap)
 	if success:
 		# 清除旧的实心垃圾行记录（因为行索引已经变化）
-		solid_garbage_rows.clear()
+		TetrisGlobalData.garbage_solid_rows.clear()
 		
 		# 重新记录所有实心垃圾行的行索引
 		# 遍历版面，找到所有实心垃圾行
-		for y in range(board_drawer.get_playable_height()):
+		for y in range(TetrisGlobalData.board_playable_height):
 			var is_solid = true
-			for x in range(board_drawer.grid_width):
-				var color = board_drawer.get_cell_color(x, y)
-				if color != solid_garbage_color:
+			for x in range(TetrisGlobalData.board_grid_width):
+				var color = TetrisGlobalData.board_get_cell(x, y)
+				if color != TetrisGlobalData.garbage_solid_color:
 					is_solid = false
 					break
 			if is_solid:
-				solid_garbage_rows[y] = true
+				TetrisGlobalData.garbage_solid_rows[y] = true
 		
 		##print("上涨了 ", row_count, " 行实心垃圾行，当前实心行: ", solid_garbage_rows.keys())
 
@@ -670,7 +690,7 @@ func _get_next_hole_position() -> Array:
 ## 检查是否应该更换洞口（基于garbage_messy概率）
 func _should_change_hole() -> bool:
 	var garbage_rng = RandomManager.get_random("GARBAGE")
-	return garbage_rng.randf() < garbage_messy
+	return garbage_rng.randf() < TetrisGlobalData.garbage_messy
 
 ## 准备增长的垃圾行数据（方块锁定且无消行时调用）
 func prepare_garbage_for_lock() -> int:
@@ -683,7 +703,7 @@ func prepare_garbage_for_lock() -> int:
 	for entry in garbage_enter_array:
 		total_available += entry["count"]
 	
-	var total_to_process = min(total_available, garbage_cap)
+	var total_to_process = min(total_available, TetrisGlobalData.garbage_cap)
 	
 	if total_to_process <= 0:
 		return 0
@@ -782,7 +802,7 @@ func apply_garbage_to_board() -> bool:
 		total_garbage_rows += batch["count"]
 	
 	# 限制总垃圾行数
-	total_garbage_rows = min(total_garbage_rows, garbage_cap)
+	total_garbage_rows = min(total_garbage_rows, TetrisGlobalData.garbage_cap)
 	
 	if total_garbage_rows <= 0:
 		is_garbage_locked = false
@@ -808,7 +828,7 @@ func apply_garbage_to_board() -> bool:
 		var holes = all_holes[i] if i < all_holes.size() else [0]
 		var is_buffered = all_buffered[i] if i < all_buffered.size() else false
 		var row_data = []
-		for x in range(board_drawer.grid_width):
+		for x in range(TetrisGlobalData.board_grid_width):
 			var is_hole = false
 			for hole_x in holes:
 				if x == hole_x:
@@ -822,9 +842,9 @@ func apply_garbage_to_board() -> bool:
 					row_data.append(null)
 			else:
 				if is_buffered:
-					row_data.append(buffered_garbage_color)
+					row_data.append(TetrisGlobalData.garbage_buffered_color)
 				else:
-					row_data.append(garbage_color)
+					row_data.append(TetrisGlobalData.garbage_color)
 		return row_data
 	
 	# 执行强制上涨（会处理方块Y坐标同步）
@@ -847,12 +867,12 @@ func apply_garbage_to_board() -> bool:
 
 ## 检查某个格子是否为垃圾行
 func is_garbage_cell(x: int, y: int) -> bool:
-	var color = board_drawer.get_cell_color(x, y)
-	return color == garbage_color or color == buffered_garbage_color
+	var color = TetrisGlobalData.board_get_cell(x, y)
+	return color == TetrisGlobalData.garbage_color or color == TetrisGlobalData.garbage_buffered_color
 
 ## 检查某个格子是否为垃圾行洞口
 func is_garbage_hole(x: int, y: int) -> bool:
-	var color = board_drawer.get_cell_color(x, y)
+	var color = TetrisGlobalData.board_get_cell(x, y)
 	return (color == null or color == buffered_garbage_empty_color) and _is_hole_position(x, y)
 
 ## 检查某个位置是否为洞口
@@ -872,26 +892,26 @@ func get_garbage_holes_for_row(y: int) -> Array:
 
 ## 检查某行是否为实心垃圾行
 func is_solid_garbage_row(row_index: int) -> bool:
-	return solid_garbage_rows.has(row_index)
+	return TetrisGlobalData.garbage_solid_rows.has(row_index)
 
 ## 检查某个格子是否为实心垃圾行
 func is_solid_garbage_cell(x: int, y: int) -> bool:
-	if not solid_garbage_rows.has(y):
+	if not TetrisGlobalData.garbage_solid_rows.has(y):
 		return false
-	var color = board_drawer.get_cell_color(x, y)
-	return color == solid_garbage_color
+	var color = TetrisGlobalData.board_get_cell(x, y)
+	return color == TetrisGlobalData.garbage_solid_color
 
 ## 清除所有实心垃圾行
 func clear_solid_garbage():
 	# 从版面中清除实心垃圾行
-	for y in range(board_drawer.get_playable_height()):
-		if solid_garbage_rows.has(y):
-			for x in range(board_drawer.grid_width):
-				var color = board_drawer.get_cell_color(x, y)
-				if color == solid_garbage_color:
-					board_drawer.set_cell_color(x, y, null)
-	solid_garbage_rows.clear()
-	board_drawer.queue_redraw()
+	for y in range(TetrisGlobalData.board_playable_height):
+		if TetrisGlobalData.garbage_solid_rows.has(y):
+			for x in range(TetrisGlobalData.board_grid_width):
+				var color = TetrisGlobalData.board_get_cell(x, y)
+				if color == TetrisGlobalData.garbage_solid_color:
+					TetrisGlobalData.board_set_cell(x, y, null)
+	TetrisGlobalData.garbage_solid_rows.clear()
+	TetrisGlobalData.board_drawer.queue_redraw()
 
 ## 方块锁定后的垃圾行处理入口（供 tetris_controller 调用）
 ## 根据 suddenly_death_mode 选择模式：
@@ -933,12 +953,13 @@ func insert_allspin_garbage_directly(row_count: int = 1) -> void:
 	var gen = _generate_garbage_row_generator(all_holes[0], false)
 	# 必须走「处理当前方块」的上涨（skip_piece_handling = false）。
 	# 原因：clear_line_delay_time == 0（默认）时，TetrisClearLine._clear_lines_animated() 会先消行并
-	# 立刻 spawn 新方块（已由 _draw_current_piece() 写进版面），随后才调用本函数。
+	# 立刻 spawn 新方块（已由 redraw_current_piece() 写进版面），随后才调用本函数。
 	# 若 skip_piece_handling = true，方块的 4 格会被当成版面内容一起上移：
 	#   · 变成永远留在出生区的假锁定垃圾（方块自身在新位置反而没被画出来）
 	#   · current_position 不随版面上移 → 与版面错位，方块锁定后又多写 4 格
 	#   · 下一个方块 spawn 时出生点被这些残留格占住 → 立刻判定窒息、游戏结束
 	# 交给 force_raise_rows 统一处理（清除方块 → 版面上移 → 方块同步上移 → 重绘/影子/旋转记录）
+	@warning_ignore("return_value_discarded")
 	force_raise_rows(row_count, gen, false)
 
 ## Allspin：上涨 x 行标准垃圾行（直接推到上升队列最前面）
@@ -952,7 +973,7 @@ func add_allspin_garbage(row_count: int = 1) -> void:
 		_pending_rise_queue.push_front({
 			"holes": hole,
 			"is_buffered": false,
-			"color": garbage_color,
+			"color": TetrisGlobalData.garbage_color,
 			"empty_color": null,
 		})
 	_start_rise_timer()
@@ -972,16 +993,16 @@ func get_pending_garbage_count() -> int:
 
 ## 将垃圾行数据拆分为单行，加入依次上涨队列
 ## 在 suddenly_death_mode=false 时由 process_garbage_after_lock 调用
-func _move_enter_to_rise_queue() -> int:
+func _move_enter_to_rise_queue() -> void:
 	if garbage_enter_array.is_empty():
-		return 0
+		return
 	
 	var total_available = 0
 	for entry in garbage_enter_array:
 		total_available += entry["count"]
 	
 	# 限流（每次锁定最多新增 garbage_cap 行，保留尚未上涨完的旧行，避免丢失）
-	var total_rows = min(total_available, garbage_cap)
+	var total_rows = min(total_available, TetrisGlobalData.garbage_cap)
 	
 	var remaining = total_rows
 	var enter_index = 0
@@ -1009,7 +1030,7 @@ func _move_enter_to_rise_queue() -> int:
 			_pending_rise_queue.append({
 				"holes": row_holes,
 				"is_buffered": false,
-				"color": garbage_color,
+				"color": TetrisGlobalData.garbage_color,
 				"empty_color": null,
 			})
 		
@@ -1036,13 +1057,13 @@ func _move_enter_to_rise_queue() -> int:
 	
 	##print("逐行上涨队列已填充: %d 行" % _pending_rise_queue.size())
 	_start_rise_timer()
-	return _pending_rise_queue.size()
+	return
 
 ## 是否正处于消行延迟中（消行动画期间不得改动版面：待消行仍物理存在，
 ## 此时上涨垃圾会使待消行上移，导致延迟结束后 _pending_clear_lines 索引错位等 bug）
 func is_clear_delay_active() -> bool:
-	if clear_line_controller:
-		return clear_line_controller.is_clear_animating_active()
+	if TetrisGlobalData.clear_line_controller:
+		return TetrisGlobalData.clear_animating_active
 	return false
 
 ## 启动逐行上涨计时器
@@ -1077,12 +1098,11 @@ func _on_rise_timer_timeout() -> void:
 	# 取出队列最前面的一行
 	var row_entry = _pending_rise_queue.pop_front()
 	var holes: Array = row_entry["holes"]
-	var _is_buffered: bool = row_entry.get("is_buffered", false)
 	
 	# 生成单行垃圾
 	var generator = func(_i: int, _total: int) -> Array:
 		var row_data = []
-		for x in range(board_drawer.grid_width):
+		for x in range(TetrisGlobalData.board_grid_width):
 			var is_hole = false
 			for hx in holes:
 				if x == hx:
@@ -1091,7 +1111,7 @@ func _on_rise_timer_timeout() -> void:
 			if is_hole:
 				row_data.append(null)
 			else:
-				row_data.append(garbage_color)
+				row_data.append(TetrisGlobalData.garbage_color)
 		return row_data
 	
 	var success = force_raise_rows(1, generator)
@@ -1129,10 +1149,11 @@ func resume_rise_if_pending() -> void:
 			if holes.is_empty():
 				continue
 			var gen = _generate_garbage_row_generator(holes[0], false)
-			# 此处必然没有活动方块：本函数由 TetrisClearLine._on_clear_line_delay_timeout() 在
-			# _spawn_next_piece_after_clear() 之前调用，而上一个方块已在 _lock_piece() 里清空
-			# （current_piece = []）。因此这里跳过方块处理是安全的。
+			# 此处必然没有活动方块：本函数由 TetrisClearLine 在消行延迟结束、且「请求出块」
+			# 之前调用（出块是整条链路的最后一步），而上一个方块已在 _lock_piece() 里清空
+			# （piece_shape = []）。因此这里跳过方块处理是安全的。
 			# 「有活动方块」的那条路径见 insert_allspin_garbage_directly()，那里必须传 false。
+			@warning_ignore("return_value_discarded")
 			force_raise_rows(count, gen, true)
 		_deferred_direct_raises.clear()
 	# 恢复逐行上涨
@@ -1186,7 +1207,7 @@ func clear_all():
 	pending_garbage_data = []
 	is_garbage_locked = false
 	garbage_rows_data.clear()
-	solid_garbage_rows.clear()
+	TetrisGlobalData.garbage_solid_rows.clear()
 	has_overflow = false
 	current_active_hole = []
 	_pending_rise_queue.clear()
@@ -1197,14 +1218,14 @@ func clear_all():
 
 ## 清空版面中的垃圾行
 func clear_garbage_from_board():
-	for y in range(board_drawer.get_playable_height()):
-		for x in range(board_drawer.grid_width):
-			var color = board_drawer.get_cell_color(x, y)
-			if color == garbage_color or color == garbage_empty_color or color == solid_garbage_color or color == buffered_garbage_color or color == buffered_garbage_empty_color:
-				board_drawer.set_cell_color(x, y, null)
+	for y in range(TetrisGlobalData.board_playable_height):
+		for x in range(TetrisGlobalData.board_grid_width):
+			var color = TetrisGlobalData.board_get_cell(x, y)
+			if color == TetrisGlobalData.garbage_color or color == garbage_empty_color or color == TetrisGlobalData.garbage_solid_color or color == TetrisGlobalData.garbage_buffered_color or color == buffered_garbage_empty_color:
+				TetrisGlobalData.board_set_cell(x, y, null)
 	garbage_rows_data.clear()
-	solid_garbage_rows.clear()
-	board_drawer.queue_redraw()
+	TetrisGlobalData.garbage_solid_rows.clear()
+	TetrisGlobalData.board_drawer.queue_redraw()
 
 ## 重置整个垃圾行系统
 func reset_system():

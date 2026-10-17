@@ -104,7 +104,7 @@ func _populate_buff_list() -> void:
 		if child != buff_list_title:
 			child.queue_free()
 	
-	var buffs: Array = GlobalData.selected_buffs
+	var buffs: Array = TetrisGlobalData.selected_buffs
 	if buffs.is_empty():
 		var empty := Label.new()
 		empty.text = "无"
@@ -157,7 +157,7 @@ func _on_exit_button_pressed():
 
 ## BACK 按钮回调：返回 buff 选择界面，并带回已选取的 buff 进行预勾选
 func _on_back_button_pressed():
-	# 标记：返回 buff_chose_area 时需要恢复上次勾选
-	GlobalData.restore_buffs = true
+	# 标记：返回 buff_chose_area 时需要恢复上次勾选（buff 数据统一放在公共数据区）
+	TetrisGlobalData.restore_buffs = true
 	# 不重置 stats，保留 selected_buffs 供 buff_chose_area 读取
 	get_tree().change_scene_to_file("res://Tscns/buff_chose_area.tscn")

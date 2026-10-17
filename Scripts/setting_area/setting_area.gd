@@ -357,6 +357,7 @@ func _on_reset_pressed():
 ## 返回主菜单
 func _on_back_pressed():
 	# 保存设置
+	@warning_ignore("return_value_discarded")
 	UserSetting.save_settings(current_settings)
 	get_tree().change_scene_to_file("res://Tscns/main_menu.tscn")
 

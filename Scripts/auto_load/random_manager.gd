@@ -50,8 +50,8 @@ func initialize_default():
 	initialize(seed_value)
 
 
-## 创建子RNG，同时存入种子字典
-func _create_sub_rng(base_seed: int, system_name: String) -> RandomNumberGenerator:
+## 创建子RNG，同时存入种子字典（调用方只关心字典结果，不需要接收返回值）
+func _create_sub_rng(base_seed: int, system_name: String) -> void:
 	var sub_rng = RandomNumberGenerator.new()
 	# 使用字符串哈希生成子种子，确保不同系统获得不同的随机序列
 	var sub_seed = base_seed ^ system_name.hash()
@@ -60,8 +60,6 @@ func _create_sub_rng(base_seed: int, system_name: String) -> RandomNumberGenerat
 	# 存入字典
 	_sub_rngs[system_name] = sub_rng
 	_sub_seeds[system_name] = sub_seed  # 种子字典记录
-	
-	return sub_rng
 
 
 ## 检查是否已初始化

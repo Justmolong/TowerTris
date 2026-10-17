@@ -1,4 +1,4 @@
-
+﻿
 //by ZouZhiZhang
 
 #include "tetris_core.h"
@@ -55,11 +55,30 @@ namespace ai_zzz
 {
     // TowerTris 诊断计数：NoSpin4 下被判为「T 的 Spin0」并施加死亡惩罚的候选次数
     //（由 worker 的 WEIGHTS 命令读取，用于确认该分支真的在跑）
-    static int g_spin0_penalty_count = 0;
+    // TowerTris 诊断计数：NoSpin4 下被判为「T 的 Spin0」并施加死亡惩罚的候选次数
+    //（由 worker 的 WEIGHTS 命令读取，用于确认该分支真的在跑）
+    // ⚠ 用原子：这些计数器在**搜索期间**自增，多线程并行扩展节点时不能是裸 int。
+    static std::atomic<int> g_spin0_penalty_count{0};
+    // TowerTris 诊断计数：Allspin 重复惩罚触发次数 / 其中「void 接 void」的次数。
+    // void 重复（-1 == -1）是 Allspin_2 特有的判定，单独计数便于核对是否真的对齐。
+    static std::atomic<int> g_repeat_penalty_count{0};
+    static std::atomic<int> g_void_repeat_count{0};
 
     int spin0_penalty_count()
     {
-        return g_spin0_penalty_count;
+        return g_spin0_penalty_count.load();
+    }
+
+    // TowerTris 诊断计数：Allspin 重复惩罚触发次数，以及其中「void 接 void」的次数。
+    // 定义在 worker（zzztoj_worker.cpp）里，这里只提供只读访问。
+    int repeat_penalty_count()
+    {
+        return g_repeat_penalty_count.load();
+    }
+
+    int void_repeat_count()
+    {
+        return g_void_repeat_count.load();
     }
 
     namespace qq
@@ -1868,6 +1887,18 @@ namespace ai_zzz
         return result;
     }
 
+    // TowerTris：满 Spin（非 Mini）的攻击值。
+    //   默认：Spin 伤害走表 = 行数 × 2（与游戏 spin_damage_table 的满 Spin 档一致）
+    //   Allspin_5：游戏把非 Mini 的 Spin 伤害**替换**成 行数 × 3（_calculate_damage 812 行），
+    //              而最终攻击 = base_damage_table[行数] + spin_damage，所以这里连基础伤害一起算。
+    static int spin_attack_of(int clear, ai_zzz::IO::Config const *config)
+    {
+        const int base = (clear >= 4) ? 4 : (clear == 3) ? 2 : (clear == 2) ? 1 : 0;
+        if (config != nullptr && config->allspin_mode >= 5)
+            return base + clear * 3;
+        return clear * ((config != nullptr) ? config->spin_damage_mul : 2);
+    }
+
     IO::Status IO::get(TetrisNodeEx &node, Result const &eval_result, size_t depth, Status const &status, TetrisContext::Env const &env) const
     {
         if (eval_result.clear > 0 && node.is_check && node.is_last_rotate)
@@ -1886,6 +1917,11 @@ namespace ai_zzz
         Status result = status;
         result.value = eval_result.value;
         auto &p = config_->param;
+        // T 的 Spin0（只转不消）：上面给 T-Spin 赋类型的前提是 clear > 0，
+        // 所以 Spin0 的 T 需要在这里单独判一次（is_ready 由 search 保证「角就位且四向不可移动」）。
+        // 用途：NoSpin4 的死亡惩罚、Allspin_2 的 Spin0 续 BTB。
+        const bool t_spin0 = (eval_result.clear == 0 && node.is_check && node.is_last_rotate
+                              && (node.is_ready || node.is_mini_ready));
         int safe = node->row >= 20 ? -1 : env.length > 0 ? get_safe(*eval_result.map, *env.next)
                                                          : eval_result.map->roof;
         int curAtk = 0;
@@ -1900,6 +1936,21 @@ namespace ai_zzz
         // Spin0（有旋转、无消行）不续 BTB —— 与游戏 spin0_btb_enabled 默认 false 的规则一致，
         // 故这里不再拼接 season_2 的 Spin0 分支（season_2 是「不可移动即 T-Spin」的规则开关，与 BTB 无关）。
         bool is_b2b_move = eval_result.clear == 4 || (eval_result.clear && node.type != ASpinType::None);
+        // Allspin_2（全旋II）：
+        //   · 非 Spin 消行记 void → 不给任何伤害、且断开 BTB 链（连四消也算 void）
+        //   · Spin0（有 Spin 判定、无消行）→ 使 BTB +1（游戏里 Allspin_2 强制 spin0_btb_enabled）
+        // is_void_clear 就是「消行了但没判成 Spin」——与游戏 is_void_clear = (is_allspin2 and not is_spin) 一致。
+        const bool allspin2 = config_->allspin2_mode;
+        const bool spin0_like = (eval_result.clear == 0) && (node.type != ASpinType::None || t_spin0);
+        const bool is_void_clear = allspin2 && eval_result.clear > 0 && node.type == ASpinType::None;
+        if (is_void_clear)
+        {
+            is_b2b_move = false;   // void 消行断 BTB：既不触发加成也不续链（游戏 _update_btb(false)）
+        }
+        else if (allspin2 && spin0_like)
+        {
+            is_b2b_move = true;    // 全旋II：Spin0 使 BTB+1
+        }
 
         auto get_attack = [&](const int &base_atk, int &combo, int &b2b)
         {
@@ -1945,12 +1996,16 @@ namespace ai_zzz
                 }
                 else
                 {
-                    // surge break 系统：第 2 手起 +1，pre_b2b >= 4 时 +2
-                    atk += (pre_b2b >= 4) ? 2 : 1;
+                    // surge break 系统：第 2 手起 +1；btb_count >= 4 时按游戏档位加成：
+                    //   默认 +1（修复：原先写死 +2，无 buff 时会高估伤害）；
+                    //   Allspin>=2 → +2；Allspin>=4 → +3（数值由桥按 _get_btb_bonus() 规则下发）。
+                    atk += (pre_b2b >= 4) ? config_->btb_bonus_high : 1;
                 }
             }
             int combo_copy = combo - 1;
             atk *= (1 + 0.25 * combo_copy);
+            // 塔的发送倍率：Allspin_5 里 Void 会把它累加（每次 +0.01），乘法作用于攻击
+            atk *= (status.pressure_mult > 0.0 ? status.pressure_mult : 1.0);
             if (combo_copy > 1)
             {
                 atk = std::max(log1p(1.25 * combo_copy), atk);
@@ -1980,7 +2035,10 @@ namespace ai_zzz
             else if (!spin_as_clear && node.type != ASpinType::None)
             {
                 result.like += p.tspin_1;
-                baseAtk = 2;
+                // 满 Spin 攻击 = 基础伤害 + Spin 伤害
+                //   默认：Spin 伤害走表（引擎口径 行数×2）
+                //   Allspin_5：非 Mini 的 Spin 伤害**替换**为 行数×3（游戏 _calculate_damage 812 行）
+                baseAtk = spin_attack_of((int)eval_result.clear, config_);
             }
             else
             {
@@ -2000,9 +2058,8 @@ namespace ai_zzz
             else if (!spin_as_clear && node.type != ASpinType::None)
             {
                 result.like += p.tspin_2;
-                // Spin 双消 = 4：与游戏 spin_damage_table["T-Spin"][2] = 4 一致，
-                // 也与 zzztoj 自带 io_pso.cpp 的 get_attack(4, ...) 一致（此处原来误写为 2）
-                baseAtk = 4;
+                // 满 Spin 攻击同 case 1：Allspin_5 起改「基础 + 行数×3」
+                baseAtk = spin_attack_of((int)eval_result.clear, config_);
             }
             else
             {
@@ -2022,7 +2079,7 @@ namespace ai_zzz
             else if (!spin_as_clear && node.type != ASpinType::None)
             {
                 result.like += p.tspin_3;
-                baseAtk = 6;
+                baseAtk = spin_attack_of((int)eval_result.clear, config_);
             }
             else
             {
@@ -2037,6 +2094,35 @@ namespace ai_zzz
             result.like += (result.combo + result.b2bcnt) * (1 + result.attack) * p.clear_4;
             break;
         }
+        // TowerTris：Allspin_2（全旋II）——非 Spin 消行是 void：不产生任何攻击。
+        // 游戏在 _calculate_damage() 之后再 damage = 0（连四消的 void 也一样），
+        // 所以这里把本手攻击整个回滚（同时上面已把 is_b2b_move 置 false → BTB 断链）。
+        if (is_void_clear && curAtk != 0)
+        {
+            result.attack -= curAtk;
+            curAtk = 0;
+        }
+        // Allspin_5：Void 自己无攻击，但会给塔的发送倍率 +0.01（游戏 _add_void_pressure_bonus）。
+        //   该倍率**乘法**作用于之后所有发出去的攻击，所以在搜索里携带给后续节点，
+        //   由 get_attack 里 `atk *= status.pressure_mult` 体现（而不是给 Void 加奖励分）。
+        if (is_void_clear && allspin2 && config_->allspin_mode >= 5)
+        {
+            result.pressure_mult = status.pressure_mult + 0.01;
+        }
+        // TowerTris：全旋加成（Allspin_2 下非 Spin 消行零收益，所以全旋价值由这里决定）。
+        // 只对「非 T 的 Spin」生效（AllSpin / ASpinMini），数值由游戏 bot_allspin1/2/3/3plus 下发。
+        if (allspin2 && eval_result.clear > 0
+            && (node.type == ASpinType::AllSpin || node.type == ASpinType::ASpinMini))
+        {
+            if (eval_result.clear >= 4)
+                result.like += config_->allspin_like_3plus;
+            else if (eval_result.clear == 3)
+                result.like += config_->allspin_like_3;
+            else if (eval_result.clear == 2)
+                result.like += config_->allspin_like_2;
+            else
+                result.like += config_->allspin_like_1;
+        }
         // TowerTris：NoSpin4 的 Spin0 判定。
         // 游戏 TetrisClearLine 在两个地方调用 _apply_no_spin4_penalty()：
         //   (1) clear_count==0 且有 spin_type（即 Spin0，只转不消）
@@ -2044,10 +2130,7 @@ namespace ai_zzz
         // 而上面的 T-Spin 类型赋值带 eval_result.clear > 0 条件，Spin0 的 node.type 恒为 None，
         // 只靠 node.type 会漏掉「T 的 Spin0」→ bot 可能选到它，被涨 20 行实心行直接判死。
         // 非 T 的全旋由 search 的 check_immobile 标记（不受 clear 影响），无需在这里补。
-        // is_ready 由 search 保证「角就位且四向不可移动」（见 search_amini 里 !check_immobile 会清掉 is_ready），
-        // 与游戏「不可移动即 Spin / T 看角」的判定口径一致。
-        const bool t_spin0 = (eval_result.clear == 0 && node.is_check && node.is_last_rotate
-                              && (node.is_ready || node.is_mini_ready));
+        // （t_spin0 已在函数开头算好：NoSpin4 与 Allspin_2 共用。）
         // TowerTris：NoSpin4（无天赋IV）惩罚——触发 Spin（**含 Spin0**）会立刻上涨实心行 = 必死，
         // 因此对任何被判为 Spin 的候选施加极大权重惩罚。放在 clear 分支之外，
         // 保证 case 0（只转不消）同样被覆盖。
@@ -2056,17 +2139,168 @@ namespace ai_zzz
             if (t_spin0)
                 ++g_spin0_penalty_count;
             result.like -= config_->spin_death_penalty;
+            // 版面折算：NoSpin4 这一手会立刻上涨**实心**垃圾行（游戏 _apply_no_spin4_penalty
+            // → add_solid_garbage(no_spin4_solid_rows, true)，不可消除、无视 cap）。
+            // 同样是「无解」，所以走 death 而不是 map_rise（map_rise 会被当成以后能消掉的来垃圾）。
+            const int n4_rows = config_->no_spin4_rows;
+            if (n4_rows > 0)
+            {
+                result.board_fill += n4_rows * 9;
+                result.death = 1;
+            }
         }
-        // TowerTris：Allspin 重复性惩罚——候选与上一手「消行类型 + 行数」完全一致时，游戏会立刻上涨一行垃圾。
-        // ⚠ 必须把「都不是 Spin」也算作同类型：游戏的判定是字符串相等（非 Spin 类型为 ""），
-        //   NoSpin 模式（尤其 NoSpin3，spin_type 恒为 ""）下只要连续两次消行行数相同就会涨垃圾。
-        //   早先这里多加了 (node.type != 0) 的限制，导致 bot 看不见非 Spin 的重复惩罚，
-        //   于是 Allspin_1 + NoSpin_3 时会一直走重复消行的「惩罚路线」。
-        if (config_->repeat_penalty > 0 && eval_result.clear > 0
-            && (int)node.type == config_->last_spin_type
-            && (int)eval_result.clear == config_->last_clear_count)
+        // TowerTris：Allspin 重复性惩罚 —— 与游戏 _allspin_repeat_result() 逐档对齐。
+        //   mode 0/1：只看「行数 + 消行类型」（Allspin_1；0=未开时桥不发惩罚）
+        //   mode 2  ：只看有效行数（普通=N / Spin0=0 / void=-1）
+        //   mode 3  ：有效行数重复 **或** 与上一手消行同块类型
+        //   mode 4/5：六块轮（Z/S/T/I/J/L 各一遍）内再消同一块 = 重复；4 取消行数重复；
+        //             5 再把有效行数 0/1/2/3 做成独立一轮
+        //   比较对象是**搜索内的历史** status.*（含轮掩码），随模拟推进 —— 否则深度>=2 时
+        //   「上一手」永远停在真实上一手，搜索会规划出必被罚的连续重复。
+        //   只在这两种情况下参与判定（与游戏调用点一致）：消了行、或 Spin0。
+        const bool is_spin_move = (node.type != ASpinType::None) || t_spin0;
+        const bool is_spin0_move = (eval_result.clear == 0) && is_spin_move;
+        const int cfg_allspin_mode = config_->allspin_mode;
+        // 游戏 _allspin_repeat_result 开头：**只有 Allspin_5** 的 Void 直接返回"不重复"
+        //   （既不算重复、也不推进任何轮）；Allspin_2/3/4 的 Void 照常参与重复判定
+        //   （有效行数记 -1，所以「void 接 void」(-1 == -1) 会命中）。
+        //   伤害侧：void 一律归零（is_void_clear 分支已处理 → "void 不造成任何伤害"）。
+        const bool repeat_check_applies = ((eval_result.clear > 0) || is_spin0_move)
+            && !(is_void_clear && cfg_allspin_mode >= 5);
+        const int cur_effective = is_void_clear ? -1 : (int)eval_result.clear;
+        // 本手方块编号（Z/S/T/I/J/L → 0..5），用于 mode 3 / 4 / 5
+        int cur_piece_code = -1;
+        switch (node->status.t)
         {
+        case 'Z': cur_piece_code = 0; break;
+        case 'S': cur_piece_code = 1; break;
+        case 'T': cur_piece_code = 2; break;
+        case 'I': cur_piece_code = 3; break;
+        case 'J': cur_piece_code = 4; break;
+        case 'L': cur_piece_code = 5; break;
+        default: break;
+        }
+        bool repeat_hit = false;
+        int punish_rows = config_->allspin2_solid_rows;   // 默认 = 「与上一手重复」档（20 行实心）
+        int punish_mode_solid = (cfg_allspin_mode >= 2) ? 1 : 0;   // 1 = 实心不可消（2/3/4/5 档）
+        if (repeat_check_applies)
+        {
+            if (cfg_allspin_mode >= 4)
+            {
+                // (1) 类型轮：只有 spin 消行参与（void 不属于六块之一）→ 轮违规罚 allspin_round_solid_rows(42)
+                if (is_spin_move && cur_piece_code >= 0
+                    && ((status.round_types_mask >> cur_piece_code) & 1))
+                {
+                    repeat_hit = true;
+                    punish_rows = config_->allspin_round_solid_rows;
+                }
+                // (2) 行数轮（仅 mode >= 5）：单轮 {0,1,2,3}（key_total = 4）——
+                //     与游戏 ALLSPIN_ROUND_COUNTS = [0,1,2,3] 一致；4 行及以上不参与。
+                if (!repeat_hit && cfg_allspin_mode >= 5
+                    && cur_effective >= 0 && cur_effective <= 3
+                    && ((status.round_counts_mask >> cur_effective) & 1) != 0)
+                {
+                    repeat_hit = true;
+                    punish_rows = config_->allspin_round_solid_rows;
+                }
+                // (3) 4/5 档仍保留「与上一手重复」兜底档（行数相同 或 同块类型），罚 20
+                if (!repeat_hit)
+                {
+                    const bool by_count = (status.hist_spin_type >= 0)
+                        && (cur_effective == status.hist_clear_count);
+                    const bool by_piece = (cur_piece_code >= 0)
+                        && (cur_piece_code == status.hist_piece_code);
+                    repeat_hit = by_count || by_piece;
+                }
+            }
+            else if (cfg_allspin_mode == 3)
+            {
+                const bool by_count = (status.hist_spin_type >= 0)
+                    && (cur_effective == status.hist_clear_count);
+                const bool by_piece = (cur_piece_code >= 0)
+                    && (cur_piece_code == status.hist_piece_code);
+                repeat_hit = by_count || by_piece;
+            }
+            else
+            {
+                // mode 0/1/2：沿用有效行数比较；非 ≥2 档还要同类型
+                const bool has_last_record = (status.hist_spin_type >= 0);
+                repeat_hit = has_last_record && (cur_effective == status.hist_clear_count)
+                    && (cfg_allspin_mode >= 2 || (int)node.type == status.hist_spin_type);
+            }
+        }
+        if (config_->repeat_penalty > 0 && repeat_hit)
+        {
+            ++g_repeat_penalty_count;
+            if (is_void_clear && status.hist_clear_count == -1)
+                ++g_void_repeat_count;   // void 接 void（Allspin_2 特有）
             result.like -= config_->repeat_penalty;
+            // 版面折算：这笔重复惩罚在游戏里是**立刻上涨垃圾**，预测版面必须跟着变，
+            // 否则 bot 只在「本手」看到扣分，搜索后一层就当成没发生过。
+            // ⚠ 结算方式分两类：
+            //   Allspin_1：涨 1 行**普通**垃圾（可消）→ 用 map_rise（后续会被当作待消垃圾）
+            //   2/3/4/5 ：涨 punish_rows 行**实心**垃圾（add_solid_garbage(rows, true)，
+            //              不可消除、无视 garbage_cap）→ 只加版面填充 + 标记 death，绝不走 map_rise
+            //              （走 map_rise 会被搜索当成「以后能消掉的来垃圾」，bot 会误以为有解）。
+            //              行数按触发档位：轮违规 allspin_round_solid_rows(42)，「与上一手重复」20。
+            if (punish_mode_solid)
+            {
+                if (punish_rows > 0)
+                {
+                    result.board_fill += punish_rows * 9;
+                    result.death = 1;   // 不可消除的实心行 → 等同于死
+                }
+            }
+            else
+            {
+                result.board_fill += 9;
+                result.map_rise += 1;
+            }
+        }
+        // 推进搜索内的「上一手消行」历史，供下一层使用（与游戏的记录规则一一对应）：
+        //   · 消了行：Allspin_2 的 void 记（类型 void→0、行数 -1），其余记（节点 Spin 类型、行数）
+        //   · Spin0：记（Spin 类型、0 行）
+        //   · 其它（无消行且非 Spin0）：不动（游戏也不写记录）
+        if (eval_result.clear > 0)
+        {
+            result.hist_spin_type = is_void_clear ? 0 : (int)node.type;
+            result.hist_clear_count = is_void_clear ? -1 : (int)eval_result.clear;
+            // void 消行在游戏里把落块件记成空串（对应 -1），其余记本次落块件
+            result.hist_piece_code = is_void_clear ? -1 : cur_piece_code;
+        }
+        else if (is_spin0_move)
+        {
+            // T 的 Spin0 在引擎里 node.type 是 None（类型赋值带 clear > 0 条件），这里补回真实类型
+            result.hist_spin_type = (node.type != ASpinType::None)
+                ? (int)node.type
+                : (node.is_mini_ready ? (int)ASpinType::TSpinMini : (int)ASpinType::TSpin);
+            result.hist_clear_count = 0;
+            result.hist_piece_code = cur_piece_code;
+        }
+        // Allspin_4/5 的「轮」推进：与游戏 _allspin_round_step 同一语义
+        //   （命中 → 本轮重置为「只剩本手」；未命中 → 记入本轮；集满 key_total 个 → 清空开新一轮）
+        if (cfg_allspin_mode >= 4 && repeat_check_applies)
+        {
+            auto round_step = [](int &mask, int key, int key_total) -> bool {
+                if (((mask >> key) & 1) != 0)
+                {
+                    mask = 1 << key;
+                    return true;
+                }
+                mask |= 1 << key;
+                // 计数只看有效位（类型轮 0..5、行数轮 1..3），故直接统计所有已置位
+                int used = 0;
+                for (int m = mask; m != 0; m &= (m - 1))
+                    ++used;
+                if (used >= key_total)
+                    mask = 0;
+                return false;
+            };
+            if (is_spin_move && cur_piece_code >= 0)
+                round_step(result.round_types_mask, cur_piece_code, 6);
+            // Allspin_5 行数轮：单轮 {0,1,2,3}（key_total = 4），与游戏 ALLSPIN_ROUND_COUNTS 一致
+            if (cfg_allspin_mode >= 5 && cur_effective >= 0 && cur_effective <= 3)
+                round_step(result.round_counts_mask, cur_effective, 4);
         }
         result.board_fill -= (eval_result.clear * 10) - 4;
         if (eval_result.count == 0 && result.map_rise == 0)

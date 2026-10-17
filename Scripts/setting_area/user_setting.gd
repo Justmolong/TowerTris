@@ -254,6 +254,7 @@ static func initialize_settings():
 		# 已注释（调试噪音）：print("已加载用户设置")
 	else:
 		var default_settings = get_default_settings()
+		@warning_ignore("return_value_discarded")
 		save_settings(default_settings)
 		apply_default_key_bindings()
 		apply_max_fps_from_settings(default_settings)

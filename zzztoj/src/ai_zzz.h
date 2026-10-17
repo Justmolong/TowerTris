@@ -241,6 +241,10 @@ namespace ai_zzz
     // TowerTris 诊断：NoSpin4 下「Spin0 候选被死亡惩罚」的累计次数
     //（供 worker 的 WEIGHTS 命令输出，用来确认该分支确实生效而不是死代码）
     int spin0_penalty_count();
+    // TowerTris 诊断：Allspin 重复惩罚触发次数 / 其中 void 接 void 的次数
+    //（void 重复是 Allspin_2 特有判定，单独计数用于核对对齐情况）
+    int repeat_penalty_count();
+    int void_repeat_count();
 
     class IO
     {
@@ -299,8 +303,9 @@ namespace ai_zzz
             // 因此 NoSpin 模式（spin_type 恒为 ""）下只要连续两次消行行数相同就会触发。
             // repeat_penalty > 0 时，eval 对「类型与行数都与上一手一致」的候选扣该分数。
             double repeat_penalty = 0;
-            int last_spin_type = 0;      // 上一手的 ASpinType 数值（0=None/1=TSpin/2=AllSpin/3=TSpinMini/4=ASpinMini）
-            int last_clear_count = 0;    // 上一手的消行数
+            int last_spin_type = 0;      // 上一手 ASpinType（0=None/1=TSpin/2=AllSpin/3=TSpinMini/4=ASpinMini）
+                                         // -1 = 「无有效记录」（还没消过行，或上次是 Allspin_2 的 void 消行）→ 不参与重复比较
+            int last_clear_count = 0;    // 上一手的消行数（void 消行在游戏侧为 -1）
             // ==== TowerTris 追加：NoSpin 模式对齐 ====
             // no_spin==2（无天赋II：所有 Spin 降级为 Mini）：T-Spin 也一律按 Mini 上报，
             // 与游戏的 "Mini T-Spin" 类型与 mini 伤害表口径一致（否则重复性惩罚会因类型不等而漏判）。
@@ -309,6 +314,36 @@ namespace ai_zzz
             // 因此对任何被判为 Spin 的候选扣该分数（取极大值），使 bot 绝不选择 Spin。
             // 注意：NoSpin4 下**不能**关掉引擎的 Spin 判定开关，否则 node.type 恒为 None、本惩罚永不触发。
             double spin_death_penalty = 0;
+            // ==== TowerTris 追加：Allspin_2（全旋II）====
+            // 游戏 TetrisClearLine 的规则（BuffChoseData 描述 + 代码）：
+            //   · 非 Spin 消行记 void：**不产生任何攻击**，并且**断开 BTB 链**（哪怕它是四消）
+            //   · Spin0（有 Spin 判定、无消行）：判伤害，并使 BTB +1（等于强制 spin0_btb_enabled）
+            //   · 重复惩罚只比「消行行数」（不比类型）→ 行情相同就上涨 allspin2_solid_rows 行实心垃圾
+            // 打开后 eval 会：void 消行攻击归零并断 BTB、Spin0 续 BTB、重复惩罚改为只比行数。
+            bool allspin2_mode = false;
+            // 惩罚的「版面」折算：把惩罚上涨的实心垃圾行数也算进预测版面/垃圾抬升，
+            // 而不只是扣评估分 —— 评估分只作用于本手候选，搜索往下一层就衰减；
+            // 写成版面填充与垃圾抬升后，整棵搜索子树都会把这次惩罚当成既成事实。
+            int allspin2_solid_rows = 20;   // Allspin_2 重复惩罚行数（游戏 allspin2_solid_rows）
+            int no_spin4_rows = 20;         // no_spin==4 触发 Spin 的行数（游戏 no_spin4_solid_rows）
+            // surge break 系统下「btb_count >= 4」那一档的加成值（游戏 _get_btb_bonus()：
+            // 默认 +1；Allspin>=2 → +2；Allspin>=4 → +3）。由桥按当前 allspin 档位下发。
+            int btb_bonus_high = 1;
+            // Allspin 档位数字（0~5，游戏 TetrisGlobalData.clear_allspin）：
+            //   2/3 → 行数重复（3 还叠加「与上一手同块类型」）；4/5 → 六块轮（4 取消行数重复）；
+            //   5 → 再把有效行数 0/1/2/3 也做成一轮。spin_damage_mul 为 Spin 伤害倍率（5 起 ×3）。
+            int allspin_mode = 0;
+            int spin_damage_mul = 2;
+            // Allspin_4/5「轮内重复」的实心行数（游戏 allspin_round_solid_rows，默认 42）。
+            // 与 allspin2_solid_rows(20) 区分：4/5 档里「与上一手重复」仍罚 20，只有轮违规才罚 42。
+            int allspin_round_solid_rows = 42;
+            // 非 T 的 Spin 消行（AllSpin / ASpinMini）额外加权（按消行数 1/2/3/3+）。
+            // 数值由游戏侧 bot_allspin1/2/3/3plus 通过 PARAM allspin1/allspin2/allspin3/allspin3plus 下发；
+            // 全旋II 下非 Spin 消行没有任何收益，所以这几个权重直接决定 bot 是否愿意做全旋。
+            double allspin_like_1 = 0;
+            double allspin_like_2 = 0;
+            double allspin_like_3 = 0;
+            double allspin_like_3plus = 0;
         };
         struct Result
         {
@@ -335,6 +370,30 @@ namespace ai_zzz
             int board_fill_diff;
             double like;
             double value;
+            // ==== TowerTris：搜索内的「上一手消行」历史 ====
+            // 游戏的重复惩罚比较的是「本手 vs 上一手」。在搜索里「上一手」必须随模拟推进，
+            // 否则深度 >= 2 的候选永远只跟**真实上一手**比较 —— bot 就会规划出
+            // 「这块消 1 行、下一块再消 1 行」这种在游戏里会被罚 20 行实心垃圾的路线。
+            //   hist_clear_count：普通消行 = 行数；Spin0 = 0；Allspin_2 的 void = -1
+            //   hist_spin_type：与桥的编码一致（0=None/1=TSpin/2=AllSpin/3=TSpinMini/4=ASpinMini），
+            //                   -1 = 还没有任何有效记录（Allspin_2 开局；其它模式下非 Spin 消行记 0）
+            // 无消行且非 Spin0 的放置不更新这两项（与游戏一致：那种情况不写记录）。
+            int hist_spin_type;
+            int hist_clear_count;
+            // 上一手消行所用方块编号（Z/S/T/I/J/L → 0..5，-1 = 无记录）——Allspin_3 的「同块重复」
+            int hist_piece_code;
+            // Allspin_4/5 的「轮」已用成员掩码：类型轮 6 bit（Z/S/T/I/J/L）、行数轮 4 bit（0/1/2/3）。
+            // 与游戏 _allspin_round_step 同一套推进规则（命中→只剩本手；集满→清空开启新一轮）。
+            int round_types_mask;
+            int round_counts_mask;
+            // Allspin_5 的行数轮是**两轮独立**（游戏 ALLSPIN_ROUND_COUNTS_12 / _03）：
+            //   · {1,2} 一轮 → round_counts_mask
+            //   · {0,3} 一轮 → round_counts03_mask
+            int round_counts03_mask;
+            // Allspin_5 的 Void 补偿：塔的发送倍率 extra_pressure_mult（默认 1.0，每次 Void +0.01）。
+            // 它是**乘法**作用于自己发出去的攻击（tower_controller: pressure*extra_pressure*...），
+            // 所以引擎要在搜索里携带并作用于 attack，而不是给 Void 加奖励分。
+            double pressure_mult;
             bool operator<(Status const &) const;
         };
 

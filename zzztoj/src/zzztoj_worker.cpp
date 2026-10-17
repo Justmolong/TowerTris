@@ -53,6 +53,22 @@ static int g_kick_mode = 0;
 // ShortNext 系列 buff 会把它设成 5/4/3/1/0，worker 据此截断搜索深度，
 // 使 bot 在「短见」规则下与玩家掌握同样的块序信息。
 static int g_next_visible = -1;
+// Allspin_2（全旋II）：非 Spin 消行记 void（无伤害 + 断 BTB）、Spin0 续 BTB、
+// 重复惩罚只比行数不比类型。
+static int g_allspin2 = 0;
+// Allspin_2 重复惩罚上涨的实心行数（游戏 allspin2_solid_rows，默认 20）。
+// 让 eval 把这笔惩罚按「版面填充 + 垃圾抬升」算进预测，而不只是扣评估分。
+static int g_allspin2_rows = 20;
+// 快速模拟「直接放置」：游戏在落点补记一次旋转 → 引擎也把每个落点按"最后动作是旋转"处理
+static int g_direct_place_rotate = 0;
+// surge break 系统下「btb_count >= 4」那一档的加成（游戏 _get_btb_bonus()：
+// 默认 +1；Allspin>=2 → +2；Allspin>=4 → +3）。引擎原先把这一档写死 +2。
+static int g_btb_bonus_high = 1;
+// Allspin 档位数字（0~5，游戏 TetrisGlobalData.clear_allspin）与 Spin 伤害倍率（2 或 3，Allspin_5 起 ×3）
+static int g_allspin_mode_num = 0;
+static int g_spin_damage_mul = 2;
+// Allspin_4/5「轮内重复」的实心行数（游戏 allspin_round_solid_rows，默认 42）
+static int g_allspin_round_rows = 42;
 
 // 最近一次 CFG 参数（reprepare 后需要重新应用）
 static int g_last_think = 100, g_last_gcap = 8, g_last_mult = 1;
@@ -183,7 +199,7 @@ static void apply_config(int think, int gcap, int mult, bool lockout, bool can_h
                          bool allow180, bool amini, bool aspin, bool tspin, bool immobile_t,
                          int btb_system, int pc_damage)
 {
-    g_think = think > 2000 ? 2000 : (think < 1 ? 1 : think);
+    g_think = think > 5000 ? 5000 : (think < 1 ? 1 : think);   // 上限放宽，允许展开更多节点
     search_amini::Search::Config *sc = g_ai.search_config();
     sc->allow_rotate_move = false;
     sc->allow_180 = allow180;
@@ -198,6 +214,12 @@ static void apply_config(int think, int gcap, int mult, bool lockout, bool can_h
     sc->allow_immobile_t = immobile_t;
     // NoSpin 模式对齐：no_spin==2（所有 Spin 降级为 Mini）时，引擎判出的全旋也标成 Mini
     sc->spin_force_mini = (g_no_spin == 2);
+    // 本游戏（TowerTris）的 T 块口径：没卡住但角型成立 = Mini T-Spin（详见 Config 注释）。
+    // 与 no_spin 模式无关 —— NoSpin_3 已经用 is_tspin=0 关掉了整个 T-Spin 判定。
+    sc->mini_t_when_not_immobile = true;
+    // 快速模拟的直接放置：游戏在落点补记一次旋转事件（等价于"在落点处完成最后一次旋转"），
+    // 所以该模式下每个落点都要按"最后动作是旋转"来判 Spin，否则会漏判游戏认定的 Spin0。
+    sc->direct_place_rotate = (g_direct_place_rotate != 0);
 
     ai_zzz::IO::Config *ac = g_ai.ai_config();
     ac->is_margin = false;
@@ -211,6 +233,20 @@ static void apply_config(int think, int gcap, int mult, bool lockout, bool can_h
     //   no_spin==2 → T-Spin 也按 Mini 上报（与游戏的 "Mini T-Spin" 及 mini 伤害表一致）
     //   no_spin==4 → 任何 Spin（含 Spin0）都是必死，用极大权重惩罚让 bot 绝不选择 Spin
     ac->spin_force_mini = (g_no_spin == 2);
+    // Allspin_2（全旋II）：非 Spin 消行按 void 处理（无伤害 + 断 BTB），Spin0 续 BTB，
+    // 重复惩罚只比行数。与游戏 TetrisClearLine 的 is_allspin2 / is_void_clear 分支一一对应。
+    ac->allspin2_mode = (g_allspin2 != 0);
+    // 惩罚换算成「版面/垃圾」用的行数：与游戏一致（Allspin_1 固定 1 行）
+    ac->allspin2_solid_rows = g_allspin2_rows;
+    ac->no_spin4_rows = g_no_spin4_rows;
+    // surge break：btb_count >= 4 那一档的加成（游戏 _get_btb_bonus()，随 allspin 档位 1/2/3）
+    ac->btb_bonus_high = g_btb_bonus_high;
+    // Allspin 档位（0~5）+ Spin 伤害倍率（Allspin_5 起 ×3）
+    ac->allspin_mode = g_allspin_mode_num;
+    ac->spin_damage_mul = (g_spin_damage_mul > 0) ? g_spin_damage_mul : 2;
+    // 「轮内重复」档的行数（4/5 档；其余档位用不到）
+    ac->allspin_round_solid_rows = (g_allspin_round_rows > 0) ? g_allspin_round_rows : 42;
+    ac->allspin2_mode = (g_allspin_mode_num >= 2);   // 兼容旧分支：≥2 即"void/行数重复"口径
     ac->spin_death_penalty = (g_no_spin == 4)
         ? (g_no_spin4_rows > 0 ? g_no_spin4_rows * 5000.0 : 100000.0)
         : 0.0;
@@ -322,12 +358,15 @@ static void apply_config(int think, int gcap, int mult, bool lockout, bool can_h
     {
         std::fprintf(stderr,
             "[params] think=%d gcap=%d mult=%d kick=%d no_spin=%d force_mini=%d death=%.0f "
-            "amini=%d aspin=%d tspin=%d immobile=%d last_rotate=%d btb=%d pc=%d | "
+            "amini=%d aspin=%d tspin=%d immobile=%d last_rotate=%d btb=%d pc=%d allspin2=%d allspin2_rows=%d "
+            "no_spin4_rows=%d allspin_like=%.0f/%.0f/%.0f/%.0f | "
             "tspin_mini=%.3f t_1=%.3f t_2=%.3f t_3=%.3f t2=%.3f t3=%.3f hold_t=%.3f hold_i=%.3f "
             "clear1=%.3f clear2=%.3f clear3=%.3f clear4=%.3f b2b=%.3f attack=%.3f ratio=%.3f\n",
             g_think, gcap, mult, g_kick_mode, g_no_spin, (int)ac->spin_force_mini, ac->spin_death_penalty,
             (int)sc->is_amini, (int)sc->is_aspin, (int)sc->is_tspin, (int)sc->allow_immobile_t,
-            (int)sc->last_rotate, btb_system, pc_damage,
+            (int)sc->last_rotate, btb_system, pc_damage, (int)ac->allspin2_mode,
+            ac->allspin2_solid_rows, ac->no_spin4_rows,
+            ac->allspin_like_1, ac->allspin_like_2, ac->allspin_like_3, ac->allspin_like_3plus,
             pp.tspin_mini, pp.tspin_1, pp.tspin_2, pp.tspin_3, pp.t2_slot, pp.t3_slot, pp.hold_t, pp.hold_i,
             pp.clear_1, pp.clear_2, pp.clear_3, pp.clear_4, pp.b2b, pp.attack, pp.ratio);
         std::fflush(stderr);
@@ -395,6 +434,18 @@ static bool set_param_by_name(std::string const &name, double v)
     else if (name == "tspin_3") p.tspin_3 = v;
     else if (name == "combo") p.combo = v;
     else if (name == "ratio") p.ratio = v;
+    // 全旋加成（游戏 bot_allspin1/2/3/3plus → PARAM allspin1/allspin2/allspin3/allspin3plus）：
+    // 加到 IO::Config（不是 Param）上，作为「非 T 的 Spin 消行」的 like 加权，
+    // Allspin_2 下非 Spin 消行零收益，这几个值直接决定 bot 愿不愿意做全旋。
+    else if (name == "allspin1") g_ai.ai_config()->allspin_like_1 = v;
+    else if (name == "allspin2") g_ai.ai_config()->allspin_like_2 = v;
+    else if (name == "allspin3") g_ai.ai_config()->allspin_like_3 = v;
+    else if (name == "allspin3plus") g_ai.ai_config()->allspin_like_3plus = v;
+    // beam 宽度整体缩放（百分比，100 = 原始）：用于「广度 × 预算」扫描测试与多线程并行度调优
+    else if (name == "beam_scale")
+    {
+        m_tetris::g_beam_scale_percent = (v < 1.0) ? 1 : (size_t)v;
+    }
     else return false;
     return true;
 }
@@ -465,19 +516,66 @@ static std::string handle_request(std::vector<std::string> const &tok)
         zzzCells.push_back(std::make_pair(gx, GAME_BOTTOM_Y - gy));
     }
 
-    // 可选尾部三项：上一手 spin 类型 / 上一手消行数 / Allspin 重复惩罚扣分（0 = 关闭）
+    // ---- 可选尾部字段 ----
+    // ⚠ 下标口径（历史上这里整体错位一位，导致尾部字段几乎全部读错）：
+    //   解析完当前方块格子后，i **恰好指向尾部的第 1 项**，所以「尾部第 k 项」= tok[i + k - 1]。
+    //   旧代码统一写成 tok[i + k]，于是每项都读到了后面那一项的 value：
+    //     last_spin_type 读成 clear_count、repeat_penalty 读成 rot_hint、
+    //     rot_hint 读成 piece_code、pressure 读成 req_budget、req_budget 直接越界。
+    //   表现就是：动态思考预算永远读不到（think 恒为 CFG 的 g_think=100）、
+    //   重复性惩罚与旋转态提示全程失效。
+    //   每项各自独立判存在性，尾部变长/变短都只影响它自己，不会连带后面的项。
+    auto tail_at = [&](size_t k, std::string &out) -> bool
+    {
+        if (i + k >= tok.size())
+            return false;
+        out = tok[i + k];
+        return true;
+    };
+    std::string tail_tok;
+
+    // 1~3 项：上一手 spin 类型 / 上一手消行数 / 重复性惩罚扣分（0 = 关闭）
     int last_spin_type = 0;
     int last_clear_count = 0;
     double repeat_penalty = 0.0;
-    int rot_hint = -1;   // 可选第 4 项：本游戏 current_rotation_index（0..3）
-    if (i + 3 <= tok.size())
+    if (tail_at(0, tail_tok))
     {
-        last_spin_type = std::atoi(tok[i].c_str());
-        last_clear_count = std::atoi(tok[i + 1].c_str());
-        repeat_penalty = std::atof(tok[i + 2].c_str());
+        last_spin_type = std::atoi(tail_tok.c_str());
+        if (tail_at(1, tail_tok))
+            last_clear_count = std::atoi(tail_tok.c_str());
+        if (tail_at(2, tail_tok))
+            repeat_penalty = std::atof(tail_tok.c_str());
     }
-    if (i + 4 <= tok.size())
-        rot_hint = std::atoi(tok[i + 3].c_str());
+    // 第 4 项：本游戏 current_rotation_index（-1 = 未提供）
+    int rot_hint = -1;
+    if (tail_at(3, tail_tok))
+        rot_hint = std::atoi(tail_tok.c_str());
+    // 第 5~8 项：上一手消行所用方块编号 / 类型轮已用掩码 / 行数轮两套掩码
+    int last_piece_code = -1;
+    int round_types_mask = 0;
+    int round_counts_mask = 0;
+    int round_counts03_mask = 0;
+    if (tail_at(4, tail_tok))
+    {
+        last_piece_code = std::atoi(tail_tok.c_str());
+        if (tail_at(5, tail_tok))
+            round_types_mask = std::atoi(tail_tok.c_str());
+        if (tail_at(6, tail_tok))
+            round_counts_mask = std::atoi(tail_tok.c_str());
+        if (tail_at(7, tail_tok))
+            round_counts03_mask = std::atoi(tail_tok.c_str());
+    }
+    // 第 9 项：塔发送倍率 extra_pressure_mult × 1000（整数传输，避免浮点解析）
+    int pressure_code = 0;
+    if (tail_at(8, tail_tok))
+        pressure_code = std::atoi(tail_tok.c_str());
+    // 第 10 项：本手思考预算（ms）——游戏按设定 PPS 动态规划后逐 REQ 下发；
+    // 缺省 0 = 沿用 CFG 的 think。它与 CFG 的 think 分开，避免"预算变化"被当成规则变化而作废计划。
+    int req_budget = 0;
+    if (tail_at(9, tail_tok))
+        req_budget = std::atoi(tail_tok.c_str());
+    const int think_limit = (req_budget >= 1) ? ((req_budget > 5000) ? 5000 : req_budget) : g_think;
+    (void)nCells;
 
     if (!prepare_ai())
         return std::string();
@@ -521,10 +619,26 @@ static std::string handle_request(std::vector<std::string> const &tok)
         g_ai.update();
     st->under_attack = upcome;
 
-    // Allspin 重复性惩罚（本游戏 Allspin_1：与上一手同类型 spin + 同行数 → 立刻涨一行垃圾）
-    g_ai.ai_config()->repeat_penalty = repeat_penalty;
+    // Allspin 重复性惩罚（Allspin_1：同类型 + 同行数 → 涨 1 行垃圾；
+    //                       Allspin_2：只看行数 → 涨 allspin2_solid_rows 行实心垃圾 ≈ 判死）。
+    // ⚠ 这里约定的是「扣分大小」，eval 里执行 result.like -= repeat_penalty。
+    //   调用方若误传负数（游戏侧 bot_allspin2_repeat_penalty 就是负数）会变成奖励重复，
+    //   所以统一取绝对值，符号在两侧都不再有歧义。
+    g_ai.ai_config()->repeat_penalty = std::fabs(repeat_penalty);
     g_ai.ai_config()->last_spin_type = last_spin_type;
     g_ai.ai_config()->last_clear_count = last_clear_count;
+    // 搜索根节点的「上一手消行」历史 = 游戏真实上一手（REQ 尾部）。
+    // 搜索过程中会随模拟推进（见 IO::get），这样深度 >= 2 也能看到
+    // 「我上一手（模拟出来的）消了几行」，从而不再规划连续同行的重复路线。
+    st->hist_spin_type = last_spin_type;
+    st->hist_clear_count = last_clear_count;
+    // 根部同时带上「上一手消行方块」与 Allspin_4/5 的轮状态（供搜索内逐步推进）
+    st->hist_piece_code = last_piece_code;
+    st->round_types_mask = round_types_mask;
+    st->round_counts_mask = round_counts_mask;
+    st->round_counts03_mask = round_counts03_mask;
+    // 塔发送倍率（Allspin_5 每次 Void +0.01 累加）；缺省/非法值按 1.0
+    st->pressure_mult = (pressure_code > 0) ? (double)pressure_code / 1000.0 : 1.0;
 
     // 搜索深度 = 已知的后续块数；再按「玩家可见 next 数」截断（ShortNext 系列）。
     // g_next_visible == 0 时 maxDepth = 0 → 引擎只考虑当前方块，不做任何后续块预判，
@@ -534,19 +648,27 @@ static std::string handle_request(std::vector<std::string> const &tok)
         maxDepth = g_next_visible;
     if (std::getenv("ZZZ_LOG_PARAMS") != nullptr)
     {
-        // 诊断：实际用到的搜索深度（ShortNext 适配的核心指标）
-        std::fprintf(stderr, "[req] next=\"%s\" len=%d next_visible=%d maxDepth=%d\n",
-                     nextStr.c_str(), (int)nextStr.size(), g_next_visible, maxDepth);
+        // 诊断：搜索深度（ShortNext）+ 重复惩罚（Allspin）的每手实际取值
+        std::fprintf(stderr, "[req] next=\"%s\" len=%d next_visible=%d maxDepth=%d "
+                            "allspin2=%d repeat_penalty=%.0f last_spin=%d last_clear=%d\n",
+                     nextStr.c_str(), (int)nextStr.size(), g_next_visible, maxDepth,
+                     g_allspin2, g_ai.ai_config()->repeat_penalty, last_spin_type, last_clear_count);
         std::fflush(stderr);
     }
     std::string result;
     bool got_target = false;
     char holdChar = sanitize_piece_char(holdTok, ' ');   // 本游戏的空 hold 哨兵是 '-'，zzz 约定是空格
     g_last_target.clear();
+    // 玩家看不到任何 next（ShortNext_V：next_visible == 0）时**不要**把占位字符交给引擎。
+    // 引擎评估里的 env.next 与搜索深度无关（IO::get 里 get_safe(*env.next)），
+    // 若把占位 "I" 发过去，bot 会一直以为下一块是 I，留井/安全度全被带偏。
+    // 发空串是安全的：引擎用 env.length > 0 做保护，长度为 0 时退化为用 roof 估计。
+    const char *nextPtr = (g_next_visible == 0) ? "" : nextStr.c_str();
 
     if (g_can_hold_global)
     {
-        auto rr = g_ai.run_hold(map, node, holdChar, canHoldNow, nextStr.c_str(), maxDepth, g_think);
+        m_tetris::g_nodes_searched = 0;   // 诊断：每次请求前清零，便于用 NODES 读取本次节点数
+        auto rr = g_ai.run_hold(map, node, holdChar, canHoldNow, nextPtr, maxDepth, think_limit);
         if (rr.target != nullptr)
         {
             TetrisNode const *from = rr.change_hold ? g_ai.context()->generate(rr.target->status.t) : node;
@@ -561,7 +683,7 @@ static std::string handle_request(std::vector<std::string> const &tok)
         // 上游 io_dll 此时只给「就地落地」，会白扔一手）→ 回退到不带 hold 的搜索，尽量给出真实方案。
         if (!got_target && !rr.change_hold)
         {
-            auto fb = g_ai.run(map, node, nextStr.c_str(), maxDepth, g_think);
+            auto fb = g_ai.run(map, node, nextPtr, maxDepth, think_limit);
             if (fb.target != nullptr)
             {
                 std::vector<char> path = g_ai.make_path(node, fb.target, map);
@@ -573,7 +695,7 @@ static std::string handle_request(std::vector<std::string> const &tok)
     }
     else
     {
-        auto rr = g_ai.run(map, node, nextStr.c_str(), maxDepth, g_think);
+        auto rr = g_ai.run(map, node, nextPtr, maxDepth, think_limit);
         if (rr.target != nullptr)
         {
             std::vector<char> path = g_ai.make_path(node, rr.target, map);
@@ -799,11 +921,29 @@ int main(int argc, char **argv)
             // 可见 next 个数（ShortNext 系列）：-1 = 不限制（旧调用方缺省），0 = 玩家看不到任何 next。
             // 用来把搜索深度截断到「玩家实际能看到」的块数，避免 bot 知道完整块序。
             g_next_visible = (tok.size() >= 17) ? std::atoi(tok[16].c_str()) : g_next_visible;
+            // 第 17 个字段：Allspin_2 模式（1 = 全旋II）
+            g_allspin2 = (tok.size() >= 18) ? std::atoi(tok[17].c_str()) : g_allspin2;
+            // 第 18 个字段：Allspin_2 重复惩罚上涨的实心行数
+            g_allspin2_rows = (tok.size() >= 19) ? std::atoi(tok[18].c_str()) : g_allspin2_rows;
+            // 第 19 个字段：快速模拟的直接放置（游戏会在落点补记一次旋转）→ 引擎同样按"已旋转"判 Spin
+            g_direct_place_rotate = (tok.size() >= 20) ? std::atoi(tok[19].c_str()) : g_direct_place_rotate;
+            // 第 20 个字段：surge break 的 btb>=4 档加成（1/2/3，由游戏的 allspin 档位决定）
+            g_btb_bonus_high = (tok.size() >= 21) ? std::atoi(tok[20].c_str()) : g_btb_bonus_high;
+            // 第 21 个字段：Allspin 档位数字（0~5）；第 22 个：Spin 伤害倍率（2/3）
+            g_allspin_mode_num = (tok.size() >= 22) ? std::atoi(tok[21].c_str()) : g_allspin_mode_num;
+            g_spin_damage_mul = (tok.size() >= 23) ? std::atoi(tok[22].c_str()) : g_spin_damage_mul;
+            // 第 23 个字段：Allspin_4/5「轮内重复」的实心行数（游戏 allspin_round_solid_rows，默认 42）
+            g_allspin_round_rows = (tok.size() >= 24) ? std::atoi(tok[23].c_str()) : g_allspin_round_rows;
             apply_config(std::atoi(tok[1].c_str()), std::atoi(tok[2].c_str()), std::atoi(tok[3].c_str()),
                          tok[4] == "1", tok[5] == "1", tok[6] == "1", tok[7] == "1",
                          tok[8] == "1", tok[9] == "1", tok[10] == "1",
                          btb_system, pc_damage);
             std::printf("OK\n");
+        }
+        else if (tok[0] == "NODES")
+        {
+            // 诊断：返回上一次 REQ 展开的节点数 / 当前 beam 缩放（供「广度 × 预算」扫描）
+            std::printf("NODES %zu beam=%zu\n", m_tetris::g_nodes_searched.load(), m_tetris::g_beam_scale_percent);
         }
         else if (tok[0] == "WEIGHTS")
         {
@@ -819,11 +959,16 @@ int main(int argc, char **argv)
                 ai_zzz::IO::Config *wac = g_ai.ai_config();
                 ai_zzz::IO::Param const &wp = wac->param;
                 std::printf("WEIGHTS no_spin=%d kick=%d amini=%d aspin=%d tspin=%d immobile=%d last_rotate=%d "
-                            "force_mini=%d death_penalty=%.0f spin0_penalized=%d next_visible=%d tspin_mini=%.3f tspin_1=%.3f tspin_2=%.3f tspin_3=%.3f "
+                            "force_mini=%d death_penalty=%.0f spin0_penalized=%d repeat_penalized=%d void_repeat=%d "
+                            "next_visible=%d allspin2=%d "
+                            "allspin_like=%.1f/%.1f/%.1f/%.1f tspin_mini=%.3f tspin_1=%.3f tspin_2=%.3f tspin_3=%.3f "
                             "t2_slot=%.3f t3_slot=%.3f hold_t=%.3f hold_i=%.3f clear_1=%.3f clear_2=%.3f clear_3=%.3f clear_4=%.3f\n",
                             g_no_spin, g_kick_mode, (int)wsc->is_amini, (int)wsc->is_aspin, (int)wsc->is_tspin,
                             (int)wsc->allow_immobile_t, (int)wsc->last_rotate, (int)wac->spin_force_mini,
-                            wac->spin_death_penalty, ai_zzz::spin0_penalty_count(), g_next_visible,
+                            wac->spin_death_penalty, ai_zzz::spin0_penalty_count(),
+                            ai_zzz::repeat_penalty_count(), ai_zzz::void_repeat_count(), g_next_visible,
+                            (int)wac->allspin2_mode,
+                            wac->allspin_like_1, wac->allspin_like_2, wac->allspin_like_3, wac->allspin_like_3plus,
                             wp.tspin_mini, wp.tspin_1, wp.tspin_2, wp.tspin_3, wp.t2_slot, wp.t3_slot,
                             wp.hold_t, wp.hold_i, wp.clear_1, wp.clear_2, wp.clear_3, wp.clear_4);
                 // 180° 踢墙候选：按当前踢墙模式重新生成一份，核对 bot 的 180 表与游戏是否一致

@@ -1,21 +1,15 @@
 extends Node2D
 class_name TowerController
 
-static var ATTACK_DATA_PATH : String = "user://Savedatas/attack_setting.json"
 static var FLOOR_HIGHER : Array = [0,50,150,300,450,650,850,1100,1350,1650,2550,3000,3500,4500,5500,6500,8000,9500,11000]
 
-@export var tetris_controller: TetrisController
-@export var garbage_line_controller: TetrisGarbageLineController
-@export var board_drawer: TetrisBoardDrawer
-@export var clear_line_controller: TetrisClearLine
-@export var text_printer: TextPrinter      # 文本打印器（米数增长飘字用；MainBoard/TextPrinter）
+## 需要其它节点（方块控制器 / 垃圾行 / 版面 / 消行 / 文本打印器）时，
+## 一律通过公共数据区 TetrisGlobalData 取用（见 tetris_global_data.gd）。
 
 @onready var tower_rng = RandomManager.get_random("TOWER_CLIMB")
 
 var total_apm : float = 100.0
 var stage_percent_apm : Array = [0.01,0.02,0.05,0.1,0.25,0.4,0.5,0.6,0.75,0.8,1]
-var current_stage : int = 0
-var current_apm : float = 0
 var extra_percent_apm : float = 0
 
 var publish_time_array : Array = [0,60*7,60*8,60*9,60*10,60*11]
@@ -24,7 +18,6 @@ var publish_make_finish : int = 0
 var publish_mult_attack : float = 1.0
 
 var stage_garbage_time : Array = [5,5,4,4,4,3,3,3,2,2,2,1,1,1,0.75,0.75,0.5]
-var stage_garbage_divide : Array = []
 var garbage_collect_percent : float = 0.1
 var garbage_collect_percent_array: Array = [0.4,0.3,0.2,0.1,0.1,0.2,0.2,0.3,0.4,0.5]
 var garbage_sent_time : float = 0
@@ -35,10 +28,6 @@ var collected_count : int = 0
 var collected_garbage : Array = []
 var pressure_mult_array: Array = [1,1,1,1,1,1,1,1,1,1,1.25,1.5,1.75,2,2.25,2.5,2.75,3,3.5]
 var pressure_mult : float = 1.0
-## 压力（高压 buff）附加倍率：由 buff 参数直接传入（Pressure1/2/3 → 1.2/1.3/1.5），
-## 与关卡自带的 pressure_mult（由 pressure_mult_array 按层数取值）相乘后，只作用于
-## 塔的「发送攻击」，不改变 total_apm / current_apm 本身（界面上也不再显示 APM 变化）。
-## 走通用的 buff 参数通道（get_buffed_tower_data 的「数值相乘」），不再是界面特判。
 var extra_pressure_mult : float = 1.0
 var send_mult_attack: float = 1.0
 
@@ -53,9 +42,8 @@ var _send_elapsed : float = 0.0       # 本拍已累计的经过时间（发招�
 var gravity_drop_time_array: Array = [5,5,5,5,5,4.8,4.6,4.4,4.2,4]
 var lock_delay_array: Array = [1]
 
-var tower_meter: float = 0.0            
 var tower_speed_meter: float = 0.0      
-var tower_lowest_speed: float = 0.1
+var tower_lowest_speed: float = 0.0     # 爬塔速度下限（0 = 不限下限，速度可以降到 0 m/s）
 
 # ---- 真实爬塔速度（右下角速度表用）：与 PPM/RPM 同口径的「最近一分钟米数增量 ÷ 秒数」 ----
 ## 统计窗口（秒）：与 TetrisController 的 RPM_WINDOW_SECONDS 保持一致
@@ -65,7 +53,6 @@ var tower_lowest_speed: float = 0.1
 var _meter_clock: float = 0.0                  # 内部计时（累加 delta，窗口跨度用）
 var _meter_samples: Array[Dictionary] = []     # [{ "time": 采样时刻, "meter": 当时米数 }]
 var _meter_sample_timer: float = 0.0
-var _real_speed_meter: float = 0.0             # 最近窗口内的平均涨米速度（m/s）
 var tower_dropped_mult: Array = [0.8,0.9,1,1,1,1.1,1.2,1.3,1.4,1.5,1.7,1.9,2]
 var tower_current_dropped_mult: float = 1.0
 var attack_to_meter_mult: float = 0.2
@@ -76,7 +63,6 @@ var segment_line : int = 4
 var big_attack_enter_array : Array = []
 var big_attack_delay : float = 4.0
 
-var kill_count: int = 0
 var base_killer_spike: int = 10
 var base_kill_possible_percent: float = 0.2
 var kill_reward: Array = [30,2]
@@ -119,364 +105,77 @@ var attack_popup_anti_overlap_time : float = 0.6   # 视为「同时在场」的
 
 var _popup_boxes : Array = []                       # 在场飘字的横向占位：[{x, half_w, until_msec}]
 
-signal big_attack_warning_started()
-signal big_attack_warning_ended()
-signal stage_changed(previous_stage: int, new_stage: int)
+## 说明：!!!! 大招警示的开始/结束不再用本节点的信号，而是走公共数据区的公共事件
+## （TetrisGlobalData.big_attack_warning_started / _ended），
+## 这样版面绘制器与塔之间不需要互相持有引用。伤害结算同理：
+## 消行控制器/方块控制器只 emit TetrisGlobalData.tower_damage_dealt，由塔自己连接处理。
+## （原先的 stage_changed 信号无人连接，已删除）
 
 var _previous_stage: int = 0  # 用于检测阶段变化
-
-var extra_data_dict: Dictionary = {}
 
 var garbage_sent_timer : Timer
 var big_attack_delay_timer : Timer
 
 var self_game_time : float
 
+func _enter_tree() -> void:
+	# 自注册到公共数据区（整棵场景树的 _enter_tree 都先于任何 _ready 完成，
+	# 因此第一个 _ready 跑起来时，所有节点的引用都已就位）
+	TetrisGlobalData.register_node(self)
+
+func _exit_tree() -> void:
+	TetrisGlobalData.unregister_node(self)
+
 func _ready() -> void:
-	_auto_finding()
-	_set_game_var()
-	_extra_data_deal()
 	_set_timer()
-	_previous_stage = current_stage
+	# 伤害结算走公共区域的公共事件：谁打出攻击谁 emit，本节点自己连接处理
+	# （消行控制器 / 方块控制器因此都不需要认识塔节点）
+	TetrisGlobalData.tower_damage_dealt.connect(attack_increase_tower)
+	TetrisGlobalData.kill_reward_requested.connect(try_give_kill_reward)
+	_previous_stage = TetrisGlobalData.current_stage
 	# 真实速度窗口的起始参照点（t=0、当前米数）：未满一分钟时就是拿它当分子起点做放缩
 	_meter_clock = 0.0
 	_meter_sample_timer = 0.0
 	_meter_samples.clear()
-	_meter_samples.append({"time": 0.0, "meter": tower_meter})
-	_real_speed_meter = 0.0
+	_meter_samples.append({"time": 0.0, "meter": TetrisGlobalData.tower_meter})
+	TetrisGlobalData.tower_real_speed_meter = 0.0
+	# 上报就绪：当场景内所有节点都就绪后，公共数据区会通知各节点读走自己的 buff 参数
+	TetrisGlobalData.notify_node_ready(self)
 
-func _auto_finding():
-	# 飘字用的文本打印器：MainBoard 下的 TextPrinter（与版面、消行文本同层，坐标系一致）
-	if not text_printer:
-		text_printer = get_node_or_null("../MainBoard/TextPrinter")
-		if not text_printer:
-			push_warning("TowerController: 未找到TextPrinter节点，米数增长飘字将不可用")
-	
-	if not tetris_controller:
-		tetris_controller = get_node_or_null("../TetrisBoardDrawer")
-		if not tetris_controller:
-			push_error("TetrisController: 未找到TetrisBoardDrawer节点！")
-			return
-			
-	if not garbage_line_controller:
-		garbage_line_controller = get_node_or_null("../TetrisBoardDrawer")
-		if not garbage_line_controller:
-			push_error("TetrisController: 未找到TetrisBoardDrawer节点！")
-			return
-			
-	if not board_drawer:
-		board_drawer = get_node_or_null("../TetrisBoardDrawer")
-		if not board_drawer:
-			board_drawer = get_node_or_null("../../MainBoard/TetrisBoardDrawer")
-	
+## 读取公共区域里属于本节点的关卡 / buff 参数（谁用谁读：公共区域不认这些键名）。
+## 与自身成员同名的参数（total_apm / extra_pressure_mult / send_mult_attack /
+## gravity_drop_time_array…）由公共区域泛化写回本节点；键名不同的在这里显式对应。
+func apply_init_params() -> void:
+	TetrisGlobalData.apply_matching_members(self)
+	# 高压 buff（Pressure1/2/3 → pressure_apm_mult）：**一次性**把倍率乘进 total_apm。
+	#   · 对应界面文案「apm总量增加X%」→ current_apm（HUD 显示的 APM）同步体现；
+	#   · 攻击行数由 current_apm 产出（_try_sent_garbage），所以攻击量自动跟着放大；
+	#   · 它是一次性需求，所以不为它保留成员变量（用 buff 参数键名直接取用），
+	#     也不经过架构预留的 extra_pressure_mult。
+	var pressure_apm_mult: float = TetrisGlobalData.get_init_float("pressure_apm_mult", 1.0)
+	if not is_equal_approx(pressure_apm_mult, 1.0):
+		total_apm *= pressure_apm_mult
+	TetrisGlobalData.current_stage = 0
 
-func _set_game_var():
-	# 从 GlobalData 读取 buff_chose_area 配置的初始数据，覆盖本地默认值
-	var init_data: Dictionary = GlobalData.tower_init_data
-	if not init_data.is_empty():
-		for key: String in init_data:
-			if key in self:
-				self[key] = init_data[key]
-			else:
-				push_warning("TowerController 未知变量: ", key)
-	
-	current_stage = 0
-
-func _extra_data_deal():
-	if extra_data_dict.has("send_mult_attack"):
-		send_mult_attack = extra_data_dict["send_mult_attack"]
-	
-	if extra_data_dict.has("mult_defend"):
-		if garbage_line_controller:
-			garbage_line_controller.mult_defend = extra_data_dict["mult_defend"]
-	if extra_data_dict.has("garbage_rise_time_delay"):
-		garbage_line_controller.garbage_rise_time_delay = extra_data_dict["garbage_rise_time_delay"]
-	if extra_data_dict.has("garbage_cap"):
-		garbage_line_controller.garbage_cap = extra_data_dict["garbage_cap"]
-	if extra_data_dict.has("buffer_duration"):
-		garbage_line_controller.buffer_duration = extra_data_dict["buffer_duration"]
-	if extra_data_dict.has("suddenly_death_mode"):
-		garbage_line_controller.suddenly_death_mode = extra_data_dict["suddenly_death_mode"]
-	if extra_data_dict.has("drop_limit_cancel"):
-		garbage_line_controller.drop_limit_cancel = extra_data_dict["drop_limit_cancel"]
-	
-	if extra_data_dict.has("tetris_invisible"):
-		if board_drawer:
-			board_drawer.tetris_invisible = extra_data_dict["tetris_invisible"]
-			board_drawer.call_deferred("_init_invisible_mode")
-	if extra_data_dict.has("visible_time_between"):
-		if board_drawer:
-			board_drawer.visible_time_between = extra_data_dict["visible_time_between"]
-	if extra_data_dict.has("visible_show_time"):
-		if board_drawer:
-			board_drawer.visible_show_time = extra_data_dict["visible_show_time"]
-	if extra_data_dict.has("drop_visible_time"):
-		if board_drawer:
-			board_drawer.drop_visible_time = extra_data_dict["drop_visible_time"]
-	
-	if extra_data_dict.has("spin0_btb_enabled"):
-		if clear_line_controller:
-			clear_line_controller.spin0_btb_enabled = extra_data_dict["spin0_btb_enabled"]
-	
-	# BtbBonus（Btb奖励）：切换 TetrisClearLine 的 BTB 加成系统
-	#   1 = surge break 系统（默认）
-	#   2 = 累加奖励系统（tetr.io S1 的 BTB 伤害系统，走 _get_btb_bonus() 的 btb_system_use==2 分支）
-	# 该值还会经 zzz_bridge 的 CFG 第 12 个字段下发给 worker，使 bot 的伤害模拟与游戏结算一致。
-	if extra_data_dict.has("BtbBonus"):
-		if clear_line_controller:
-			clear_line_controller.btb_system_use = int(extra_data_dict["BtbBonus"])
-	
-	# 落块延迟（buff「落块延迟」BlockDelay）：方块锁定后到「下一块出现 / 消行判定开始」的间隔。
-	#   BlockDelay → TetrisController.spawn_delay_time（锁定后先等这么久再判消行，因此下一块也晚出现）
-	#   ClearDelay → TetrisClearLine.clear_line_delay_time（消行动画/延迟，期间版面不动、下一块不出现）
-	# 两者同时存在时无需特殊处理：spawn_delay_time 让消行判定整体推迟，而 clear_line_delay_time
-	# 只在真正判出消行时才启动，所以实际等待 = max(两者)，不会是两者相加。
-	# 参数为 0 时各自走原本的「立即」路径。
-	if extra_data_dict.has("BlockDelay"):
-		if tetris_controller:
-			tetris_controller.set_spawn_delay(float(extra_data_dict["BlockDelay"]))
-	if extra_data_dict.has("ClearDelay"):
-		if clear_line_controller:
-			clear_line_controller.clear_line_delay_time = float(extra_data_dict["ClearDelay"])
-	
-	if extra_data_dict.has("tetris_allspin"):
-		clear_line_controller.tetris_allspin = extra_data_dict["tetris_allspin"]
-
-	# bot 参数覆盖（ExtraBotChange）：勾选的 buff → zzztoj AI 参数（键名 = ai_zzz::IO::Param 字段名，
-	# 另支持 repeat_penalty）。未列出的参数保持 worker 默认（zzz 自带 io-DLL 调参）。
-	if extra_data_dict.has("ExtraBotChange"):
-		var extra_bot = extra_data_dict["ExtraBotChange"]
-		if typeof(extra_bot) == TYPE_DICTIONARY and tetris_controller != null:
-			tetris_controller.set_bot_param_overrides(extra_bot)
-
-	# bot 并行搜索线程数（buff 可调，0 = 由 bridge 自动决定）
-	if extra_data_dict.has("bot_threads"):
-		clear_line_controller.bot_threads = int(extra_data_dict["bot_threads"])
-
-	# Talentless（无才能）/ NoSpin（Spin判定）：NoSpin 为 int
-	#   0=正常Spin判定（含Allspin）；1=只判定T-Spin（不判Allspin）；2=全部Spin降级为MiniSpin；3=不判定Spin
-	if extra_data_dict.has("NoSpin"):
-		if clear_line_controller:
-			clear_line_controller.no_spin = int(extra_data_dict["NoSpin"])
-	
-	# ShortNext（短见）：限制 Next 显示数量 / 是否显示 Next 区
-	#   next_display_enabled=false（短见V）→ 不显示 next
-	#   next_count=N（短见I-IV）→ 显示 N 个 next
-	# next_limited_by_buff：标记「这个限制来自 buff」，bot 侧据此决定是否也限制自己的块序信息：
-	#   默认（未开短见）→ bot 使用自身全部可知的块序（14 个）；只有被短见限制时才跟着收敛。
-	var next_changed: bool = false
-	if extra_data_dict.has("next_display_enabled"):
-		if board_drawer:
-			board_drawer.next_display_enabled = bool(extra_data_dict["next_display_enabled"])
-			board_drawer.next_limited_by_buff = true
-			next_changed = true
-	if extra_data_dict.has("next_count"):
-		if board_drawer:
-			board_drawer.next_count = clampi(int(extra_data_dict["next_count"]), 1, 7)
-			board_drawer.next_limited_by_buff = true
-			next_changed = true
-	# 首块可能在 TowerController._ready 之前已生成（此时用的是默认 next_count），
-	# 立即刷新一次 Next 显示，使 buff 立刻生效、next_pieces_data 与 next_count 一致。
-	if next_changed and tetris_controller and tetris_controller.has_method("_update_next_display"):
-		tetris_controller._update_next_display()
-	
-	# DoubleHole：垃圾行洞口形态
-	# garbage_hole_wide_count    = X宽（每行一组紧邻连续洞口）
-	# garbage_hole_count         = 每行洞口数量
-	# garbage_hole_count_random  = [min,max]（每行随机洞口数量，buff「双洞V」）
-	# 三者互斥（同为「双洞」档位，JSON 里由 BuffConflick 的 DoubleHole 组保证；
-	# 若被同时覆盖则报错并不应用，避免出现「又宽又多」的歧义形态）。
-	if extra_data_dict.has("garbage_hole_wide_count") or extra_data_dict.has("garbage_hole_count") \
-			or extra_data_dict.has("garbage_hole_count_random"):
-		var dh_wide: int = int(extra_data_dict.get("garbage_hole_wide_count", 1))
-		var dh_holes: int = int(extra_data_dict.get("garbage_hole_count", 1))
-		var dh_random = extra_data_dict.get("garbage_hole_count_random", [])
-		var dh_has_random: bool = typeof(dh_random) == TYPE_ARRAY and dh_random.size() >= 2
-		var dh_effective: int = 0
-		if dh_wide > 1:
-			dh_effective += 1
-		if dh_holes > 1:
-			dh_effective += 1
-		if dh_has_random:
-			dh_effective += 1
-		if dh_effective > 1:
-			push_error("DoubleHole参数冲突：garbage_hole_wide_count / garbage_hole_count / garbage_hole_count_random 互斥，不能同时生效")
-		elif garbage_line_controller:
-			garbage_line_controller.garbage_hole_wide_count = dh_wide
-			garbage_line_controller.garbage_hole_count = dh_holes
-			garbage_line_controller.garbage_hole_count_random = dh_random if dh_has_random else []
-	
-	# NoHold模式：关闭Hold显示并禁用Hold输入（JSON中键名为"NoHold"）
-	if extra_data_dict.has("NoHold") or extra_data_dict.has("no_hold"):
-		var no_hold_value: bool = extra_data_dict.get("NoHold", extra_data_dict.get("no_hold", false))
-		if tetris_controller:
-			tetris_controller.no_hold = no_hold_value
-		if board_drawer:
-			board_drawer.no_hold = no_hold_value
-	
-	if extra_data_dict.has("BotMode"):
-		tetris_controller.bot_mode = true
-
-	# 旋转系统：关卡/Buff 可覆盖（0=ASC / 1=SRS / 2=ARS / 3=NONE 无旋转系统，
-	# 也接受 "ASC"/"SRS"/"ARS"/"NONE"）
-	#   rotation_system / RotationSystem —— 既有键名
-	#   RotateSystem                     —— buff「旋转系统」写入的键名（RotateSystem_1/2/3）
-	if extra_data_dict.has("rotation_system") or extra_data_dict.has("RotationSystem") \
-			or extra_data_dict.has("RotateSystem"):
-		var rs = extra_data_dict.get(
-			"rotation_system",
-			extra_data_dict.get("RotationSystem", extra_data_dict.get("RotateSystem")))
-		if tetris_controller:
-			tetris_controller.set_rotation_system(rs)
-		if tetris_controller and tetris_controller.bot_debug_log:
-			print("[旋转系统] 由关卡/Buff 切换为 ", tetris_controller.get_rotation_system_name())
-
-	# 初始版面（关卡/Buff）：
-	#   StartGarbage*（int）   → 在版面底部印刷 N 行普通垃圾行（可消、带洞口）
-	#   StartBoard*（二维数组）→ 直接印刷自定义初始版面（列表最后一项为最底层）
-	# 键名允许带后缀（StartBoard_1 / StartBoard_2 / StartGarbage / ... 见 BuffChoseData.json 的 BuffChange），
-	# 因此 buff 内部键名与 buff id 同名也能工作（例："StartBoard_2": {"StartBoard_2": [...] }）。
-	# 两者同时存在时先印垃圾行、再印自定义版面（自定义版面覆盖在其上）。
-	# 印刷通过 set_cell_color 直接写入 board_data；bot 在请求决策时实时读取 board_data
-	# （coldclear_bridge._build_board_rows），因此无需额外同步，bot 会自动看到该改写的初始版面。
-	# 印刷完各自会调 _refresh_after_board_change()：出块和影子是在更早的 _ready 里按空版面算的，
-	# 不刷新的话开局影子会停在「按空版面算出来的最底层」。
-	for key: String in extra_data_dict:
-		if key.begins_with("StartGarbage"):
-			_print_start_garbage(int(extra_data_dict[key]))
-	for key: String in extra_data_dict:
-		if not key.begins_with("StartBoard"):
-			continue
-		var start_value: Variant = extra_data_dict[key]
-		if typeof(start_value) == TYPE_ARRAY:
-			_print_start_board(start_value)
-		else:
-			push_warning("StartBoard: 键 %s 的值应为二维数组（最后一项为最底层），实际为 %s，已忽略"
-				% [key, type_string(typeof(start_value))])
-
-## 版面内容被「外部」改写之后刷新一次（目前只有 StartBoard / StartGarbage 印刷会调）。
-## 背景：_ready 顺序是「先子后父」，MainBoard 子树（含 TetrisController）先 ready，
-## 它在出块时就已经算过一遍影子；而关卡/Buff 的初始版面是在 TowerController._ready 里才印上去的，
-## 于是影子会停在按空版面算出的最底层 —— 这里重新校验当前方块位置并刷新影子。
-func _refresh_after_board_change() -> void:
-	if tetris_controller == null:
+## !!!! 大招警示进度（0→1）：按警示计时器算出后写进公共数据区（版面绘制器读它画渐变，
+## 不需要拿到本节点的 Timer 对象）。每帧调用一次，见 _process。
+func _publish_big_attack_warning_progress() -> void:
+	# 警示计时器没在跑 = 当前没有大招警示 → 进度归零
+	if big_attack_delay_timer == null or big_attack_delay_timer.is_stopped() \
+			or big_attack_delay_timer.wait_time <= 0.0:
+		TetrisGlobalData.tower_big_attack_progress = 0.0
 		return
-	tetris_controller.refresh_after_board_change()
+	TetrisGlobalData.tower_big_attack_progress = clampf(
+		1.0 - big_attack_delay_timer.time_left / big_attack_delay_timer.wait_time, 0.0, 1.0)
 
-## 按 StartGarbage 参数在版面底部印刷 N 行普通垃圾行（可消、带洞口，与游戏中上涨的垃圾行一致）。
-## 第 0 行印在最底层（最大 y）；洞口按当前 DoubleHole 设置（garbage_hole_count / garbage_hole_wide_count）生成。
-## 与 _print_start_board 一致：通过 set_cell_color 写入 board_data，bot 实时读取 board_data 所以自动同步。
-func _print_start_garbage(row_count: int) -> void:
-	if board_drawer == null or garbage_line_controller == null:
-		push_error("StartGarbage: 未找到 board_drawer / garbage_line_controller，无法印刷初始垃圾行")
-		return
-	# board_data 需已初始化；若尚未初始化则延迟到所有节点 _ready 完成后印刷
-	if board_drawer.board_data.is_empty():
-		_print_start_garbage.call_deferred(row_count)
-		return
-	if row_count <= 0:
-		return
-	var grid_w: int = board_drawer.grid_width
-	var playable_h: int = board_drawer.get_playable_height()
-	if row_count > playable_h:
-		push_error("StartGarbage: 行数 %d 超过可玩高度 %d" % [row_count, playable_h])
-		return
-	for i in range(row_count):
-		var y: int = playable_h - 1 - i  # 从下往上：第 0 行印在最底层（最大 y）
-		var holes: Array = garbage_line_controller._apply_hole_settings(
-			garbage_line_controller._generate_single_hole())
-		for x in range(grid_w):
-			# 洞口为 null（空格），其余为普通垃圾色 —— 与 _generate_garbage_row_generator() 的口径一致。
-			# ⚠ 不要写成 `null if holes.has(x) else 颜色` 的三元式：null 与 Color 两个分支类型不兼容，
-			#   会触发 默认开启的 INCOMPATIBLE_TERNARY 警告，所以这里用显式 Variant + if。
-			var cell_color: Variant = garbage_line_controller.garbage_color
-			if holes.has(x):
-				cell_color = null
-			board_drawer.set_cell_color(x, y, cell_color)
-	board_drawer.queue_redraw()
-	_refresh_after_board_change()
-
-## 按 StartBoard 参数印刷初始版面。
-## 行序：**列表最后一项 = 最底层**，再往前一项项往上填 —— 也就是按版面的视觉顺序从上往下书写，
-## 例如 [[顶层], [中层], [底层]]。每项是一行格子，行宽必须等于 grid_width。
-## 宽度不符 / 行数超出可玩高度 → push_error。
-## 通过 set_cell_color 写入 board_data，bot 实时读取 board_data，因此自动同步给 bot。
-func _print_start_board(start_board: Variant) -> void:
-	if board_drawer == null:
-		push_error("StartBoard: 未找到 board_drawer，无法印刷初始版面")
-		return
-	# board_data 需已初始化（grid_width × grid_max_height）；若尚未初始化则延迟到所有节点 _ready 完成后印刷
-	if board_drawer.board_data.is_empty():
-		_print_start_board.call_deferred(start_board)
-		return
-	if typeof(start_board) != TYPE_ARRAY or start_board.is_empty():
-		push_error("StartBoard: 参数必须是非空二维数组（最后一项为最底层）")
-		return
-	var grid_w: int = board_drawer.grid_width
-	var playable_h: int = board_drawer.get_playable_height()
-	var rows: int = start_board.size()
-	if rows > playable_h:
-		push_error("StartBoard: 高度超出，行数 %d > 可玩高度 %d" % [rows, playable_h])
-		return
-	# 先整体校验再写：避免写到一半才发现格式错误，留下半成品版面
-	for i in range(rows):
-		var src_index: int = rows - 1 - i  # 最底层 = 列表最后一项
-		var check_row: Variant = start_board[src_index]
-		if typeof(check_row) != TYPE_ARRAY:
-			push_error("StartBoard: 列表第 %d 项（从下往上第 %d 行）不是数组，格式错误"
-				% [src_index, i + 1])
-			return
-		if check_row.size() != grid_w:
-			push_error("StartBoard: 宽度不匹配，列表第 %d 项（从下往上第 %d 行）宽度 %d != 版面宽度 %d"
-				% [src_index, i + 1, check_row.size(), grid_w])
-			return
-	for i in range(rows):
-		var src_index: int = rows - 1 - i
-		var row: Array = start_board[src_index]
-		var y: int = playable_h - 1 - i  # i = 0 是最底层（最大 y）
-		for x in range(grid_w):
-			var color: Variant = _start_board_cell_to_color(row[x], src_index, x)
-			board_drawer.set_cell_color(x, y, color)
-	board_drawer.queue_redraw()
-	_refresh_after_board_change()
-
-## 将 StartBoard 单元格值转换为颜色。
-## null / 空字符串 / 0 → 空；字符串支持颜色名与十六进制（如 "#RRGGBB"）；
-## 特殊标记 "solid"/"实心" → 实心垃圾深灰，"garbage"/"垃圾" → 普通垃圾灰。
-func _start_board_cell_to_color(cell: Variant, row_i: int, col_i: int) -> Variant:
-	if cell == null:
-		return null
-	var t := typeof(cell)
-	if t == TYPE_STRING:
-		var s: String = str(cell).strip_edges().to_lower()
-		if s.is_empty() or s == "0" or s == "null" or s == "empty" or s == "空":
-			return null
-		if s == "solid" or s == "实心":
-			return garbage_line_controller.solid_garbage_color if garbage_line_controller else Color(0.3, 0.3, 0.3)
-		if s == "garbage" or s == "垃圾":
-			return garbage_line_controller.garbage_color if garbage_line_controller else Color(0.5, 0.5, 0.5)
-		var c: Color = Color.from_string(s, Color(-999, -999, -999))
-		if c.r < -100 or c.g < -100 or c.b < -100:
-			push_error("StartBoard: 无法解析颜色 '%s'（第 %d 行第 %d 列）" % [str(cell), row_i, col_i])
-			return null
-		return c
-	if t == TYPE_FLOAT or t == TYPE_INT:
-		var v: float = cell
-		if is_zero_approx(v):
-			return null
-		push_error("StartBoard: 不支持的数值单元格 %s（第 %d 行第 %d 列）" % [str(cell), row_i, col_i])
-		return null
-	push_error("StartBoard: 未知单元格类型 %s（第 %d 行第 %d 列）" % [str(cell), row_i, col_i])
-	return null
-
-## 供 bot 读取当前关卡 buff 调整后的攻击倍率（send_mult_attack）。
-func get_send_mult_attack() -> float:
-	return send_mult_attack
-
-## 当前实际生效的压力倍率 = 关卡自带 pressure_mult（按层数取表）× 压力 buff 传入的 extra_pressure_mult。
-## 塔的发送攻击（普通攻击与 !!!! 大招）都用它，攻击总量与「倍率直接乘在 APM 上」等价。
+## 当前发送攻击的总倍率（统一入口）= 关卡自带 pressure_mult（按层数取表）
+##   × 架构预留的 extra_pressure_mult（默认 1.0，目前无 buff 使用）
+##   × 力量类 buff send_mult_attack × 阶段惩罚 publish_mult_attack。
+## 塔的普通攻击与 !!!! 大招都只用这个函数。
+## 注意：高压 buff 的倍率不在这里 —— 它在 apply_init_params() 里一次性乘进了 total_apm
+## （因此已反映到 current_apm 与产出行数上），放进来会重复计算。
 func get_pressure_mult() -> float:
-	return pressure_mult * extra_pressure_mult
+	return pressure_mult * extra_pressure_mult * send_mult_attack * publish_mult_attack
 
 func _set_timer():
 	garbage_sent_timer = Timer.new()
@@ -492,13 +191,15 @@ func _set_timer():
 
 func _process(delta: float) -> void:
 	for i in range(0,FLOOR_HIGHER.size()):
-		if tower_meter > FLOOR_HIGHER[i]:
-			current_stage = i
+		if TetrisGlobalData.tower_meter > FLOOR_HIGHER[i]:
+			TetrisGlobalData.current_stage = i
 	
 	#阶段变化检测
-	if current_stage != _previous_stage:
-		stage_changed.emit(_previous_stage, current_stage)
-		_previous_stage = current_stage
+	if TetrisGlobalData.current_stage != _previous_stage:
+		_previous_stage = TetrisGlobalData.current_stage
+	
+	# !!!! 警示进度写进公共数据区（版面绘制器每帧读它画渐变）
+	_publish_big_attack_warning_progress()
 	
 	total_get_data()
 	
@@ -517,22 +218,23 @@ func _process(delta: float) -> void:
 
 
 func total_get_data():
-	self_game_time = tetris_controller.game_time
+	# 游戏时长取自公共数据区（不再直接读 TetrisController 的字段）
+	self_game_time = TetrisGlobalData.game_time
 	
-	garbage_sent_time = default_get_oneD_array_things(current_stage,stage_garbage_time)
-	tower_current_dropped_mult = default_get_oneD_array_things(current_stage,tower_dropped_mult)
-	pressure_mult = default_get_oneD_array_things(current_stage,pressure_mult_array)
-	var max_percent = default_get_oneD_array_things(current_stage,stage_percent_apm) + extra_percent_apm
+	garbage_sent_time = default_get_oneD_array_things(TetrisGlobalData.current_stage,stage_garbage_time)
+	tower_current_dropped_mult = default_get_oneD_array_things(TetrisGlobalData.current_stage,tower_dropped_mult)
+	pressure_mult = default_get_oneD_array_things(TetrisGlobalData.current_stage,pressure_mult_array)
+	var max_percent = default_get_oneD_array_things(TetrisGlobalData.current_stage,stage_percent_apm) + extra_percent_apm
 	if max_percent > 1:
 		max_percent = 1
-	current_apm = total_apm * max_percent
-	garbage_collect_percent = default_get_oneD_array_things(current_stage,garbage_collect_percent_array)
-	garbage_divide_percent = default_get_oneD_array_things(current_stage,garbage_divide_percent_array)
-	garbage_line_controller.garbage_messy = default_get_oneD_array_things(current_stage,garbage_hole_change_percent_array)
+	TetrisGlobalData.current_apm = total_apm * max_percent
+	garbage_collect_percent = default_get_oneD_array_things(TetrisGlobalData.current_stage,garbage_collect_percent_array)
+	garbage_divide_percent = default_get_oneD_array_things(TetrisGlobalData.current_stage,garbage_divide_percent_array)
+	TetrisGlobalData.garbage_messy = default_get_oneD_array_things(TetrisGlobalData.current_stage,garbage_hole_change_percent_array)
 	# 重力/锁延：走 TetrisController 的 setter，除字段外还要同步对应计时器的 wait_time
 	# （只改字段的话，关卡/Buff 设置的重力与锁延不会真正生效）
-	tetris_controller.set_gravity_drop_time(default_get_oneD_array_things(current_stage,gravity_drop_time_array))
-	tetris_controller.set_lock_delay(default_get_oneD_array_things(current_stage,lock_delay_array))
+	TetrisGlobalData.tetris_controller.set_gravity_drop_time(default_get_oneD_array_things(TetrisGlobalData.current_stage,gravity_drop_time_array))
+	TetrisGlobalData.tetris_controller.set_lock_delay(default_get_oneD_array_things(TetrisGlobalData.current_stage,lock_delay_array))
 
 ##惩罚处理
 func publish_make():
@@ -542,15 +244,15 @@ func publish_make():
 	
 	if publish_make_finish != publish_stage:
 		if publish_stage == 1:
-			garbage_line_controller.add_solid_garbage(2)
+			TetrisGlobalData.garbage_line_controller.add_solid_garbage(2)
 		if publish_stage == 2:
 			publish_mult_attack = 1.2
 		if publish_stage == 3:
-			garbage_line_controller.add_solid_garbage(3)
+			TetrisGlobalData.garbage_line_controller.add_solid_garbage(3)
 		if publish_stage == 4:
 			publish_mult_attack = 1.5
 		if publish_stage == 5:
-			garbage_line_controller.add_solid_garbage(5)
+			TetrisGlobalData.garbage_line_controller.add_solid_garbage(5)
 	
 		publish_make_finish = publish_stage
 
@@ -564,13 +266,13 @@ func _tower_climb(delta: float):
 		#这是第一版
 		#tower_speed_meter -= ((x*log(x) + x)/120.0) * delta * tower_current_dropped_mult
 		#这是第二版
-		tower_speed_meter -= (ceil(0.4*pow(x,1.5)*log(x))/75.0) * delta * tower_current_dropped_mult
+		tower_speed_meter -= min((ceil(0.4*pow(x,1.5)*log(x))/75.0),1) * delta * tower_current_dropped_mult
 	else:
 		pass
 	
 	#TODO::制作一个特殊的分界线，在分界线下无速度加成，在上有微弱加成，突破界限后加成幅度突变上涨并且触发特殊特效，持续到回落界限下位置
 	
-	tower_meter += tower_speed_meter * delta
+	TetrisGlobalData.tower_meter += tower_speed_meter * delta
 	
 	# 维护「最近一分钟爬升米数」窗口 → 真实速度（m/s）
 	_update_meter_window(delta)
@@ -586,12 +288,12 @@ func _update_meter_window(delta: float) -> void:
 	# 采样：开局立刻记一个点，之后每 meter_window_sample_interval 秒记一个点
 	if _meter_samples.is_empty() or _meter_sample_timer >= meter_window_sample_interval:
 		_meter_sample_timer = 0.0
-		_meter_samples.append({"time": _meter_clock, "meter": tower_meter})
+		_meter_samples.append({"time": _meter_clock, "meter": TetrisGlobalData.tower_meter})
 	
 	# 分母：未满一个窗口时用已运行时间放缩，满了之后用窗口长度
 	var span: float = minf(meter_window_span, _meter_clock)
 	if span <= 0.0:
-		_real_speed_meter = 0.0
+		TetrisGlobalData.tower_real_speed_meter = 0.0
 		return
 	
 	# 丢掉窗口外的采样点（保留最新的一个作参照）
@@ -601,19 +303,19 @@ func _update_meter_window(delta: float) -> void:
 	
 	# 分子：窗口内实际爬升的米数（参照点是最早的采样点；未满窗口时它就是开局那个点）
 	var oldest: Dictionary = _meter_samples[0]
-	_real_speed_meter = (tower_meter - float(oldest["meter"])) / span
+	TetrisGlobalData.tower_real_speed_meter = (TetrisGlobalData.tower_meter - float(oldest["meter"])) / span
 
 ## 奖励米数入账（消行/抵消奖励与击杀奖励都走这里）。
 ## 真实速度是按 tower_meter 的窗口增量算的，所以这里只要加进总米数，速度表就会自动反映出来。
 func _add_reward_meter(amount: float) -> void:
 	if amount <= 0.0:
 		return
-	tower_meter += amount
+	TetrisGlobalData.tower_meter += amount
 
 ## 爬塔速度表用的「真实速度」：最近一分钟实际爬升的米数 ÷ 秒数（m/s）。
 ## 与名义速度 tower_speed_meter 的区别：名义速度只看持续爬升，不含消行/击杀一次性给的奖励米数。
 func get_real_speed_meter() -> float:
-	return _real_speed_meter
+	return TetrisGlobalData.tower_real_speed_meter
 
 ##塔的模拟伤害攻击
 func _try_sent_garbage():
@@ -624,7 +326,7 @@ func _try_sent_garbage():
 		interval = garbage_sent_time                     # 兜底：直接调用/首拍
 	interval = clampf(interval, 0.0, maxf(garbage_sent_time, 0.001) * 2.0)  # 卡顿/暂停后不补发一整段
 	_send_elapsed = 0.0
-	attack_remainder += current_apm / 60.0 * interval
+	attack_remainder += TetrisGlobalData.current_apm / 60.0 * interval
 	var decided_attack : int = int(floor(attack_remainder))
 	attack_remainder -= float(decided_attack)
 	var i = 0
@@ -649,7 +351,7 @@ func _try_sent_garbage():
 			collected_garbage.clear()
 			_quick_big_attack_clear(4)
 			big_attack_delay_timer.start()
-			big_attack_warning_started.emit()
+			TetrisGlobalData.big_attack_warning_started.emit()
 		else:
 			_tower_garbage_sent(collected_garbage)
 			collected_garbage.clear()
@@ -665,14 +367,15 @@ func _try_sent_garbage():
 		collected_count += 1
 
 func _tower_garbage_sent(attack: Array):
-	var mult : float = send_mult_attack * publish_mult_attack * get_pressure_mult()
+	# 倍率统一由 get_pressure_mult() 给出（pressure_mult × send_mult_attack × publish_mult_attack）
+	var mult : float = get_pressure_mult()
 	for i in attack:
 		# 乘倍率后的行数同样只取整数、零头累加，保证总量恰为「攻击行数 × 倍率」（ceil 会按段放大）
 		send_remainder += float(i) * mult
 		var rows : int = int(floor(send_remainder))
 		if rows > 0:
 			send_remainder -= float(rows)
-			garbage_line_controller.add_attack(rows)
+			TetrisGlobalData.garbage_line_controller.add_attack(rows)
 
 ##快速重新分割攻击储存列表并形成!!!!攻击
 func _quick_big_attack_clear(segment: int):
@@ -680,8 +383,9 @@ func _quick_big_attack_clear(segment: int):
 	for i in big_attack_enter_array:
 		total_attack += i
 	big_attack_enter_array.clear()
-	# 乘倍率时也用零头累加（而不是 ceil），避免大招总量被向上取整放大
-	send_remainder += float(total_attack) * send_mult_attack * publish_mult_attack * get_pressure_mult()
+	# 乘倍率时也用零头累加（而不是 ceil），避免大招总量被向上取整放大；
+	# 倍率同样只用 get_pressure_mult()
+	send_remainder += float(total_attack) * get_pressure_mult()
 	total_attack = int(floor(send_remainder))
 	send_remainder -= float(total_attack)
 	for i in range(0,segment):
@@ -696,8 +400,8 @@ func _quick_big_attack_clear(segment: int):
 
 ##!!!!攻击警示器
 func _warning_big_collected_enter():
-	big_attack_warning_ended.emit()
-	garbage_line_controller.add_attack(big_attack_enter_array[0])
+	TetrisGlobalData.big_attack_warning_ended.emit()
+	TetrisGlobalData.garbage_line_controller.add_attack(big_attack_enter_array[0])
 	if big_attack_enter_array.size() > 1:
 		big_attack_delay_timer.wait_time = 0.5
 		big_attack_enter_array.remove_at(0)
@@ -737,15 +441,15 @@ func attack_increase_tower(attack:float, is_defence:bool = false):
 ## popup_type 只决定颜色：NORMAL=绿色 / OFFSET_REWARD=红色 / KILL_REWARD=金色。
 ## 横向位置由 _resolve_popup_offset_x() 按实际文字宽度避让（见上方说明），不会与在场飘字完全重叠。
 func _popup_meter_gain(gain: float, popup_type: MeterPopupType = MeterPopupType.NORMAL) -> void:
-	if not attack_popup_enabled or text_printer == null or gain <= 0.0:
+	if not attack_popup_enabled or TetrisGlobalData.text_printer == null or gain <= 0.0:
 		return
-	if board_drawer == null:
+	if TetrisGlobalData.board_drawer == null:
 		return
 	_spawn_meter_popup(gain, int(popup_type))
 
 ## 真正生成一条飘字：算字号/颜色 → 找一个不与在场飘字完全重叠的横向位置 → 交给 TextPrinter
 func _spawn_meter_popup(gain: float, popup_type: int) -> void:
-	var base_size: float = attack_popup_font_size_ratio * float(board_drawer.cell_size)
+	var base_size: float = attack_popup_font_size_ratio * float(TetrisGlobalData.board_cell_size)
 	var font_size: float = base_size * _popup_font_scale(gain)
 	var text: String = "+%.2fm" % gain
 	var popup_color: Color = attack_popup_color
@@ -766,7 +470,7 @@ func _spawn_meter_popup(gain: float, popup_type: int) -> void:
 	
 	# 「往哪边偏 → 就往哪边飞、往哪边倾」：方向取最终落点的符号，幅度按 spread 归一（避让到很外侧时封顶）
 	var fly_dir: float = clampf(x_off / maxf(attack_popup_spread, 1.0), -1.0, 1.0)
-	var center: Vector2 = board_drawer.get_tower_meter_text_position()
+	var center: Vector2 = TetrisGlobalData.board_drawer.get_tower_meter_text_position()
 	var popup_pos: Vector2 = Vector2(center.x + x_off, center.y)
 	var drift: Vector2 = Vector2(fly_dir * attack_popup_drift_x, -attack_popup_rise_speed)
 	var rotation_deg: float = fly_dir * attack_popup_rotate_deg  # 角度偏移量：±attack_popup_rotate_deg
@@ -774,7 +478,7 @@ func _spawn_meter_popup(gain: float, popup_type: int) -> void:
 	# persistent=false → 每次调用新增一条并各自淡出，连续消行时自然叠成一小簇
 	# alignment=CENTER → position 即文本中心，旋转也绕该中心进行
 	# 同一个 key 下每条各自持有颜色，所以红/绿可以混在一起同时飘
-	text_printer.show_text(attack_popup_key, text, popup_pos,
+	TetrisGlobalData.text_printer.show_text(attack_popup_key, text, popup_pos,
 		popup_color, popup_outline, font_size,
 		false, 1.0, attack_popup_display_time, attack_popup_fade_time,
 		drift, HORIZONTAL_ALIGNMENT_CENTER,
@@ -857,8 +561,8 @@ func _resolve_popup_offset_x(desired_x: float, half_w: float) -> float:
 ##（= kill_reward[0] 减去随米数增长的随机衰减，再 snapped 到 0.1，不是 kill_reward[0] 原值）
 func try_give_kill_reward(attack:int):
 	# TODO::使击杀奖励跟随高度进行适当的变化和击杀变难
-	var killer_spike : int = base_killer_spike + round(tower_meter / 2000.0)
-	var kill_possible_percent : float = base_kill_possible_percent - tower_meter / 1000.0 / 100.0
+	var killer_spike : int = base_killer_spike + round(TetrisGlobalData.tower_meter / 2000.0)
+	var kill_possible_percent : float = base_kill_possible_percent - TetrisGlobalData.tower_meter / 1000.0 / 100.0
 	
 	var try_times : int = floor(1.0 * attack / killer_spike)
 	var last_attack : int = attack - try_times * killer_spike
@@ -875,11 +579,11 @@ func try_give_kill_reward(attack:int):
 ## 注意：飘字用的是「本次实际加到的米数」（随机衰减 + snapped 之后的值），
 ## 与上面的随机数调用顺序保持一致（先米数、后速度），以免影响 TOWER_CLIMB 随机流的复现。
 func _give_kill_reward_meter(grant_apm_bonus: bool = true):
-	var meter_gain: float = snapped(kill_reward[0] - tower_rng.randf_range(0,min(tower_meter / 500.0,8)),0.1)
+	var meter_gain: float = snapped(kill_reward[0] - tower_rng.randf_range(0,min(TetrisGlobalData.tower_meter / 500.0,8)),0.1)
 	# 走奖励米数入账：总米数 + 真实速度池（速度表要反映这部分米数）
 	_add_reward_meter(meter_gain)
 	tower_speed_meter += snapped(kill_reward[1] - tower_rng.randf_range(0,min(tower_speed_meter / 10.0,8)),0.1)
-	kill_count += 1
+	TetrisGlobalData.tower_kill_count += 1
 	if grant_apm_bonus:
 		extra_percent_apm += 0.1
 	_popup_meter_gain(meter_gain, MeterPopupType.KILL_REWARD)

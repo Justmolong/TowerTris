@@ -50,6 +50,7 @@ func _ready():
 
 func _delayed_load():
 	if not is_loaded and replay_file_path != "":
+		@warning_ignore("return_value_discarded")
 		load_and_prepare(replay_file_path)
 
 func _auto_find_references():
@@ -159,6 +160,7 @@ func play():
 	if replay_record:
 		replay_record.auto_record = false
 		if replay_record.is_recording_active():
+			@warning_ignore("return_value_discarded")
 			replay_record.stop_recording()
 		replay_record.has_recorded_this_game = true
 

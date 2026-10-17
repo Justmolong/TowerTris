@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <atomic>
 #include <cstring>
 #include <deque>
 #include <functional>
@@ -30,7 +31,14 @@ namespace m_tetris
     struct TetrisMap;
     union TetrisBlockStatus;
     class TetrisContext;
-
+    // TowerTris：beam 宽度整体缩放（百分比，100 = 原始）。
+    //   level_prune_hold = width_cache[层] × 棋盘宽 × div_ratio × 本值/100
+    //   实测每层保留节点数就是搜索广度的硬上限；调大才能在同样预算下搜得更宽。
+    //   运行期可通过 worker 的 PARAM beam_scale 设置，用于「广度 × 预算」扫描与多线程并行度调优。
+    inline size_t g_beam_scale_percent = 100;
+    // TowerTris 诊断：本次搜索展开过的节点数（由 run 的扩展循环累加；worker 每次 REQ 前清零）。
+    // 用于「广度 × 预算」扫描，以及多线程并行度的效果对比。
+    inline std::atomic<size_t> g_nodes_searched{0};
     // 游戏场景,下标从0开始,左下角为原点,最大支持[高度=40,宽度=32]
     struct TetrisMap
     {
@@ -1795,7 +1803,8 @@ namespace m_tetris
             }
             while (next_length-- > 0)
             {
-                size_t level_prune_hold = std::max<size_t>(1, size_t(context->width_cache[next_length] * context->width * div_ratio));
+                size_t level_prune_hold = std::max<size_t>(1, size_t(context->width_cache[next_length] * context->width * div_ratio
+                    * (double)g_beam_scale_percent / 100.0));
                 auto wait = &context->wait[next_length + 1];
                 if (wait->empty())
                 {
@@ -1809,6 +1818,7 @@ namespace m_tetris
                 auto next = &context->wait[next_length];
                 auto push_one = [&]
                 {
+                    ++g_nodes_searched;
                     TetrisTreeNode *child = wait->top();
                     wait->pop();
                     sort->push(child);

@@ -22,6 +22,7 @@ InputInitializer="*res://Scripts/auto_load/input_initializer.gd"
 RandomManager="*res://Scripts/auto_load/random_manager.gd"
 UiScaler="*res://Scripts/auto_load/ui_scaler.gd"
 _mcp_game_helper="*res://addons/godot_ai/runtime/game_helper.gd"
+TetrisGlobalData="*uid://cyqt7vaykbq7t"
 
 [editor_plugins]
 

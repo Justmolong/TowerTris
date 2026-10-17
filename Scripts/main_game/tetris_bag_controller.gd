@@ -2,7 +2,7 @@ extends Node
 class_name TetrisBagController
 
 ## 俄罗斯方块Bag生成器
-## 负责方块序列生成，支持多种出块策略（ChangeBag buff 通过 GlobalData 传入 BagType）：
+## 负责方块序列生成，支持多种出块策略（ChangeBag buff 经公共数据区 TetrisGlobalData 传入 BagType）：
 ##   bag_type = -1 : 默认 7-Bag（每7个方块一个随机排列的完整bag）
 ##   bag_type =  1 : 14-Bag（一次生成14个方块，每种方块2个，随机排列）
 ##   bag_type =  2 : 概率出块（每次随机生成1个，出现越少的方块下次出现概率越高）
@@ -22,7 +22,11 @@ var piece_types: Array = []
 # 方块序列
 var piece_queue: Array = []  # 存储方块类型名称的队列
 
-# 出块策略类型（-1=默认7-Bag）。ChangeBag buff 通过 GlobalData 传入 1/2/3
+# 队列生成的方块数下限：队列少于此数量时就补充生成
+# （取值需 ≥ 一包的最大长度：7-Bag 为 7、14-Bag 为 14，这里取 35 留足预览与 bot 的余量）
+const QUEUE_MIN_SIZE: int = 35
+
+# 出块策略类型（-1=默认7-Bag）。ChangeBag buff 经 TetrisGlobalData 传入 1/2/3
 var bag_type: int = -1
 
 # 概率出块（BagType=2）用到的出现次数统计：piece_type -> 已出现次数
@@ -30,9 +34,25 @@ var _spawn_count: Dictionary = {}
 
 # ========== 数据加载 ==========
 
+func _enter_tree() -> void:
+	# 自注册到公共数据区（整棵场景树的 _enter_tree 都先于任何 _ready 完成）
+	TetrisGlobalData.register_node(self)
+
+func _exit_tree() -> void:
+	TetrisGlobalData.unregister_node(self)
+
 func _ready():
 	# 从BlockData.json读取方块数据（类型/形状/颜色），此为唯一数据来源
 	_load_block_data_from_json()
+	# 上报就绪：当场景内所有节点都就绪后，公共数据区会通知各节点读走自己的 buff 参数
+	TetrisGlobalData.notify_node_ready(self)
+
+## 读取公共区域里属于 Bag 生成器的关卡 / buff 参数（谁用谁读：公共区域不认这些键名）。
+## ChangeBag（BagType）：出块策略。注意首块可能早于本阶段就已生成，所以 _get_active_bag_type()
+## 也会实时读一次公共区域；这里把值固化下来，之后的出块直接用它。
+func apply_init_params() -> void:
+	if TetrisGlobalData.init_has("BagType"):
+		set_bag_type(TetrisGlobalData.get_init_int("BagType", bag_type))
 
 ## 确保方块数据已从BlockData.json加载（懒加载）
 ## 场景树中TetrisController的_ready会先于本节点执行，可能在本节点_ready前请求方块，
@@ -153,21 +173,20 @@ func _generate_random_piece() -> String:
 	return piece_types[bag_rng.randi_range(0, piece_types.size() - 1)]
 
 ## 获取当前生效的出块策略类型
-## 优先返回外部通过 set_bag_type 设置的 bag_type；否则读取 ChangeBag buff 写入 GlobalData 的 BagType
+## 优先返回外部通过 set_bag_type 设置的 bag_type；否则实时读公共区域里的 ChangeBag（BagType）
+## （首块可能早于初始化参数应用就已生成，所以这里必须实时读、不能只等 apply_init_params）
 func _get_active_bag_type() -> int:
 	if bag_type != -1:
 		return bag_type
-	var init: Dictionary = GlobalData.tower_init_data
-	var extra: Dictionary = init.get("extra_data_dict", {})
-	if extra.has("BagType"):
-		return int(extra["BagType"])
+	if TetrisGlobalData.init_has("BagType"):
+		return TetrisGlobalData.get_init_int("BagType", -1)
 	return -1
 
 ## 外部设置出块策略类型（ChangeBag buff 或其它系统调用）。-1 表示使用默认7-Bag
 func set_bag_type(value: int) -> void:
 	bag_type = value
 
-## 补充方块序列（当队列少于14个时补充）
+## 补充方块序列（当队列少于 QUEUE_MIN_SIZE 个时补充）
 ## 根据当前出块策略选择对应的生成方式，未识别时回退到7-Bag
 func _refill_queue():
 	_ensure_data_loaded()
@@ -175,7 +194,7 @@ func _refill_queue():
 		push_error("BlockData.json 未加载成功，无法生成方块序列")
 		return
 	var bt: int = _get_active_bag_type()
-	while piece_queue.size() < 14:
+	while piece_queue.size() < QUEUE_MIN_SIZE:
 		match bt:
 			1:
 				piece_queue += _generate_14bag_type_bag()
@@ -190,8 +209,8 @@ func _refill_queue():
 ## 获取下一个方块（从队列头部取出）
 func get_next_piece() -> Dictionary:
 	_ensure_data_loaded()
-	# 检查是否需要补充（队列少于14个时补充）
-	if piece_queue.size() < 14:
+	# 检查是否需要补充（队列少于 QUEUE_MIN_SIZE 个时补充）
+	if piece_queue.size() < QUEUE_MIN_SIZE:
 		_refill_queue()
 	
 	# 取出第一个方块

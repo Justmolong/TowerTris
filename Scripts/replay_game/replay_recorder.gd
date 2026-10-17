@@ -127,11 +127,13 @@ func _on_game_started():
 
 func _on_game_ended():
 	if is_recording:
+		@warning_ignore("return_value_discarded")
 		stop_and_save_recording()
 	is_game_active = false
 
 func start_recording(record_name: String = ""):
 	if is_recording:
+		@warning_ignore("return_value_discarded")
 		stop_recording()
 	
 	replay_data = ReplayData.create_default()
@@ -183,6 +185,7 @@ func stop_and_save_recording() -> String:
 	if not is_recording:
 		return ""
 	
+	@warning_ignore("return_value_discarded")
 	stop_recording()
 	
 	if auto_save and replay_data:
@@ -258,6 +261,7 @@ func set_player_name(record_name: String):
 
 func reset():
 	if is_recording:
+		@warning_ignore("return_value_discarded")
 		stop_recording()
 	
 	replay_data = null
@@ -275,4 +279,5 @@ func trigger_game_end():
 
 func _exit_tree():
 	if is_recording:
+		@warning_ignore("return_value_discarded")
 		stop_and_save_recording()
